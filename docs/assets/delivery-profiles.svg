@@ -18,7 +18,7 @@
 
   <rect x="62" y="126" width="1276" height="72" rx="20" fill="#101d34" stroke="#334155"/>
   <text x="700" y="157" text-anchor="middle" fill="#e2e8f0" font-family="Inter,Arial,sans-serif" font-size="18" font-weight="700">Shared Core</text>
-  <text x="700" y="182" text-anchor="middle" fill="#a5b4fc" font-family="ui-monospace,SFMono-Regular,monospace" font-size="14">Private DSL  →  PVBC v4  →  Ed25519  →  C++17 VM  →  UIHost / Capability Host</text>
+  <text x="700" y="182" text-anchor="middle" fill="#a5b4fc" font-family="ui-monospace,SFMono-Regular,monospace" font-size="14">Private DSL  →  PVBC v5  →  Ed25519  →  C++17 VM  →  UIHost / Capability Host</text>
   <rect x="90" y="198" width="1220" height="4" rx="2" fill="url(#line)"/>
 
   <g font-family="Inter,Arial,sans-serif">

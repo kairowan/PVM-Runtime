@@ -25,6 +25,7 @@
 2. [C ABI](../client/include/pvm/runtime_c.h)
 3. 对应平台的 `client/platform/<platform>/`
 4. `make platform-check delivery-matrix`
+5. Android 额外运行 `make android-demo-check`
 
 ### 负责发布与值班
 
@@ -68,6 +69,18 @@
 | 模块包 | PVMP v1 | Ed25519，64 字节签名 |
 | Manifest 信封 | v1 | Ed25519 签名 canonical JSON payload |
 | Host IDL | schema v1 | 生成接口必须与 `generated/host/` 一致 |
+
+## 当前可运行交付
+
+| 入口 | 输出或证明 |
+|---|---|
+| `make demo` | 桌面端签名、发布、下载、执行与状态恢复闭环 |
+| `make android-demo-check` | Debug APK/AAB、R8 smoke APK、Release AAR/Maven 与包安全检查 |
+| `make release-check` | 核心、三端可编译部分、兼容、模糊测试、文档与交付矩阵 |
+
+Android Demo 已在 HONOR BRP-AN00（API 35）验证；这是一台设备的 smoke 结果。iOS
+XCFramework/Swift Package、HarmonyOS HAR/HAP、KMP/CMP/Kuikly 产品化和三端完整
+设备矩阵仍按[功能完成度](FUNCTIONAL_STATUS.md)中的五阶段推进。
 
 ## 文档维护规则
 

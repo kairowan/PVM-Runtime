@@ -14,7 +14,8 @@
 
 传统跨端方案通常需要在“原生能力”“动态业务交付”“离线可用”和“源码保护”之间取舍。PVM Runtime 把这些约束拆成稳定核心与四种交付 Profile：
 
-- 一份 DSL 编译到同一种私有字节码，不复制四套业务源码。
+- 一份 DSL 源码按目标平台和交付 Profile 生成独立签名模块，共用同一种 PVBC
+  格式与业务语义，不复制多套业务源码；单个 `.pvm` 不会跨平台混用。
 - 一个 C++17 Runtime 负责签名、绑定、防回滚、字节码和资源预算验证。
 - UI 仍由 View、Compose/CMP、UIKit、SwiftUI、ArkUI 或 Kuikly 等原生后端渲染。
 - 支付、地图、相机、音视频、推送等重能力留在宿主，通过版本化 Capability IDL 调用。
@@ -99,6 +100,37 @@ make demo
 
 再次运行会验证 release、恢复上一次状态并继续计数。
 
+### 构建 Android APK、AAB 与 Runtime SDK
+
+安装 JDK 17、Android SDK 36 和 NDK `28.0.13004108` 后执行：
+
+```bash
+make android-demo-check
+```
+
+该命令会运行 Android Lint，生成并检查：
+
+| 产物 | 路径 | 用途 |
+|---|---|---|
+| Demo Debug APK | `dist/android/PVMRuntime-demo-debug.apk` | 直接安装和联调 |
+| Demo Debug AAB | `dist/android/PVMRuntime-demo-debug.aab` | 验证 Bundle 打包 |
+| R8 smoke APK | `dist/android/PVMRuntime-demo-minified-smoke.apk` | 非 debuggable、R8/JNI 真机回归 |
+| Runtime AAR | `dist/android/pvm-runtime-0.5.0.aar` | Android Runtime Library |
+| 本地 Maven | `dist/android/maven/` | `com.protectedvm:pvm-runtime:0.5.0`，自动传递依赖 |
+
+门禁验证 APK/AAB 开发签名、API 36、双 ABI、模块/公钥/bootstrap 一致性、篡改拒绝、
+Maven/独立 AAR 一致性、APK ZIP alignment，以及 AAR 内 ELF `PT_LOAD` 的 16 KiB 对齐。当前 R8 smoke APK
+已在 HONOR BRP-AN00（API 35）完成启动、点击、异步 Capability、连续文本输入和状态
+恢复验证。
+
+<p align="center">
+  <img src="docs/assets/android-demo.png" width="320" alt="PVM Runtime Android demo running signed bytecode on a physical device">
+</p>
+
+这些 APK/AAB 使用 Android Debug/测试签名，只是可安装的工程与 CI 证据，不是生产
+商店包。正式业务 App 应依赖 Runtime Maven/AAR，嵌入自己平台/Profile 对应的模块，
+并使用自己的 application ID、公钥、release floor 和正式签名。
+
 ### 执行发布门禁
 
 ```bash
@@ -118,7 +150,12 @@ sanitizer-check    Linux ASan+UBSan / macOS UBSan
 fuzz-check         1000 次覆盖引导包解析模糊测试
 ```
 
-`delivery-matrix` 生成供目标 App 工程嵌入的模块、公钥、Capability 和 bootstrap 输入，不会伪造缺少业务工程/签名配置的安装包。Android 输出明确声明支持 `APK` 与 `AAB`；最终 APK/AAB 由接入方的 Android Gradle 工程完成构建与签名。
+需要 Android SDK 的 `make android-demo-check` 已登记为独立自动门禁，但不并入可在
+无 Android SDK 环境运行的 `release-check` 聚合命令。
+
+`delivery-matrix` 生成供目标 App 工程嵌入的模块、公钥、Capability 和 bootstrap。
+仓库内的 Android Demo 会把 Android Offline Sealed 输入封装成测试 APK/AAB；正式
+APK/AAB 仍由接入方 Android 工程使用生产身份与签名生成。
 
 ### 单独运行模块服务
 
@@ -136,7 +173,7 @@ PVM_ACTIVATION_TOKEN='replace-me' make serve
 ├── client/                  C++17 VM、C ABI、三端 Host 与模块仓库
 │   ├── include/pvm/         公共 C/C++ 接口
 │   ├── src/                 验证器、解释器、桌面 Host
-│   ├── platform/            Android、iOS、HarmonyOS、Kuikly
+│   ├── platform/            Android（Library/Demo）、iOS、HarmonyOS、Kuikly
 │   ├── tests/               C ABI 与 libFuzzer 入口
 │   └── tools/               桌面 Provisioner
 ├── server/                  DSL 编译、签名、发布与模块服务
@@ -175,10 +212,13 @@ PVM Runtime 提高静态分析、篡改和错误交付的成本，但不承诺�
 
 ## 项目成熟度
 
-仓库内的编译、签名、发布、缓存、VM、三端桥接和自动化门禁已经形成闭环。进入真实产品前仍需要使用目标 App、账号和 SDK 完成：
+仓库内的编译、签名、发布、缓存、VM、三端桥接和自动化门禁已经形成闭环；Android
+已经具备可分发 AAR/Maven、可安装 APK/AAB 和单台物理设备证据。进入真实产品前仍
+需要使用目标 App、账号和 SDK 完成：
 
 - 正式 KMS/HSM、密钥轮换和审计接入。
-- DevEco 完整 HAP 构建与 Android/iOS/HarmonyOS 真机矩阵。
+- iOS XCFramework/Swift Package、DevEco HAP，以及 Android/iOS/HarmonyOS 完整真机矩阵。
+- KMP/CMP 与 Kuikly 的真实构建模块、Adapter 和发布产物。
 - 支付、地图、相机、媒体、推送等实际 Capability Adapter。
 - 应用商店审核、支付沙箱、持续长时 fuzz、红队和性能 SLO。
 

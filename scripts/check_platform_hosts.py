@@ -11,8 +11,13 @@ ROOT = Path(__file__).resolve().parents[1]
 BUILD = ROOT / "build"
 
 
-def run(command):
-    subprocess.run([str(value) for value in command], cwd=str(ROOT), check=True)
+def run(command, env=None):
+    subprocess.run(
+        [str(value) for value in command],
+        cwd=str(ROOT),
+        env=env,
+        check=True,
+    )
 
 
 def find_android_sdk():
@@ -27,53 +32,31 @@ def find_android_sdk():
 
 def check_android():
     sdk = find_android_sdk()
-    studio_kotlinc = Path(
-        "/Applications/Android Studio.app/Contents/plugins/Kotlin/kotlinc/bin/kotlinc"
-    )
-    kotlinc = studio_kotlinc if studio_kotlinc.is_file() else shutil.which("kotlinc")
-    if sdk is None or kotlinc is None:
-        print("Android host: SKIP (SDK or kotlinc unavailable)")
+    gradlew = ROOT / "client/platform/android/gradlew"
+    if sdk is None or not gradlew.is_file():
+        print("Android host: SKIP (SDK or Gradle project unavailable)")
         return
     platforms = sorted((sdk / "platforms").glob("android-*"))
     ndks = sorted((sdk / "ndk").iterdir())
     if not platforms or not ndks:
         print("Android host: SKIP (platform or NDK unavailable)")
         return
-    sources = sorted(
-        (
-            ROOT
-            / "client/platform/android/src/main/kotlin/com/protectedvm/host"
-        ).glob("*.kt")
-    )
+    environment = {
+        **os.environ,
+        "ANDROID_HOME": str(sdk),
+        "ANDROID_SDK_ROOT": str(sdk),
+    }
     run(
         [
-            kotlinc,
-            *sources,
-            "-classpath",
-            platforms[-1] / "android.jar",
-            "-jvm-target",
-            "17",
-            "-d",
-            BUILD / "android-host.jar",
-        ]
-    )
-    toolchain = ndks[-1] / "build/cmake/android.toolchain.cmake"
-    output = BUILD / "android-bridge-arm64"
-    run(
-        [
-            "cmake",
-            "-S",
+            gradlew,
+            "-p",
             ROOT / "client/platform/android",
-            "-B",
-            output,
-            "-DCMAKE_TOOLCHAIN_FILE=" + str(toolchain),
-            "-DANDROID_ABI=arm64-v8a",
-            "-DANDROID_PLATFORM=24",
-            "-DCMAKE_BUILD_TYPE=Release",
-        ]
+            "--no-daemon",
+            ":runtime:assembleRelease",
+        ],
+        env=environment,
     )
-    run(["cmake", "--build", output, "-j", "4"])
-    print("Android host: PASS (Kotlin + full NDK arm64-v8a runtime)")
+    print("Android host: PASS (release AAR + Kotlin + arm64-v8a/x86_64 NDK runtime)")
 
 
 def check_ios():

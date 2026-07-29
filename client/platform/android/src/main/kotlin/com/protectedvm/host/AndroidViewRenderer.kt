@@ -37,6 +37,10 @@ class AndroidViewRenderer(
 ) {
     fun replaceTree(node: UiNode, events: UiEventSink) {
         checkMainThread()
+        val focused = root.findFocus()
+        val focusedTag = focused?.tag
+        val selectionStart = (focused as? EditText)?.selectionStart ?: -1
+        val selectionEnd = (focused as? EditText)?.selectionEnd ?: -1
         val rendered = create(node, events)
         root.removeAllViews()
         root.addView(
@@ -46,6 +50,18 @@ class AndroidViewRenderer(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
             ),
         )
+        if (focusedTag != null) {
+            root.findViewWithTag<View>(focusedTag)?.let { replacement ->
+                replacement.requestFocus()
+                if (replacement is EditText && selectionStart >= 0 && selectionEnd >= 0) {
+                    val length = replacement.text.length
+                    replacement.setSelection(
+                        selectionStart.coerceAtMost(length),
+                        selectionEnd.coerceAtMost(length),
+                    )
+                }
+            }
+        }
     }
 
     private fun create(node: UiNode, sink: UiEventSink): View {

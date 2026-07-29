@@ -56,12 +56,44 @@ sequenceDiagram
 
 - `PvmRuntimeHost.kt`：Runtime 生命周期、UI 批次与 Effect。
 - `PvmModuleStore.kt`：Manifest 验签、HTTPS 下载、原子 LKG。
-- `PvmCrypto.kt`：平台/注入式 Ed25519。
+- `PvmCrypto.kt`：Google Tink Ed25519 默认验签与可注入 verifier。
 - `PvmModuleValidator.kt`：JNI 预加载验证。
 - `AndroidViewRenderer.kt`：View Renderer。
 - `compose/PvmComposeRenderer.kt`：Compose/CMP 适配接口。
 - `CapabilityRegistry.kt` 与 `BasicAndroidCapabilities.kt`。
 - `pvm_jni.cpp` 与 Android CMake。
+- `runtime` Gradle Library：发布包含完整 C++ Runtime 的 AAR 和 Maven 元数据。
+- `demo` Gradle Application：生成可安装的 Debug APK、Debug AAB 和 R8 smoke APK。
+
+### Gradle 工程与版本
+
+Android 工程位于 `client/platform/android`：
+
+```text
+client/platform/android/
+├── runtime/     Android Library，复用现有 Kotlin/JNI/CMake 源码
+├── demo/        Offline Sealed 演示 App
+├── gradle/      校验过 SHA-256 的 Gradle Wrapper
+└── gradlew
+```
+
+当前经过构建门禁的基线为：
+
+| 项目 | 版本或范围 |
+|---|---|
+| Android Gradle Plugin | 8.11.1 |
+| Gradle | 8.13 |
+| Kotlin | 2.2.21 |
+| JDK / Kotlin JVM target | 17 |
+| compileSdk / Demo targetSdk | 36 |
+| Runtime minSdk / Demo minSdk | 24 / 33 |
+| NDK | 28.0.13004108 |
+| CMake / C++ | 3.22.1 / C++17 |
+| ABI | `arm64-v8a`、`x86_64` |
+
+Runtime 的 Android Library 通过 `externalNativeBuild` 调用已有
+`client/platform/android/CMakeLists.txt`。CMake 只把共享 C++ 核心编译一次，再链接为
+`libpvm_android.so`；不要把解释器源码复制进 App 模块。
 
 ### 初始化 Module Store
 
@@ -84,7 +116,12 @@ val store =
 
 ### Ed25519
 
-Android 平台表只保证 Ed25519 `Signature` 在 API 33+ 可用。API 24–32 必须在创建 Store/Runtime 前安装项目已审计的 Provider：
+`runtime` 默认依赖 `com.google.crypto.tink:tink-android:1.23.0`。
+`PvmCrypto` 从 X.509 SubjectPublicKeyInfo 公钥中提取 Ed25519 原始公钥，并使用 Tink
+验证 Manifest 和 `.pvm` 签名，因此 API 24–32 不依赖平台 JCA 是否提供 Ed25519。
+
+目标 App 如果已有经过审计的硬件、系统或厂商验签实现，可以在创建 Module Store 或
+Runtime 前安装一次 verifier；安装后它会覆盖默认 Tink 路径：
 
 ```kotlin
 PvmCrypto.installVerifier { keyPath, payload, signature ->
@@ -92,18 +129,100 @@ PvmCrypto.installVerifier { keyPath, payload, signature ->
 }
 ```
 
-参考：[Android Signature 算法表](https://developer.android.com/reference/java/security/Signature)。
+不要根据 DSL 或远端配置动态选择 verifier。公钥、verifier 和 release floor 都属于宿主
+信任根。
+
+### 构建和验证 Android 产物
+
+在仓库根目录执行：
+
+```bash
+make android-demo-check
+```
+
+该门禁会完成：
+
+1. 构建桌面验证器。
+2. 生成 Android Offline Sealed 模块、公钥和 bootstrap。
+3. 运行 Runtime 与 Demo Android Lint。
+4. 发布 Release AAR 和本地 Maven 仓库。
+5. 构建 Debug APK、Debug AAB 和启用 R8 的非 debuggable smoke APK。
+6. 检查 APK/AAB/AAR 的 ABI、签名、模块 Hash、篡改拒绝、Maven 依赖和 16 KiB
+   对齐。
+
+产物位于：
+
+```text
+dist/android/PVMRuntime-demo-debug.apk
+dist/android/PVMRuntime-demo-debug.aab
+dist/android/PVMRuntime-demo-minified-smoke.apk
+dist/android/pvm-runtime-0.5.0.aar
+dist/android/maven/com/protectedvm/pvm-runtime/0.5.0/
+```
+
+前两个 Demo 产物和 R8 smoke APK 使用 Android Debug keystore。smoke APK 虽然是
+non-debuggable 且经过 R8，但仍然只用于验证 consumer rules、JNI 名称和裁剪后的启动
+链路；这些产物都不是生产签名包，不能提交商店或交付客户。
+
+需要在设备上复验 R8 产物时：
+
+```bash
+adb install -r dist/android/PVMRuntime-demo-minified-smoke.apk
+```
+
+### 在目标 App 中接入 Runtime
+
+推荐使用生成的 Maven 仓库，因为 POM 会传递 Tink 等外部依赖：
+
+```kotlin
+// settings.gradle.kts
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+        maven {
+            url = uri("/absolute/path/to/PVM-Runtime/dist/android/maven")
+        }
+    }
+}
+```
+
+```kotlin
+// app/build.gradle.kts
+dependencies {
+    implementation("com.protectedvm:pvm-runtime:0.5.0")
+}
+```
+
+如果只能复制裸 AAR，AAR 不携带 Maven POM，目标 App 必须显式补上 Tink：
+
+```kotlin
+dependencies {
+    implementation(files("libs/pvm-runtime-0.5.0.aar"))
+    implementation("com.google.crypto.tink:tink-android:1.23.0")
+}
+```
+
+AAR 已携带 JNI/R8 consumer rules。目标 App 仍需根据实际 Capability 合并
+`INTERNET`、相机、定位等权限，并配置自身 application ID、正式公钥、
+`minimumRelease`、签名证书和商店发布策略。
 
 ### 文件和打包
 
 - Module Store 根目录使用内部 `noBackupFilesDir`，不要使用外部存储。
 - 当前实现对模块和状态应用 `0600`。
 - Offline Sealed 的 `module.pvm`、公钥和 bootstrap 可放入 APK 或 AAB 的受保护资源目录；APK 用于直接安装/测试/部分企业分发，AAB 用于 Google Play 生成设备 APK。
-- Release 开启 R8 全量优化，并保留 consumer rules 中需要的 native callback。
+- 生产 Release 开启 R8 全量优化；AAR consumer rules 会保留 JNI native callback、
+  `PvmModuleValidator` 和通过名称查找的 `PvmCrypto.verify`。
 - NDK 产物是包含完整 Runtime 的 `libpvm_android.so`。
+- NDK 28 产物的 ELF `PT_LOAD` 对齐为 16 KiB；门禁同时校验 ELF program header
+  和 APK ZIP alignment，不能只依赖 `zipalign`。
 - Capability manifest 生成的权限必须在打包时合并，远程模块不能新增权限。
 
-仓库的 `make delivery-matrix` 只生成 Android Gradle 工程所需的嵌入输入，并在 `bootstrap.json.packageFormats` 中声明 `["apk", "aab"]`；由于仓库不包含业务 App 的 Gradle 工程、application ID 签名配置和 keystore，它不会声称已经生成可安装 APK/AAB。
+`make delivery-matrix` 仍然只生成目标工程所需的嵌入输入，并在
+`bootstrap.json.packageFormats` 中声明 `["apk", "aab"]`。仓库新增的 Demo Gradle
+工程会把这些输入封装成可安装测试 APK/AAB；真正的业务生产包仍必须由目标 App 使用
+正式 application ID、variant、keystore 和发布签名构建。
 
 ## iOS
 

@@ -43,13 +43,38 @@ make release-check
 | `make verify-contracts` | Host IDL 生成结果、DSL lint、Renderer conformance |
 | `make docs-check` | README/docs 本地链接与 SVG XML |
 | `make delivery-matrix` | Android/iOS/HarmonyOS × 四 Profile |
+| `make android-demo-check` | Android Demo APK/AAB、Runtime AAR/Maven、R8 smoke 与安装包安全属性 |
 | `make compatibility` | 五业务域 × PVBC v1/v2/v3 |
 | `make sanitizer-check` | Linux ASan+UBSan；macOS 26 使用 UBSan |
 | `make fuzz-check` | Clang libFuzzer 包解析 smoke |
 
 这些门禁不能替代 `externalRequired` 中的 HSM、商店、真机、支付沙箱和红队证据。
 
-交付矩阵产物是宿主工程输入，不是最终安装包。Android bootstrap 声明 `packageFormats: ["apk", "aab"]`，最终 APK/AAB 必须在目标 Android Gradle 工程中使用正式 application ID、variant、keystore 和签名策略构建。
+`android-demo-check` 是需要 Android SDK 的独立自动门禁，不并入可跨平台运行的
+`release-check` 聚合命令。它使用 API 36、NDK `28.0.13004108` 构建并验证：
+
+- 可安装的 Debug APK 与 Debug AAB。
+- 可复用的 Release AAR 及本地 Maven 仓库。
+- 开启 R8 压缩和混淆的非 debuggable smoke APK。
+- APK 签名、AAB JAR 签名、ZIP 16 KiB page alignment、内置模块/公钥/ABI 与篡改拒绝。
+- 本地 Maven 与独立 AAR 字节一致，POM 保留 Runtime 的外部依赖。
+- Release AAR 中两种 ABI 的 ELF `PT_LOAD` 段至少按 16 KiB 对齐。
+
+执行命令：
+
+```bash
+make android-demo-check
+```
+
+产物写入 `dist/android/`。Debug APK/AAB 和 R8 smoke APK 使用 Debug/测试签名，
+只用于开发、CI 与集成验收，不能作为生产签名或商店发布证据。Release AAR/Maven
+是 Runtime 库产物，不包含最终 App 的正式签名；接入方仍必须在自己的 Android
+工程中使用正式 application ID、release variant、keystore 或 Play App Signing
+生成生产 APK/AAB。
+
+交付矩阵产物仍是宿主工程输入。Android bootstrap 声明
+`packageFormats: ["apk", "aab"]`；仓库生成的 Demo 包只证明示例集成链路，正式业务
+App 必须使用自身签名策略构建。
 
 ## 编译与发布
 

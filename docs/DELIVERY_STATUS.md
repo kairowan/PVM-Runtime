@@ -21,7 +21,11 @@
 | 平台 | Android、iOS、HarmonyOS；desktop 参考 Host |
 | Delivery Profile | 4 |
 | 自动交付矩阵 | 3 平台 × 4 Profile = 12 套宿主嵌入输入 |
-| Android 目标包格式 | APK、AAB（由目标 Gradle 工程最终打包） |
+| Android Gradle 交付 | Debug APK/AAB、R8 smoke APK、Release AAR、本地 Maven |
+| Android SDK 坐标 | `com.protectedvm:pvm-runtime:0.5.0` |
+| Android 工具链 | compile/target API 36、NDK 28、双 ABI、16 KiB 对齐 |
+| Android 真机 | HONOR BRP-AN00、API 35 交互与状态恢复通过 |
+| 生产包 | 正式签名 APK/AAB、IPA、HAP 仍由目标工程与发布账号生成 |
 | 历史兼容矩阵 | 5 业务域 × PVBC v1/v2/v3 = 15 |
 
 ## 仓库能力状态
@@ -32,12 +36,31 @@
 | 模块安全 | 确定性 PVBC、Ed25519、绑定、防回滚、验证器 | `make test fuzz-check sanitizer-check` | 长时 fuzz、独立安全审计 |
 | 状态演进 | v4 稳定 ID、改名/新增迁移、类型冲突拒绝 | 状态迁移端到端测试 | 大版本业务迁移工具链 |
 | 发布服务 | 内容寻址、访问策略、签名 Manifest、ETag、灰度、审计 | HTTP/篡改/灰度/LKG 测试 | 生产 CDN、数据库、鉴权 HA |
-| Android | Kotlin/JNI/View、输入值回传、Module Store、完整 NDK `.so` | `make platform-check` | Compose/CMP 目标依赖、目标 App、API/真机与商业 SDK |
+| Android | Gradle Library/Demo、Kotlin/JNI/View、Module Store、双 ABI `.so`、AAR/Maven、Debug APK/AAB、R8 smoke | `make platform-check android-demo-check`；HONOR API 35 人工真机验收 | Compose/CMP、更多设备/性能、业务 Capability、正式签名与商店 |
 | iOS | Objective-C++/Swift/UIKit/SwiftUI、输入值回传、CryptoKit Store | `make platform-check` | NativeSurface 工厂、XCFramework、真机、商店审核 |
 | HarmonyOS | Node-API/ArkTS/ArkUI 合同与 Module Store | 可移植 C++/合同检查 | DevEco HAP、HUKS Adapter、真机 |
 | Capability | 27 项版本化合同；Android 5 项、iOS 4 项基础 Adapter | `make verify-contracts platform-check` | Harmony 具体 Adapter；其余供应商/系统能力 |
-| Delivery | 四 Profile 与 12 套宿主嵌入输入；Android 声明 APK/AAB | `make delivery-matrix` | 目标 App 最终 APK/AAB/IPA/HAP、各商店/MDM 上传和审批 |
+| Delivery | 四 Profile 与 12 套宿主嵌入输入；Android 已生成 Demo APK/AAB 和 SDK AAR/Maven | `make delivery-matrix android-demo-check` | 正式签名三端安装包、各商店/MDM 上传和审批 |
 | 兼容性 | v1–v5 Runtime 读取、五域历史矩阵 | `make compatibility test` | 真实流量、长期升级数据 |
+
+## Android 本轮交付证据
+
+| 证据 | 结果 | 说明 |
+|---|---|---|
+| Gradle Runtime | `:runtime:assembleRelease` 通过 | Release AAR 含 Kotlin Host 和完整 C++17 VM |
+| Demo APK | `dist/android/PVMRuntime-demo-debug.apk` | Debug 签名，可直接安装测试 |
+| Demo AAB | `dist/android/PVMRuntime-demo-debug.aab` | Debug Bundle，用于验证 AAB 打包内容 |
+| R8 smoke | `dist/android/PVMRuntime-demo-minified-smoke.apk` | minified、非 debuggable，使用测试签名；真机启动/交互通过 |
+| SDK AAR | `dist/android/pvm-runtime-0.5.0.aar` | `arm64-v8a` 与 `x86_64` |
+| 本地 Maven | `dist/android/maven/` | 坐标 `com.protectedvm:pvm-runtime:0.5.0`，POM 保留 Tink 依赖 |
+| API/NDK | compileSdk/targetSdk 36，NDK `28.0.13004108` | Demo minSdk 33；Runtime minSdk 24 |
+| 16 KiB | APK/R8 APK zipalign 与 AAR 内 ELF `PT_LOAD` 检查通过 | 同时检查双 ABI |
+| 离线资源 | APK/AAB/R8 APK 内嵌相同 module、公钥和 bootstrap | Hash、PVMP/Ed25519 结构及篡改拒绝通过 |
+| 真机 | HONOR BRP-AN00、API 35 | 安装启动、业务交互、状态恢复已人工验证 |
+
+Debug APK/AAB 与 R8 smoke APK 都是开发/测试构建；其中 APK 使用测试签名，不能作为
+生产商店包。HONOR 结果是一台真实设备的纵向 smoke 证据，不替代 API、厂商、内存和
+生命周期完整矩阵。
 
 ## 原计划时间段映射
 
@@ -45,7 +68,7 @@
 
 | 时间段 | 仓库内交付 | 可执行验收 | 仍需外部证据 |
 |---|---|---|---|
-| 4–9 个月 | 三端 Host、平台验签、Native Renderer、LKG、四 Profile | `make platform-check delivery-matrix` | DevEco 完整构建、三端真机、推送账号 |
+| 4–9 个月 | 三端 Host、平台验签、Native Renderer、LKG、四 Profile；Android Gradle SDK/Demo | `make platform-check delivery-matrix android-demo-check`；HONOR API 35 | iOS/HarmonyOS 真实工程与真机、Android 扩展设备矩阵、推送账号 |
 | 10–18 个月 | Host/组件 IDL、六类 Renderer 接口、重能力合同 | `make verify-contracts` | 各 SDK Adapter 与沙箱凭证 |
 | 19–27 个月 | 远程 signer、签名 Manifest、防回滚、灰度、审计和门禁 | `make test sanitizer-check fuzz-check` | 正式 KMS/HSM、商店审核、红队 |
 | 28–36 个月 | 五业务域历史兼容矩阵与交付治理 | `make compatibility release-check` | 真实业务流量、性能 SLO、升级演练 |
@@ -65,6 +88,17 @@
 | `sanitizers` | `make sanitizer-check` | Linux ASan+UBSan / macOS UBSan |
 | `package-fuzz-smoke` | `make fuzz-check` | 包解析覆盖引导 smoke |
 
+Android 另有专项门禁：
+
+| 命令 | 证明范围 |
+|---|---|
+| `make android-packages` | 构建 lint、Debug APK/AAB、R8 smoke APK、Release AAR 与本地 Maven |
+| `make android-demo-check` | 在上述构建后检查 APK/AAB 签名、SDK、ABI、16 KiB、离线资源、Maven/AAR 一致性、POM 和模块篡改拒绝 |
+
+`android-demo-check` 已登记在 `spec/release_gates.json`，但因其明确要求 Android
+SDK，未并入可跨平台运行的 `release-check` 聚合命令；Android CI/发布任务必须单独
+执行它。
+
 统一入口：
 
 ```bash
@@ -81,7 +115,7 @@ macOS 26 的 Apple ASan runtime 当前会在 dyld 初始化阶段自旋，因此
 |---|---|---|
 | `hsm-production-key` | KMS/HSM key ID、访问策略、轮换演练和审计导出 | 安全/平台 |
 | `store-policy-review` | Google Play、Apple、Huawei 对精确 Profile/版本的审核记录 | 发布/法务 |
-| `device-lab` | 三端物理设备的生命周期、相机、媒体、推送和后台结果 | QA/平台 |
+| `device-lab` | 已有 HONOR BRP-AN00/API 35 交互与状态恢复 smoke；仍需三端、多设备及相机/媒体/推送/后台结果 | QA/平台 |
 | `billing-sandboxes` | Play Billing、StoreKit、Huawei IAP、企业支付回执 | 支付团队 |
 | `red-team` | 黑盒、Root/Jailbreak、Hook 和部分源码泄露报告 | 安全团队 |
 
@@ -110,27 +144,20 @@ macOS 26 的 Apple ASan runtime 当前会在 dyld 初始化阶段自旋，因此
 - 临时返回未签名 Manifest。
 - 绕过 VM 预加载验证直接切换。
 
-## 下一阶段优先级
+## 剩余跨平台五阶段
 
-逐功能状态和未完成项见[功能完成度](FUNCTIONAL_STATUS.md)。
+逐功能状态和未完成项见[功能完成度](FUNCTIONAL_STATUS.md)。Android 产品化基线已完成，
+后续按依赖关系继续：
 
-### P0：生产信任根
-
-- 正式 signer/HSM。
-- App 内置公钥与轮换策略。
-- 生产鉴权、审计、告警和职责分离。
-
-### P1：目标 App 集成
-
-- 三端真实工程接入 Module Store、Renderer 和 Capability Registry。
-- KeyStore/Keychain/HUKS 文件保护。
-- 支付、地图、相机、媒体、推送 Adapter。
-
-### P2：证据与规模
-
-- DevEco 和三端真机矩阵。
-- 应用商店/支付沙箱。
-- 持续 fuzz、红队和供应链扫描。
-- 真实模块体积、冷启动、帧预算和服务 SLO。
+1. **共享边界加固**：目标平台强绑定、iOS/HarmonyOS Store 边界、异步关闭语义、
+   `appear` 生命周期及负向回归。
+2. **iOS 产品 SDK**：完整 Runtime XCFramework、Swift Package、统一 `PVMHost`、
+   UIKit/SwiftUI 示例 App、模拟器和真机构建。
+3. **HarmonyOS 产品 SDK**：DevEco 工程、HAR/HSP、HUKS/文件/网络实现、ArkUI Renderer、
+   基础 Capability、示例 HAP 与真机。
+4. **KMP/CMP 与 Kuikly**：KMP source set、Android/iOS actual Runtime、Compose Host、
+   Maven 分发，以及锁定版本的 Kuikly Adapter。
+5. **生产验收与运营**：正式 signer/HSM、公钥轮换、三端正式签名包、全量设备矩阵、
+   业务 Capability、性能 SLO、审计告警、红队、商店与支付沙箱。
 
 发布操作见[发布与运维](OPERATIONS.md)，威胁与控制见[安全模型](SECURITY_MODEL.md)。

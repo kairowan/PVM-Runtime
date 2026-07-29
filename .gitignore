@@ -1,4 +1,15 @@
 build/
+dist/
+.gradle/
+.cxx/
+.externalNativeBuild/
+.idea/
+local.properties
+*.apk
+*.aab
+*.jks
+*.keystore
+key.properties
 server/var/
 client/var/
 __pycache__/

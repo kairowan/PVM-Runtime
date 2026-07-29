@@ -1,12 +1,13 @@
 PYTHON ?= python3
 BUILD_DIR ?= build/client
 PYTHONPATH_VALUE := $(CURDIR)/server/src
+ANDROID_SDK_PATH ?= $(firstword $(wildcard $(ANDROID_SDK_ROOT) $(ANDROID_HOME) $(HOME)/Library/Android/sdk $(HOME)/Desktop/android/sdk))
 FUZZ_CXX := $(firstword $(wildcard /opt/homebrew/opt/llvm/bin/clang++ /usr/local/opt/llvm/bin/clang++))
 ifeq ($(FUZZ_CXX),)
 FUZZ_CXX := clang++
 endif
 
-.PHONY: bootstrap build compatibility delivery-matrix docs-check fuzz-check generate-host-idl host-manifest publish release-check sanitizer-check serve demo platform-check test verify-contracts
+.PHONY: android-demo-apk android-demo-check android-packages bootstrap build compatibility delivery-matrix docs-check fuzz-check generate-host-idl host-manifest publish release-check sanitizer-check serve demo platform-check test verify-contracts
 
 bootstrap:
 	PYTHONPATH="$(PYTHONPATH_VALUE)" $(PYTHON) -m pvm_server.keys --directory server/var/keys
@@ -14,6 +15,34 @@ bootstrap:
 build:
 	cmake -S client -B "$(BUILD_DIR)" -DCMAKE_BUILD_TYPE=Release
 	cmake --build "$(BUILD_DIR)" -j
+
+android-packages:
+	@test -n "$(ANDROID_SDK_PATH)" || (echo "Android SDK not found; set ANDROID_SDK_PATH" && exit 1)
+	ANDROID_HOME="$(ANDROID_SDK_PATH)" client/platform/android/gradlew \
+		-p client/platform/android --no-daemon \
+		:runtime:lintDebug :demo:lintDebug \
+		:runtime:publishReleasePublicationToBundleRepository \
+		:demo:assembleDebug :demo:assembleMinified :demo:bundleDebug
+	mkdir -p dist/android/maven
+	cp client/platform/android/demo/build/outputs/apk/debug/demo-debug.apk \
+		dist/android/PVMRuntime-demo-debug.apk
+	cp client/platform/android/demo/build/outputs/bundle/debug/demo-debug.aab \
+		dist/android/PVMRuntime-demo-debug.aab
+	cp client/platform/android/demo/build/outputs/apk/minified/demo-minified.apk \
+		dist/android/PVMRuntime-demo-minified-smoke.apk
+	cp client/platform/android/runtime/build/outputs/aar/runtime-release.aar \
+		dist/android/pvm-runtime-0.5.0.aar
+	cp -R client/platform/android/runtime/build/repository/. dist/android/maven/
+	@echo "APK: $(CURDIR)/dist/android/PVMRuntime-demo-debug.apk"
+	@echo "AAB: $(CURDIR)/dist/android/PVMRuntime-demo-debug.aab"
+	@echo "R8 smoke: $(CURDIR)/dist/android/PVMRuntime-demo-minified-smoke.apk"
+	@echo "AAR: $(CURDIR)/dist/android/pvm-runtime-0.5.0.aar"
+	@echo "Maven: $(CURDIR)/dist/android/maven"
+
+android-demo-apk: android-packages
+
+android-demo-check: build android-packages
+	ANDROID_HOME="$(ANDROID_SDK_PATH)" $(PYTHON) scripts/check_android_artifacts.py
 
 host-manifest:
 	PYTHONPATH="$(PYTHONPATH_VALUE)" $(PYTHON) -m pvm_server.host_manifest \
