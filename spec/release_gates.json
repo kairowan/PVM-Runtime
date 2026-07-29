@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "automated": [
+    {"id": "core-e2e", "command": "make test"},
+    {"id": "host-builds", "command": "make platform-check"},
+    {"id": "host-idl", "command": "make generate-host-idl"},
+    {"id": "documentation", "command": "make docs-check"},
+    {"id": "delivery-profiles", "command": "make delivery-matrix"},
+    {"id": "historical-bytecode", "command": "make compatibility"},
+    {"id": "sanitizers", "command": "make sanitizer-check"},
+    {"id": "package-fuzz-smoke", "command": "make fuzz-check"}
+  ],
+  "externalRequired": [
+    {
+      "id": "hsm-production-key",
+      "evidence": "KMS/HSM key identifier, access policy, rotation drill and audit export"
+    },
+    {
+      "id": "store-policy-review",
+      "evidence": "Google Play, Apple and Huawei review records for the exact release profile"
+    },
+    {
+      "id": "device-lab",
+      "evidence": "Android/iOS/Harmony physical-device results for camera, media, push and background"
+    },
+    {
+      "id": "billing-sandboxes",
+      "evidence": "Play Billing, StoreKit, Huawei IAP and enterprise payment receipts"
+    },
+    {
+      "id": "red-team",
+      "evidence": "Black-box, rooted/jailbroken and partial-source-leak reports"
+    }
+  ]
+}

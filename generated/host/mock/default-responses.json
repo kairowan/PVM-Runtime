@@ -1,0 +1,93 @@
+{
+  "background.task": {
+    "schedule": "{\"error\":\"mock response is not configured\",\"ok\":false}"
+  },
+  "biometric.auth": {
+    "authenticate": "{\"error\":\"mock response is not configured\",\"ok\":false}"
+  },
+  "bluetooth.scan": {
+    "scan": "{\"error\":\"mock response is not configured\",\"ok\":false}"
+  },
+  "camera.capture": {
+    "photo": "{\"error\":\"mock response is not configured\",\"ok\":false}"
+  },
+  "clipboard.system": {
+    "read": "{\"error\":\"mock response is not configured\",\"ok\":false}",
+    "write": "{\"error\":\"mock response is not configured\",\"ok\":false}"
+  },
+  "database.scoped": {
+    "execute": "{\"error\":\"mock response is not configured\",\"ok\":false}",
+    "query": "{\"error\":\"mock response is not configured\",\"ok\":false}"
+  },
+  "deeplink.open": {
+    "open": "{\"error\":\"mock response is not configured\",\"ok\":false}"
+  },
+  "file.scoped": {
+    "read": "{\"error\":\"mock response is not configured\",\"ok\":false}",
+    "write": "{\"error\":\"mock response is not configured\",\"ok\":false}"
+  },
+  "location.current": {
+    "get": "{\"error\":\"mock response is not configured\",\"ok\":false}"
+  },
+  "map.control": {
+    "camera": "{\"error\":\"mock response is not configured\",\"ok\":false}",
+    "markers": "{\"error\":\"mock response is not configured\",\"ok\":false}"
+  },
+  "media.player": {
+    "command": "{\"error\":\"mock response is not configured\",\"ok\":false}"
+  },
+  "microphone.capture": {
+    "record": "{\"error\":\"mock response is not configured\",\"ok\":false}"
+  },
+  "network.http": {
+    "get": "{\"error\":\"mock response is not configured\",\"ok\":false}"
+  },
+  "network.transfer": {
+    "download": "{\"error\":\"mock response is not configured\",\"ok\":false}",
+    "upload": "{\"error\":\"mock response is not configured\",\"ok\":false}"
+  },
+  "network.websocket": {
+    "exchange": "{\"error\":\"mock response is not configured\",\"ok\":false}"
+  },
+  "nfc.scan": {
+    "read": "{\"error\":\"mock response is not configured\",\"ok\":false}"
+  },
+  "notification.post": {
+    "show": "{\"error\":\"mock response is not configured\",\"ok\":false}"
+  },
+  "payment.purchase": {
+    "buy": "{\"error\":\"mock response is not configured\",\"ok\":false}",
+    "restore": "{\"error\":\"mock response is not configured\",\"ok\":false}"
+  },
+  "permission.request": {
+    "request": "{\"error\":\"mock response is not configured\",\"ok\":false}"
+  },
+  "push.inbox": {
+    "drain": "{\"error\":\"mock response is not configured\",\"ok\":false}"
+  },
+  "qr.scan": {
+    "scan": "{\"error\":\"mock response is not configured\",\"ok\":false}"
+  },
+  "secure.keystore": {
+    "get": "{\"error\":\"mock response is not configured\",\"ok\":false}",
+    "remove": "{\"error\":\"mock response is not configured\",\"ok\":false}",
+    "set": "{\"error\":\"mock response is not configured\",\"ok\":false}"
+  },
+  "share.system": {
+    "share": "{\"error\":\"mock response is not configured\",\"ok\":false}"
+  },
+  "storage.kv": {
+    "get": "{\"error\":\"mock response is not configured\",\"ok\":false}",
+    "remove": "{\"error\":\"mock response is not configured\",\"ok\":false}",
+    "set": "{\"error\":\"mock response is not configured\",\"ok\":false}"
+  },
+  "system.extension": {
+    "update": "{\"error\":\"mock response is not configured\",\"ok\":false}"
+  },
+  "telemetry.event": {
+    "record": "{\"error\":\"mock response is not configured\",\"ok\":false}"
+  },
+  "ui.toast": {
+    "show": "{\"error\":\"mock response is not configured\",\"ok\":false}"
+  }
+}

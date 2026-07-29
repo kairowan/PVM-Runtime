@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="760" viewBox="0 0 1400 760" role="img" aria-labelledby="title desc">
+  <title id="title">PVM Runtime system architecture</title>
+  <desc id="desc">The build plane compiles and signs private DSL modules, the delivery plane publishes immutable modules and signed manifests, and the device plane verifies and executes them through the C++17 VM.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#08111f"/>
+      <stop offset="1" stop-color="#101b33"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0e7490"/>
+      <stop offset="1" stop-color="#155e75"/>
+    </linearGradient>
+    <linearGradient id="violet" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4338ca"/>
+      <stop offset="1" stop-color="#6d28d9"/>
+    </linearGradient>
+    <linearGradient id="green" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#047857"/>
+      <stop offset="1" stop-color="#0f766e"/>
+    </linearGradient>
+    <marker id="arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M1 1 L11 6 L1 11Z" fill="#7dd3fc"/>
+    </marker>
+  </defs>
+
+  <rect width="1400" height="760" rx="24" fill="url(#bg)"/>
+  <text x="62" y="62" fill="#f8fafc" font-family="Inter,Arial,sans-serif" font-size="30" font-weight="800">PVM Runtime · System Architecture</text>
+  <text x="62" y="94" fill="#94a3b8" font-family="Inter,Arial,sans-serif" font-size="16">Build once, deliver by profile, verify before execution.</text>
+
+  <g font-family="Inter,Arial,sans-serif">
+    <rect x="48" y="126" width="1304" height="160" rx="22" fill="#0b2130" stroke="#164e63"/>
+    <text x="76" y="158" fill="#67e8f9" font-size="14" font-weight="800" letter-spacing="2">BUILD PLANE</text>
+
+    <g transform="translate(78 178)">
+      <rect width="208" height="76" rx="15" fill="url(#blue)" stroke="#67e8f9" stroke-opacity=".45"/>
+      <text x="104" y="32" text-anchor="middle" fill="#ecfeff" font-size="18" font-weight="700">Private DSL</text>
+      <text x="104" y="55" text-anchor="middle" fill="#a5f3fc" font-size="13">UI · State · Logic · Effects</text>
+    </g>
+    <path d="M302 216 H360" stroke="#7dd3fc" stroke-width="3" marker-end="url(#arrow)"/>
+    <g transform="translate(380 178)">
+      <rect width="238" height="76" rx="15" fill="#12304b" stroke="#38bdf8" stroke-opacity=".55"/>
+      <text x="119" y="32" text-anchor="middle" fill="#f0f9ff" font-size="18" font-weight="700">Policy Compiler</text>
+      <text x="119" y="55" text-anchor="middle" fill="#bae6fd" font-size="13">Types · IDL · Profile · Budget</text>
+    </g>
+    <path d="M634 216 H692" stroke="#7dd3fc" stroke-width="3" marker-end="url(#arrow)"/>
+    <g transform="translate(712 178)">
+      <rect width="218" height="76" rx="15" fill="url(#violet)" stroke="#c4b5fd" stroke-opacity=".55"/>
+      <text x="109" y="32" text-anchor="middle" fill="#f5f3ff" font-size="18" font-weight="700">PVBC v4</text>
+      <text x="109" y="55" text-anchor="middle" fill="#ddd6fe" font-size="13">Deterministic Bytecode</text>
+    </g>
+    <path d="M946 216 H1004" stroke="#7dd3fc" stroke-width="3" marker-end="url(#arrow)"/>
+    <g transform="translate(1024 178)">
+      <rect width="250" height="76" rx="15" fill="#3b1d68" stroke="#d8b4fe" stroke-opacity=".55"/>
+      <text x="125" y="32" text-anchor="middle" fill="#faf5ff" font-size="18" font-weight="700">Remote Signer / HSM</text>
+      <text x="125" y="55" text-anchor="middle" fill="#e9d5ff" font-size="13">Ed25519 Module + Manifest</text>
+    </g>
+
+    <rect x="48" y="310" width="1304" height="146" rx="22" fill="#171530" stroke="#3730a3"/>
+    <text x="76" y="342" fill="#a5b4fc" font-size="14" font-weight="800" letter-spacing="2">DELIVERY PLANE</text>
+    <g transform="translate(78 362)">
+      <rect width="250" height="66" rx="15" fill="#25204c" stroke="#818cf8" stroke-opacity=".5"/>
+      <text x="125" y="28" text-anchor="middle" fill="#eef2ff" font-size="17" font-weight="700">Immutable Module Store</text>
+      <text x="125" y="50" text-anchor="middle" fill="#c7d2fe" font-size="13">SHA-256 addressed .pvm</text>
+    </g>
+    <path d="M344 395 H416" stroke="#a5b4fc" stroke-width="3" marker-end="url(#arrow)"/>
+    <g transform="translate(436 362)">
+      <rect width="250" height="66" rx="15" fill="#30235a" stroke="#a78bfa" stroke-opacity=".5"/>
+      <text x="125" y="28" text-anchor="middle" fill="#f5f3ff" font-size="17" font-weight="700">Signed Manifest</text>
+      <text x="125" y="50" text-anchor="middle" fill="#ddd6fe" font-size="13">Release · Binding · Rollout</text>
+    </g>
+    <path d="M702 395 H774" stroke="#a5b4fc" stroke-width="3" marker-end="url(#arrow)"/>
+    <g transform="translate(794 362)">
+      <rect width="222" height="66" rx="15" fill="#1f2950" stroke="#60a5fa" stroke-opacity=".5"/>
+      <text x="111" y="28" text-anchor="middle" fill="#eff6ff" font-size="17" font-weight="700">Module Service</text>
+      <text x="111" y="50" text-anchor="middle" fill="#bfdbfe" font-size="13">Auth · ETag · Audit</text>
+    </g>
+    <path d="M1032 395 H1104" stroke="#a5b4fc" stroke-width="3" marker-end="url(#arrow)"/>
+    <g transform="translate(1124 362)">
+      <rect width="150" height="66" rx="15" fill="#172554" stroke="#60a5fa" stroke-opacity=".5"/>
+      <text x="75" y="28" text-anchor="middle" fill="#eff6ff" font-size="17" font-weight="700">CDN / MDM</text>
+      <text x="75" y="50" text-anchor="middle" fill="#bfdbfe" font-size="13">Profile-aware</text>
+    </g>
+
+    <rect x="48" y="480" width="1304" height="224" rx="22" fill="#092820" stroke="#065f46"/>
+    <text x="76" y="512" fill="#6ee7b7" font-size="14" font-weight="800" letter-spacing="2">DEVICE PLANE · ANDROID / IOS / HARMONYOS</text>
+    <g transform="translate(78 536)">
+      <rect width="230" height="132" rx="17" fill="url(#green)" stroke="#6ee7b7" stroke-opacity=".5"/>
+      <text x="115" y="31" text-anchor="middle" fill="#ecfdf5" font-size="17" font-weight="700">Secure Module Store</text>
+      <text x="22" y="61" fill="#d1fae5" font-size="13">✓ Manifest signature</text>
+      <text x="22" y="84" fill="#d1fae5" font-size="13">✓ Hash + release floor</text>
+      <text x="22" y="107" fill="#d1fae5" font-size="13">✓ Atomic LKG switch</text>
+    </g>
+    <path d="M324 602 H382" stroke="#6ee7b7" stroke-width="3" marker-end="url(#arrow)"/>
+    <g transform="translate(402 536)">
+      <rect width="230" height="132" rx="17" fill="#12382f" stroke="#34d399" stroke-opacity=".55"/>
+      <text x="115" y="31" text-anchor="middle" fill="#ecfdf5" font-size="17" font-weight="700">C++17 VM</text>
+      <text x="22" y="61" fill="#a7f3d0" font-size="13">Bytecode verifier</text>
+      <text x="22" y="84" fill="#a7f3d0" font-size="13">Interpreter + watchdog</text>
+      <text x="22" y="107" fill="#a7f3d0" font-size="13">State migration</text>
+    </g>
+    <path d="M648 602 H706" stroke="#6ee7b7" stroke-width="3" marker-end="url(#arrow)"/>
+    <g transform="translate(726 536)">
+      <rect width="230" height="132" rx="17" fill="#15362f" stroke="#2dd4bf" stroke-opacity=".55"/>
+      <text x="115" y="31" text-anchor="middle" fill="#f0fdfa" font-size="17" font-weight="700">UIHost</text>
+      <text x="22" y="61" fill="#99f6e4" font-size="13">Neutral UI Tree</text>
+      <text x="22" y="84" fill="#99f6e4" font-size="13">Native renderer</text>
+      <text x="22" y="107" fill="#99f6e4" font-size="13">Event feedback</text>
+    </g>
+    <path d="M972 602 H1030" stroke="#6ee7b7" stroke-width="3" marker-end="url(#arrow)"/>
+    <g transform="translate(1050 536)">
+      <rect width="224" height="132" rx="17" fill="#123331" stroke="#22d3ee" stroke-opacity=".5"/>
+      <text x="112" y="31" text-anchor="middle" fill="#ecfeff" font-size="17" font-weight="700">Capability Host</text>
+      <text x="22" y="61" fill="#a5f3fc" font-size="13">Versioned IDL</text>
+      <text x="22" y="84" fill="#a5f3fc" font-size="13">Native SDK adapters</text>
+      <text x="22" y="107" fill="#a5f3fc" font-size="13">Policy enforcement</text>
+    </g>
+  </g>
+</svg>

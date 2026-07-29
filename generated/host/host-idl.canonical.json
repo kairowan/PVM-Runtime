@@ -1,0 +1,486 @@
+{
+  "capabilities": [
+    {
+      "async": true,
+      "id": "background.task",
+      "operations": {
+        "schedule": {
+          "args": [
+            "string",
+            "string"
+          ],
+          "result": "string"
+        }
+      },
+      "version": 1
+    },
+    {
+      "async": true,
+      "id": "biometric.auth",
+      "operations": {
+        "authenticate": {
+          "args": [
+            "string"
+          ],
+          "result": "string"
+        }
+      },
+      "version": 1
+    },
+    {
+      "async": true,
+      "id": "bluetooth.scan",
+      "operations": {
+        "scan": {
+          "args": [
+            "int"
+          ],
+          "result": "string"
+        }
+      },
+      "version": 1
+    },
+    {
+      "async": true,
+      "id": "camera.capture",
+      "operations": {
+        "photo": {
+          "args": [
+            "string"
+          ],
+          "result": "string"
+        }
+      },
+      "version": 1
+    },
+    {
+      "async": false,
+      "id": "clipboard.system",
+      "operations": {
+        "read": {
+          "args": [],
+          "result": "string"
+        },
+        "write": {
+          "args": [
+            "string"
+          ],
+          "result": "string"
+        }
+      },
+      "version": 1
+    },
+    {
+      "async": true,
+      "id": "database.scoped",
+      "operations": {
+        "execute": {
+          "args": [
+            "string",
+            "string"
+          ],
+          "result": "string"
+        },
+        "query": {
+          "args": [
+            "string",
+            "string"
+          ],
+          "result": "string"
+        }
+      },
+      "version": 1
+    },
+    {
+      "async": false,
+      "id": "deeplink.open",
+      "operations": {
+        "open": {
+          "args": [
+            "string"
+          ],
+          "result": "string"
+        }
+      },
+      "version": 1
+    },
+    {
+      "async": true,
+      "id": "file.scoped",
+      "operations": {
+        "read": {
+          "args": [
+            "string"
+          ],
+          "result": "string"
+        },
+        "write": {
+          "args": [
+            "string",
+            "string"
+          ],
+          "result": "string"
+        }
+      },
+      "version": 1
+    },
+    {
+      "async": true,
+      "id": "location.current",
+      "operations": {
+        "get": {
+          "args": [
+            "string"
+          ],
+          "result": "string"
+        }
+      },
+      "version": 1
+    },
+    {
+      "async": false,
+      "id": "map.control",
+      "operations": {
+        "camera": {
+          "args": [
+            "string"
+          ],
+          "result": "string"
+        },
+        "markers": {
+          "args": [
+            "string"
+          ],
+          "result": "string"
+        }
+      },
+      "version": 1
+    },
+    {
+      "async": false,
+      "id": "media.player",
+      "operations": {
+        "command": {
+          "args": [
+            "string",
+            "string"
+          ],
+          "result": "string"
+        }
+      },
+      "version": 1
+    },
+    {
+      "async": true,
+      "id": "microphone.capture",
+      "operations": {
+        "record": {
+          "args": [
+            "int"
+          ],
+          "result": "string"
+        }
+      },
+      "version": 1
+    },
+    {
+      "async": true,
+      "id": "network.http",
+      "operations": {
+        "get": {
+          "args": [
+            "string"
+          ],
+          "result": "string"
+        }
+      },
+      "version": 1
+    },
+    {
+      "async": true,
+      "id": "network.transfer",
+      "operations": {
+        "download": {
+          "args": [
+            "string",
+            "string"
+          ],
+          "result": "string"
+        },
+        "upload": {
+          "args": [
+            "string",
+            "string"
+          ],
+          "result": "string"
+        }
+      },
+      "version": 1
+    },
+    {
+      "async": true,
+      "id": "network.websocket",
+      "operations": {
+        "exchange": {
+          "args": [
+            "string",
+            "string"
+          ],
+          "result": "string"
+        }
+      },
+      "version": 1
+    },
+    {
+      "async": true,
+      "id": "nfc.scan",
+      "operations": {
+        "read": {
+          "args": [],
+          "result": "string"
+        }
+      },
+      "version": 1
+    },
+    {
+      "async": false,
+      "id": "notification.post",
+      "operations": {
+        "show": {
+          "args": [
+            "string",
+            "string"
+          ],
+          "result": "string"
+        }
+      },
+      "version": 1
+    },
+    {
+      "async": true,
+      "id": "payment.purchase",
+      "operations": {
+        "buy": {
+          "args": [
+            "string",
+            "string"
+          ],
+          "result": "string"
+        },
+        "restore": {
+          "args": [],
+          "result": "string"
+        }
+      },
+      "version": 1
+    },
+    {
+      "async": true,
+      "id": "permission.request",
+      "operations": {
+        "request": {
+          "args": [
+            "string"
+          ],
+          "result": "string"
+        }
+      },
+      "version": 1
+    },
+    {
+      "async": true,
+      "id": "push.inbox",
+      "operations": {
+        "drain": {
+          "args": [],
+          "result": "string"
+        }
+      },
+      "version": 1
+    },
+    {
+      "async": true,
+      "id": "qr.scan",
+      "operations": {
+        "scan": {
+          "args": [],
+          "result": "string"
+        }
+      },
+      "version": 1
+    },
+    {
+      "async": true,
+      "id": "secure.keystore",
+      "operations": {
+        "get": {
+          "args": [
+            "string"
+          ],
+          "result": "string"
+        },
+        "remove": {
+          "args": [
+            "string"
+          ],
+          "result": "string"
+        },
+        "set": {
+          "args": [
+            "string",
+            "string"
+          ],
+          "result": "string"
+        }
+      },
+      "version": 1
+    },
+    {
+      "async": false,
+      "id": "share.system",
+      "operations": {
+        "share": {
+          "args": [
+            "string",
+            "string"
+          ],
+          "result": "string"
+        }
+      },
+      "version": 1
+    },
+    {
+      "async": true,
+      "id": "storage.kv",
+      "operations": {
+        "get": {
+          "args": [
+            "string"
+          ],
+          "result": "string"
+        },
+        "remove": {
+          "args": [
+            "string"
+          ],
+          "result": "string"
+        },
+        "set": {
+          "args": [
+            "string",
+            "string"
+          ],
+          "result": "string"
+        }
+      },
+      "version": 1
+    },
+    {
+      "async": false,
+      "id": "system.extension",
+      "operations": {
+        "update": {
+          "args": [
+            "string",
+            "string"
+          ],
+          "result": "string"
+        }
+      },
+      "version": 1
+    },
+    {
+      "async": false,
+      "id": "telemetry.event",
+      "operations": {
+        "record": {
+          "args": [
+            "string",
+            "string"
+          ],
+          "result": "string"
+        }
+      },
+      "version": 1
+    },
+    {
+      "async": false,
+      "id": "ui.toast",
+      "operations": {
+        "show": {
+          "args": [
+            "string"
+          ],
+          "result": "string"
+        }
+      },
+      "version": 1
+    }
+  ],
+  "components": [
+    {
+      "commands": {
+        "focus": [
+          "int",
+          "int"
+        ]
+      },
+      "events": {
+        "capture": "string"
+      },
+      "id": "camera.preview",
+      "props": {
+        "session": "string"
+      },
+      "version": 1
+    },
+    {
+      "commands": {},
+      "events": {
+        "result": "string"
+      },
+      "id": "host.screen",
+      "props": {
+        "payload": "string",
+        "route": "string"
+      },
+      "version": 1
+    },
+    {
+      "commands": {
+        "camera": [
+          "string"
+        ],
+        "markers": [
+          "string"
+        ]
+      },
+      "events": {
+        "gesture": "string",
+        "markerTap": "string"
+      },
+      "id": "map.view",
+      "props": {
+        "configuration": "string"
+      },
+      "version": 1
+    },
+    {
+      "commands": {
+        "control": [
+          "string",
+          "string"
+        ]
+      },
+      "events": {
+        "state": "string"
+      },
+      "id": "player.view",
+      "props": {
+        "source": "string"
+      },
+      "version": 1
+    }
+  ],
+  "schemaVersion": 1
+}

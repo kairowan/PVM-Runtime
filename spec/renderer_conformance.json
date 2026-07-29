@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "nodeTypes": [
+    "Button",
+    "Column",
+    "Image",
+    "Input",
+    "List",
+    "NativeSurface",
+    "Row",
+    "Scroll",
+    "Stack",
+    "Switch",
+    "Text"
+  ],
+  "properties": [
+    "accessibilityLabel",
+    "enabled",
+    "source",
+    "surfaceType",
+    "text",
+    "value"
+  ],
+  "events": ["appear", "change", "submit", "tap"],
+  "backends": {
+    "android-compose-cmp": "adapter-required",
+    "android-view": "compiled",
+    "arkui": "sdk-required",
+    "kuikly": "adapter-required",
+    "swiftui": "compiled",
+    "uikit": "compiled"
+  }
+}

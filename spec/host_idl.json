@@ -1,0 +1,261 @@
+{
+  "schemaVersion": 1,
+  "capabilities": [
+    {
+      "id": "background.task",
+      "version": 1,
+      "async": true,
+      "operations": {
+        "schedule": {"args": ["string", "string"], "result": "string"}
+      }
+    },
+    {
+      "id": "biometric.auth",
+      "version": 1,
+      "async": true,
+      "operations": {
+        "authenticate": {"args": ["string"], "result": "string"}
+      }
+    },
+    {
+      "id": "bluetooth.scan",
+      "version": 1,
+      "async": true,
+      "operations": {
+        "scan": {"args": ["int"], "result": "string"}
+      }
+    },
+    {
+      "id": "camera.capture",
+      "version": 1,
+      "async": true,
+      "operations": {
+        "photo": {"args": ["string"], "result": "string"}
+      }
+    },
+    {
+      "id": "clipboard.system",
+      "version": 1,
+      "async": false,
+      "operations": {
+        "read": {"args": [], "result": "string"},
+        "write": {"args": ["string"], "result": "string"}
+      }
+    },
+    {
+      "id": "database.scoped",
+      "version": 1,
+      "async": true,
+      "operations": {
+        "execute": {"args": ["string", "string"], "result": "string"},
+        "query": {"args": ["string", "string"], "result": "string"}
+      }
+    },
+    {
+      "id": "deeplink.open",
+      "version": 1,
+      "async": false,
+      "operations": {
+        "open": {"args": ["string"], "result": "string"}
+      }
+    },
+    {
+      "id": "file.scoped",
+      "version": 1,
+      "async": true,
+      "operations": {
+        "read": {"args": ["string"], "result": "string"},
+        "write": {"args": ["string", "string"], "result": "string"}
+      }
+    },
+    {
+      "id": "location.current",
+      "version": 1,
+      "async": true,
+      "operations": {
+        "get": {"args": ["string"], "result": "string"}
+      }
+    },
+    {
+      "id": "map.control",
+      "version": 1,
+      "async": false,
+      "operations": {
+        "camera": {"args": ["string"], "result": "string"},
+        "markers": {"args": ["string"], "result": "string"}
+      }
+    },
+    {
+      "id": "media.player",
+      "version": 1,
+      "async": false,
+      "operations": {
+        "command": {"args": ["string", "string"], "result": "string"}
+      }
+    },
+    {
+      "id": "microphone.capture",
+      "version": 1,
+      "async": true,
+      "operations": {
+        "record": {"args": ["int"], "result": "string"}
+      }
+    },
+    {
+      "id": "network.http",
+      "version": 1,
+      "async": true,
+      "operations": {
+        "get": {"args": ["string"], "result": "string"}
+      }
+    },
+    {
+      "id": "network.transfer",
+      "version": 1,
+      "async": true,
+      "operations": {
+        "download": {"args": ["string", "string"], "result": "string"},
+        "upload": {"args": ["string", "string"], "result": "string"}
+      }
+    },
+    {
+      "id": "network.websocket",
+      "version": 1,
+      "async": true,
+      "operations": {
+        "exchange": {"args": ["string", "string"], "result": "string"}
+      }
+    },
+    {
+      "id": "nfc.scan",
+      "version": 1,
+      "async": true,
+      "operations": {
+        "read": {"args": [], "result": "string"}
+      }
+    },
+    {
+      "id": "notification.post",
+      "version": 1,
+      "async": false,
+      "operations": {
+        "show": {"args": ["string", "string"], "result": "string"}
+      }
+    },
+    {
+      "id": "payment.purchase",
+      "version": 1,
+      "async": true,
+      "operations": {
+        "buy": {"args": ["string", "string"], "result": "string"},
+        "restore": {"args": [], "result": "string"}
+      }
+    },
+    {
+      "id": "permission.request",
+      "version": 1,
+      "async": true,
+      "operations": {
+        "request": {"args": ["string"], "result": "string"}
+      }
+    },
+    {
+      "id": "push.inbox",
+      "version": 1,
+      "async": true,
+      "operations": {
+        "drain": {"args": [], "result": "string"}
+      }
+    },
+    {
+      "id": "qr.scan",
+      "version": 1,
+      "async": true,
+      "operations": {
+        "scan": {"args": [], "result": "string"}
+      }
+    },
+    {
+      "id": "secure.keystore",
+      "version": 1,
+      "async": true,
+      "operations": {
+        "get": {"args": ["string"], "result": "string"},
+        "remove": {"args": ["string"], "result": "string"},
+        "set": {"args": ["string", "string"], "result": "string"}
+      }
+    },
+    {
+      "id": "share.system",
+      "version": 1,
+      "async": false,
+      "operations": {
+        "share": {"args": ["string", "string"], "result": "string"}
+      }
+    },
+    {
+      "id": "storage.kv",
+      "version": 1,
+      "async": true,
+      "operations": {
+        "get": {"args": ["string"], "result": "string"},
+        "remove": {"args": ["string"], "result": "string"},
+        "set": {"args": ["string", "string"], "result": "string"}
+      }
+    },
+    {
+      "id": "system.extension",
+      "version": 1,
+      "async": false,
+      "operations": {
+        "update": {"args": ["string", "string"], "result": "string"}
+      }
+    },
+    {
+      "id": "telemetry.event",
+      "version": 1,
+      "async": false,
+      "operations": {
+        "record": {"args": ["string", "string"], "result": "string"}
+      }
+    },
+    {
+      "id": "ui.toast",
+      "version": 1,
+      "async": false,
+      "operations": {
+        "show": {"args": ["string"], "result": "string"}
+      }
+    }
+  ],
+  "components": [
+    {
+      "id": "camera.preview",
+      "version": 1,
+      "props": {"session": "string"},
+      "events": {"capture": "string"},
+      "commands": {"focus": ["int", "int"]}
+    },
+    {
+      "id": "host.screen",
+      "version": 1,
+      "props": {"route": "string", "payload": "string"},
+      "events": {"result": "string"},
+      "commands": {}
+    },
+    {
+      "id": "map.view",
+      "version": 1,
+      "props": {"configuration": "string"},
+      "events": {"gesture": "string", "markerTap": "string"},
+      "commands": {"camera": ["string"], "markers": ["string"]}
+    },
+    {
+      "id": "player.view",
+      "version": 1,
+      "props": {"source": "string"},
+      "events": {"state": "string"},
+      "commands": {"control": ["string", "string"]}
+    }
+  ]
+}

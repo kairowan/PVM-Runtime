@@ -1,0 +1,27 @@
+{
+  "content": {
+    "capabilities": ["network.http", "storage.kv", "ui.toast"],
+    "networkDomains": ["content.example.com"],
+    "surface": ""
+  },
+  "commerce": {
+    "capabilities": ["network.http", "payment.purchase", "storage.kv", "ui.toast"],
+    "networkDomains": ["commerce.example.com"],
+    "surface": ""
+  },
+  "media": {
+    "capabilities": ["media.player", "network.http", "storage.kv", "ui.toast"],
+    "networkDomains": ["media.example.com"],
+    "surface": "player.view"
+  },
+  "social": {
+    "capabilities": ["network.http", "push.inbox", "storage.kv", "ui.toast"],
+    "networkDomains": ["social.example.com"],
+    "surface": ""
+  },
+  "utility": {
+    "capabilities": ["camera.capture", "secure.keystore", "storage.kv", "ui.toast"],
+    "networkDomains": [],
+    "surface": "camera.preview"
+  }
+}

@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="440" viewBox="0 0 1400 440" role="img" aria-labelledby="title desc">
+  <title id="title">PVM Runtime</title>
+  <desc id="desc">Protected cross-platform application runtime powered by a private DSL, signed bytecode, and a C++17 virtual machine.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#07101f"/>
+      <stop offset=".48" stop-color="#102448"/>
+      <stop offset="1" stop-color="#172554"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#67e8f9"/>
+      <stop offset=".5" stop-color="#818cf8"/>
+      <stop offset="1" stop-color="#c084fc"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".16"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity=".05"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="18"/>
+    </filter>
+  </defs>
+
+  <rect width="1400" height="440" rx="28" fill="url(#background)"/>
+  <circle cx="1180" cy="40" r="220" fill="#6366f1" opacity=".16" filter="url(#glow)"/>
+  <circle cx="1010" cy="410" r="180" fill="#06b6d4" opacity=".12" filter="url(#glow)"/>
+  <path d="M0 350 C280 260 400 450 720 342 S1110 260 1400 350 V440 H0Z" fill="#38bdf8" opacity=".04"/>
+
+  <g transform="translate(84 76)">
+    <rect width="92" height="30" rx="15" fill="#22d3ee" opacity=".14" stroke="#67e8f9" stroke-opacity=".45"/>
+    <text x="46" y="20" text-anchor="middle" fill="#a5f3fc" font-family="Inter,Arial,sans-serif" font-size="13" font-weight="700" letter-spacing="1.5">RUNTIME 4</text>
+    <text x="0" y="104" fill="#f8fafc" font-family="Inter,Arial,sans-serif" font-size="68" font-weight="800" letter-spacing="-2">PVM Runtime</text>
+    <rect y="127" width="555" height="5" rx="2.5" fill="url(#accent)"/>
+    <text x="0" y="181" fill="#cbd5e1" font-family="Inter,Arial,sans-serif" font-size="24">通用受保护 App Runtime</text>
+    <text x="0" y="220" fill="#94a3b8" font-family="Inter,Arial,sans-serif" font-size="18">Private DSL · Signed Bytecode · C++17 VM · Native UI</text>
+
+    <g transform="translate(0 258)" font-family="Inter,Arial,sans-serif" font-size="14" font-weight="600">
+      <g>
+        <rect width="126" height="38" rx="19" fill="#0e7490" opacity=".5" stroke="#22d3ee" stroke-opacity=".5"/>
+        <text x="63" y="24" text-anchor="middle" fill="#cffafe">Android</text>
+      </g>
+      <g transform="translate(140)">
+        <rect width="110" height="38" rx="19" fill="#3730a3" opacity=".52" stroke="#818cf8" stroke-opacity=".55"/>
+        <text x="55" y="24" text-anchor="middle" fill="#e0e7ff">iOS</text>
+      </g>
+      <g transform="translate(264)">
+        <rect width="144" height="38" rx="19" fill="#7e22ce" opacity=".4" stroke="#c084fc" stroke-opacity=".55"/>
+        <text x="72" y="24" text-anchor="middle" fill="#f3e8ff">HarmonyOS</text>
+      </g>
+    </g>
+  </g>
+
+  <g transform="translate(910 54)">
+    <rect x="42" y="0" width="316" height="334" rx="42" fill="url(#glass)" stroke="#bae6fd" stroke-opacity=".28" stroke-width="2"/>
+    <rect x="66" y="25" width="268" height="284" rx="28" fill="#071426" stroke="#334155"/>
+    <rect x="161" y="13" width="78" height="7" rx="3.5" fill="#64748b"/>
+
+    <g transform="translate(91 53)">
+      <rect width="218" height="58" rx="15" fill="#132846" stroke="#22d3ee" stroke-opacity=".45"/>
+      <circle cx="29" cy="29" r="10" fill="#22d3ee"/>
+      <rect x="50" y="18" width="112" height="8" rx="4" fill="#e2e8f0"/>
+      <rect x="50" y="33" width="76" height="6" rx="3" fill="#64748b"/>
+
+      <rect y="76" width="101" height="80" rx="16" fill="#172554" stroke="#818cf8" stroke-opacity=".5"/>
+      <path d="M31 117 l14 14 27-33" fill="none" stroke="#a5b4fc" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="117" y="76" width="101" height="80" rx="16" fill="#2e1065" stroke="#c084fc" stroke-opacity=".5"/>
+      <path d="M151 110 v-10 a16 16 0 0 1 32 0 v10" fill="none" stroke="#d8b4fe" stroke-width="6"/>
+      <rect x="145" y="108" width="44" height="35" rx="8" fill="#d8b4fe"/>
+      <circle cx="167" cy="124" r="4" fill="#581c87"/>
+
+      <rect y="174" width="218" height="68" rx="16" fill="#0f2f3b" stroke="#67e8f9" stroke-opacity=".45"/>
+      <text x="18" y="200" fill="#a5f3fc" font-family="ui-monospace,SFMono-Regular,monospace" font-size="13">PVBC 04 · VERIFIED</text>
+      <rect x="18" y="214" width="168" height="6" rx="3" fill="#164e63"/>
+      <rect x="18" y="214" width="132" height="6" rx="3" fill="url(#accent)"/>
+    </g>
+
+    <g transform="translate(0 355)">
+      <rect width="400" height="42" rx="21" fill="#020617" stroke="#475569"/>
+      <circle cx="28" cy="21" r="6" fill="#4ade80"/>
+      <text x="47" y="27" fill="#cbd5e1" font-family="ui-monospace,SFMono-Regular,monospace" font-size="14">signed · verified · sandboxed</text>
+    </g>
+  </g>
+</svg>

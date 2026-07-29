@@ -1,0 +1,6 @@
+build/
+server/var/
+client/var/
+__pycache__/
+*.pyc
+*.tmp

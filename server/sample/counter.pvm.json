@@ -1,0 +1,196 @@
+{
+  "module": {
+    "id": "counter.home",
+    "application_id": "com.example.protected",
+    "tenant": "demo",
+    "channel": "enterprise",
+    "release": 5,
+    "key_version": 1,
+    "minimum_runtime": 5,
+    "entry_page": "main",
+    "capabilities": [
+      "storage.kv",
+      "ui.toast"
+    ],
+    "capability_versions": {
+      "storage.kv": 1,
+      "ui.toast": 1
+    },
+    "network_domains": [],
+    "storage_scopes": [
+      "app.preferences"
+    ],
+    "budget": {
+      "max_instructions_per_event": 1000,
+      "max_stack": 32,
+      "max_state_bytes": 4096,
+      "max_ui_nodes": 100,
+      "max_tasks": 8
+    }
+  },
+  "delivery": {
+    "profile": "online_provisioned",
+    "platform": "desktop",
+    "fallback_ui": true,
+    "startup_dependencies_bundled": false,
+    "native_dynamic_download": false,
+    "external_code_artifacts": []
+  },
+  "state": {
+    "count": {
+      "type": "int",
+      "persistence_id": "count",
+      "initial": 0
+    },
+    "status": {
+      "type": "string",
+      "persistence_id": "status",
+      "initial": "Ready"
+    },
+    "name": {
+      "type": "string",
+      "persistence_id": "name",
+      "initial": ""
+    }
+  },
+  "handlers": {
+    "increment": [
+      {
+        "op": "state.get",
+        "name": "count"
+      },
+      {
+        "op": "const",
+        "value": 1
+      },
+      {
+        "op": "int.add"
+      },
+      {
+        "op": "state.set",
+        "name": "count"
+      },
+      {
+        "op": "render",
+        "page": "main"
+      }
+    ],
+    "notify": [
+      {
+        "op": "const",
+        "value": "The protected VM handled this effect"
+      },
+      {
+        "op": "effect",
+        "capability": "ui.toast",
+        "operation": "show",
+        "args": 1
+      },
+      {
+        "op": "pop"
+      }
+    ],
+    "load_status": [
+      {
+        "op": "const",
+        "value": "status"
+      },
+      {
+        "op": "effect.async",
+        "capability": "storage.kv",
+        "operation": "get",
+        "args": 1
+      },
+      {
+        "op": "state.set",
+        "name": "status"
+      },
+      {
+        "op": "render",
+        "page": "main"
+      }
+    ],
+    "set_name": [
+      {
+        "op": "event.value"
+      },
+      {
+        "op": "state.set",
+        "name": "name"
+      },
+      {
+        "op": "render",
+        "page": "main"
+      }
+    ]
+  },
+  "pages": {
+    "main": {
+      "type": "column",
+      "id": "counter_root",
+      "props": {
+        "accessibility_label": "Counter demo"
+      },
+      "children": [
+        {
+          "type": "text",
+          "id": "counter_title",
+          "props": {
+            "text": "Protected counter: {count}",
+            "accessibility_label": "Current count {count}"
+          }
+        },
+        {
+          "type": "button",
+          "id": "counter_increment",
+          "props": {
+            "text": "Increment"
+          },
+          "events": {
+            "tap": "increment"
+          }
+        },
+        {
+          "type": "button",
+          "id": "counter_notify",
+          "props": {
+            "text": "Show host capability"
+          },
+          "events": {
+            "tap": "notify"
+          }
+        },
+        {
+          "type": "button",
+          "id": "counter_load_status",
+          "props": {
+            "text": "Load async storage"
+          },
+          "events": {
+            "tap": "load_status"
+          }
+        },
+        {
+          "type": "text",
+          "id": "counter_status",
+          "props": {
+            "text": "Status: {status}"
+          }
+        },
+        {
+          "type": "input",
+          "id": "counter_name",
+          "props": {
+            "text": "Your name",
+            "value": "{name}",
+            "accessibility_label": "Your name"
+          },
+          "events": {
+            "change": "set_name",
+            "submit": "set_name"
+          }
+        }
+      ]
+    }
+  }
+}
