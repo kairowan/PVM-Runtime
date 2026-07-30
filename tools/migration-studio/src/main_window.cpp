@@ -11,7 +11,6 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFontDatabase>
-#include <QFormLayout>
 #include <QGroupBox>
 #include <QHash>
 #include <QHBoxLayout>
@@ -94,6 +93,17 @@ QString compactCommand(const QString &program, const QStringList &arguments) {
   return values.join(QLatin1Char(' '));
 }
 
+void addLabeledField(QHBoxLayout *row, QWidget *parent, const QString &label,
+                     QWidget *field, int stretch = 1) {
+  auto *column = new QVBoxLayout;
+  column->setSpacing(6);
+  auto *caption = new QLabel(label, parent);
+  caption->setObjectName(QStringLiteral("fieldLabel"));
+  column->addWidget(caption);
+  column->addWidget(field);
+  row->addLayout(column, stretch);
+}
+
 }  // namespace
 
 namespace studio {
@@ -164,8 +174,8 @@ MigrationStudioWindow::MigrationStudioWindow(QWidget *parent)
     : QMainWindow(parent), repoRoot_(discoverRepoRoot()) {
   buildUi();
   setWindowTitle(QStringLiteral("PVM Migration Studio"));
-  resize(1180, 820);
-  setMinimumSize(900, 680);
+  resize(1380, 760);
+  setMinimumSize(1100, 680);
 }
 
 MigrationStudioWindow::~MigrationStudioWindow() {
@@ -199,32 +209,40 @@ void MigrationStudioWindow::buildUi() {
   setCentralWidget(central);
 
   setStyleSheet(QStringLiteral(R"(
-    QMainWindow, QWidget { background: #0b1220; color: #dbe7f5; }
-    QLabel#title { font-size: 26px; font-weight: 700; color: #f8fbff; }
-    QLabel#subtitle { color: #8fa8c4; margin-bottom: 4px; }
-    QTabWidget::pane { border: 1px solid #23344c; border-radius: 10px; background: #101a2b; }
-    QTabBar::tab { background: #101a2b; color: #8fa8c4; padding: 10px 18px; }
-    QTabBar::tab:selected { color: #75e3ec; border-bottom: 2px solid #33c5d3; }
-    QGroupBox { border: 1px solid #23344c; border-radius: 8px; margin-top: 12px;
-                padding-top: 12px; font-weight: 600; }
-    QGroupBox::title { subcontrol-origin: margin; left: 12px; padding: 0 6px; color: #9db4cf; }
+    QMainWindow, QWidget { background: #ffffff; color: #111827; }
+    QLabel#title { font-size: 26px; font-weight: 700; color: #101828; }
+    QLabel#subtitle { color: #475467; margin-bottom: 4px; }
+    QLabel#fieldLabel { color: #344054; font-weight: 600; }
+    QTabWidget::pane { border: 1px solid #d0d5dd; border-radius: 10px; background: #ffffff; }
+    QTabBar::tab { background: #f8fafc; color: #475467; padding: 10px 18px;
+                   border: 1px solid transparent; }
+    QTabBar::tab:selected { background: #ffffff; color: #101828;
+                            border-bottom: 2px solid #168c9b; }
+    QGroupBox { background: #ffffff; border: 1px solid #d0d5dd; border-radius: 8px;
+                margin-top: 12px; padding-top: 12px; font-weight: 600; }
+    QGroupBox::title { subcontrol-origin: margin; left: 12px; padding: 0 6px;
+                       color: #344054; background: #ffffff; }
     QLineEdit, QPlainTextEdit, QComboBox, QSpinBox {
-      background: #08101d; border: 1px solid #2b405b; border-radius: 6px;
-      padding: 7px; selection-background-color: #147a88;
+      background: #ffffff; color: #111827; border: 1px solid #98a2b3;
+      border-radius: 6px; padding: 7px; selection-background-color: #b8e5eb;
+      selection-color: #111827;
     }
     QLineEdit:focus, QPlainTextEdit:focus, QComboBox:focus, QSpinBox:focus {
-      border-color: #33c5d3;
+      border: 2px solid #168c9b;
     }
-    QPushButton { background: #1c334d; border: 1px solid #31516f; border-radius: 6px;
-                  padding: 8px 13px; }
-    QPushButton:hover { background: #244461; }
-    QPushButton:disabled { color: #62758a; background: #162234; }
-    QPushButton#primary { background: #147a88; border-color: #33c5d3; font-weight: 700; }
-    QPushButton#danger { background: #642f3a; border-color: #a54a5d; }
-    QProgressBar { background: #08101d; border: 1px solid #2b405b; border-radius: 6px;
-                   text-align: center; min-height: 20px; }
-    QProgressBar::chunk { background: #25b8c5; border-radius: 5px; }
-    QScrollArea { border: 0; }
+    QComboBox QAbstractItemView { background: #ffffff; color: #111827;
+                                  selection-background-color: #e2f4f6; }
+    QPushButton { background: #f2f4f7; color: #111827; border: 1px solid #98a2b3;
+                  border-radius: 6px; padding: 8px 13px; }
+    QPushButton:hover { background: #e4e7ec; }
+    QPushButton:disabled { color: #98a2b3; background: #f9fafb; border-color: #d0d5dd; }
+    QPushButton#primary { background: #dff3f5; border-color: #168c9b; font-weight: 700; }
+    QPushButton#primary:hover { background: #c8e9ed; }
+    QPushButton#danger { background: #fff1f3; border-color: #fda4af; }
+    QProgressBar { background: #ffffff; color: #111827; border: 1px solid #98a2b3;
+                   border-radius: 6px; text-align: center; min-height: 20px; }
+    QProgressBar::chunk { background: #9ddde4; border-radius: 5px; }
+    QScrollArea { border: 0; background: #ffffff; }
   )"));
 }
 
@@ -255,7 +273,8 @@ QWidget *MigrationStudioWindow::buildMigrationTab() {
   layout->setSpacing(14);
 
   auto *paths = new QGroupBox(QStringLiteral("项目路径 / Project paths"), content);
-  auto *pathsForm = new QFormLayout(paths);
+  auto *pathsRow = new QHBoxLayout(paths);
+  pathsRow->setSpacing(14);
   sourceEdit_ = new QLineEdit(paths);
   sourceEdit_->setPlaceholderText(QStringLiteral("/path/to/legacy-project"));
   outputEdit_ = new QLineEdit(
@@ -263,17 +282,22 @@ QWidget *MigrationStudioWindow::buildMigrationTab() {
       paths);
   pythonEdit_ = new QLineEdit(
       QStandardPaths::findExecutable(QStringLiteral("python3")), paths);
-  pathsForm->addRow(
+  addLabeledField(
+      pathsRow, paths,
       QStringLiteral("老项目 / Source"),
       pathField(sourceEdit_, QStringLiteral("选择… / Browse"), [this] {
         chooseSource();
-      }));
-  pathsForm->addRow(
+      }),
+      2);
+  addLabeledField(
+      pathsRow, paths,
       QStringLiteral("输出目录 / Output"),
       pathField(outputEdit_, QStringLiteral("选择… / Browse"), [this] {
         chooseOutput();
-      }));
-  pathsForm->addRow(
+      }),
+      2);
+  addLabeledField(
+      pathsRow, paths,
       QStringLiteral("Python"),
       pathField(pythonEdit_, QStringLiteral("选择… / Browse"), [this] {
         chooseFile(pythonEdit_, QStringLiteral("选择 Python / Select Python"));
@@ -286,16 +310,20 @@ QWidget *MigrationStudioWindow::buildMigrationTab() {
   classesEdit_ = new QPlainTextEdit(selection);
   classesEdit_->setPlaceholderText(
       QStringLiteral("每行一个类 / One class per line\nCheckoutViewModel"));
-  classesEdit_->setMaximumHeight(115);
+  classesEdit_->setFixedHeight(88);
   modulesEdit_ = new QPlainTextEdit(selection);
   modulesEdit_->setPlaceholderText(
       QStringLiteral("每行一个模块 / One module per line\n:app:checkout"));
-  modulesEdit_->setMaximumHeight(115);
+  modulesEdit_->setFixedHeight(88);
   auto *classColumn = new QVBoxLayout;
-  classColumn->addWidget(new QLabel(QStringLiteral("类 / Classes"), selection));
+  auto *classLabel = new QLabel(QStringLiteral("类 / Classes"), selection);
+  classLabel->setObjectName(QStringLiteral("fieldLabel"));
+  classColumn->addWidget(classLabel);
   classColumn->addWidget(classesEdit_);
   auto *moduleColumn = new QVBoxLayout;
-  moduleColumn->addWidget(new QLabel(QStringLiteral("模块 / Modules"), selection));
+  auto *moduleLabel = new QLabel(QStringLiteral("模块 / Modules"), selection);
+  moduleLabel->setObjectName(QStringLiteral("fieldLabel"));
+  moduleColumn->addWidget(moduleLabel);
   moduleColumn->addWidget(modulesEdit_);
   selectionLayout->addLayout(classColumn, 1);
   selectionLayout->addLayout(moduleColumn, 1);
@@ -312,7 +340,8 @@ QWidget *MigrationStudioWindow::buildMigrationTab() {
 
   auto *binding =
       new QGroupBox(QStringLiteral("模块绑定 / Module binding"), content);
-  auto *bindingForm = new QFormLayout(binding);
+  auto *bindingRow = new QHBoxLayout(binding);
+  bindingRow->setSpacing(12);
   applicationIdEdit_ =
       new QLineEdit(QStringLiteral("com.example.existingapp"), binding);
   moduleIdEdit_ = new QLineEdit(QStringLiteral("migration.module"), binding);
@@ -330,17 +359,22 @@ QWidget *MigrationStudioWindow::buildMigrationTab() {
   releaseSpin_ = new QSpinBox(binding);
   releaseSpin_->setRange(1, 2147483647);
   releaseSpin_->setValue(1);
-  bindingForm->addRow(QStringLiteral("Application ID"), applicationIdEdit_);
-  bindingForm->addRow(QStringLiteral("Module ID"), moduleIdEdit_);
-  bindingForm->addRow(QStringLiteral("Channel"), channelEdit_);
-  bindingForm->addRow(QStringLiteral("Platform"), platformCombo_);
-  bindingForm->addRow(QStringLiteral("Profile"), profileCombo_);
-  bindingForm->addRow(QStringLiteral("Release"), releaseSpin_);
+  addLabeledField(bindingRow, binding, QStringLiteral("Application ID"),
+                  applicationIdEdit_, 2);
+  addLabeledField(bindingRow, binding, QStringLiteral("Module ID"),
+                  moduleIdEdit_, 2);
+  addLabeledField(bindingRow, binding, QStringLiteral("Channel"), channelEdit_);
+  addLabeledField(bindingRow, binding, QStringLiteral("Platform"),
+                  platformCombo_);
+  addLabeledField(bindingRow, binding, QStringLiteral("Profile"), profileCombo_,
+                  2);
+  addLabeledField(bindingRow, binding, QStringLiteral("Release"), releaseSpin_);
   layout->addWidget(binding);
 
   auto *strict =
       new QGroupBox(QStringLiteral("严格验证 / Strict verification"), content);
-  auto *strictForm = new QFormLayout(strict);
+  auto *strictRow = new QHBoxLayout(strict);
+  strictRow->setSpacing(14);
   const QString bundledRuntime =
       QDir(QCoreApplication::applicationDirPath())
           .absoluteFilePath(QStringLiteral("../Resources/bin/pvm_cli"));
@@ -357,17 +391,20 @@ QWidget *MigrationStudioWindow::buildMigrationTab() {
       QDir(repoRoot_).filePath(
           QStringLiteral("server/var/keys/dev-public.pem")),
       strict);
-  strictForm->addRow(
+  addLabeledField(
+      strictRow, strict,
       QStringLiteral("C++17 Runtime"),
       pathField(runtimeEdit_, QStringLiteral("选择… / Browse"), [this] {
         chooseFile(runtimeEdit_, QStringLiteral("选择 pvm_cli / Select pvm_cli"));
       }));
-  strictForm->addRow(
+  addLabeledField(
+      strictRow, strict,
       QStringLiteral("Private key"),
       pathField(privateKeyEdit_, QStringLiteral("选择… / Browse"), [this] {
         chooseFile(privateKeyEdit_, QStringLiteral("选择私钥 / Select private key"));
       }));
-  strictForm->addRow(
+  addLabeledField(
+      strictRow, strict,
       QStringLiteral("Public key"),
       pathField(publicKeyEdit_, QStringLiteral("选择… / Browse"), [this] {
         chooseFile(publicKeyEdit_, QStringLiteral("选择公钥 / Select public key"));
@@ -865,15 +902,15 @@ void MigrationStudioWindow::appendLog(const QString &level,
                                       const QString &message) {
   QTextCharFormat format;
   if (level == QStringLiteral("ERROR")) {
-    format.setForeground(QColor(QStringLiteral("#ff7d90")));
+    format.setForeground(QColor(QStringLiteral("#b42318")));
   } else if (level == QStringLiteral("WARN")) {
-    format.setForeground(QColor(QStringLiteral("#ffc861")));
+    format.setForeground(QColor(QStringLiteral("#9a6700")));
   } else if (level == QStringLiteral("SUCCESS")) {
-    format.setForeground(QColor(QStringLiteral("#64e6ad")));
+    format.setForeground(QColor(QStringLiteral("#067647")));
   } else if (level == QStringLiteral("COMMAND")) {
-    format.setForeground(QColor(QStringLiteral("#9bb7ff")));
+    format.setForeground(QColor(QStringLiteral("#175cd3")));
   } else {
-    format.setForeground(QColor(QStringLiteral("#9db4cf")));
+    format.setForeground(QColor(QStringLiteral("#475467")));
   }
   QTextCursor cursor = logEdit_->textCursor();
   cursor.movePosition(QTextCursor::End);
