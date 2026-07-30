@@ -8,8 +8,6 @@
 
 `PVM Runtime` 面向需要跨端交付、原生体验和业务逻辑保护的应用。业务不会以 Kotlin、Swift、ArkTS 或 JavaScript 源码进入生产包；VM 只通过受限的 `UIHost` 和版本化 `Capability Host` 使用原生 UI 与系统能力。
 
-当前仓库是一套可运行、可测试、可继续产品化的工程基线，不把应用商店审核、正式 HSM、商业 SDK、三端真机或红队结果冒充为已经完成。
-
 `Runtime 5` · `PVBC v5` · `C++17` · `Ed25519` · `Android / iOS / HarmonyOS`
 
 ## 它解决什么

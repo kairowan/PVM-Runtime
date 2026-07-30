@@ -14,10 +14,6 @@ JavaScript business source does not enter the production package. The VM can
 reach native UI and system features only through a constrained `UIHost` and
 versioned `Capability Host`.
 
-This repository is a runnable and testable engineering baseline. It does not
-claim that App Store review, production HSM integration, commercial SDKs, every
-physical-device matrix, or red-team validation is already complete.
-
 `Runtime 5` · `PVBC v5` · `C++17` · `Ed25519` ·
 `Android / iOS / HarmonyOS`
 
