@@ -160,6 +160,7 @@ verify-contracts:
 
 docs-check:
 	$(PYTHON) scripts/check_docs.py
+	$(PYTHON) scripts/check_pr_policy.py --self-test
 
 release-check: test platform-check kmp-check verify-contracts docs-check delivery-matrix compatibility sanitizer-check fuzz-check
 

@@ -1,0 +1,10 @@
+# Default review owner.
+* @kairowan
+
+# Security- and release-sensitive paths.
+/.github/ @kairowan
+/client/include/ @kairowan
+/client/src/ @kairowan
+/server/src/pvm_server/ @kairowan
+/spec/ @kairowan
+

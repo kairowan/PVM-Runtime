@@ -1,0 +1,65 @@
+name: Bug report (English)
+description: Report a reproducible problem in the runtime, tooling, or platform hosts.
+title: "bug: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. Do not include private keys, signing files, access tokens, or proprietary DSL modules.
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight
+      options:
+        - label: I searched existing issues and did not find a duplicate.
+          required: true
+        - label: I removed secrets and proprietary business data.
+          required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - C++17 VM / bytecode
+        - Server compiler / delivery
+        - Android
+        - iOS
+        - HarmonyOS
+        - KMP
+        - Documentation / CI
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Actual behavior
+      description: What happened, including the exact error message?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Provide the smallest safe sequence of commands or actions that reproduces the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, SDK/toolchain versions, simulator or physical device, and relevant commit.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs or screenshots
+      description: Attach sanitized evidence. Drag files here instead of pasting secrets.
+

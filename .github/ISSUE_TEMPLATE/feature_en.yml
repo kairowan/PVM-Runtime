@@ -1,0 +1,47 @@
+name: Feature request (English)
+description: Propose a user-visible capability or platform integration.
+title: "feat: "
+labels: ["enhancement", "triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Describe the user or integration problem, not only the requested implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: What observable result would make this complete?
+    validations:
+      required: true
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope
+      multiple: true
+      options:
+        - Shared VM / ABI
+        - Server compiler / delivery
+        - Android
+        - iOS
+        - HarmonyOS
+        - KMP
+        - Security / operations
+        - Documentation / automation
+    validations:
+      required: true
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints and alternatives
+      description: Include compatibility, security, migration, and alternatives already considered.
+  - type: checkboxes
+    id: implementation
+    attributes:
+      label: Contribution
+      options:
+        - label: I am willing to prepare a PR after the scope is accepted.
+

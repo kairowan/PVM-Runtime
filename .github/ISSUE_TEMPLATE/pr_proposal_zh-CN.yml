@@ -1,0 +1,45 @@
+name: PR 方案确认（中文）
+description: 在开始实现前确认代码变更范围。
+title: "proposal: "
+labels: ["proposal", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        非简单 PR 请先提交本方案。维护者会确认范围、兼容性和所需验收证据。
+  - type: textarea
+    id: change
+    attributes:
+      label: 计划变更
+      description: 解决问题所需的最小变更是什么？
+    validations:
+      required: true
+  - type: textarea
+    id: flow
+    attributes:
+      label: 影响链路
+      description: 请说明调用方、共享实现、平台宿主和发布链路。
+    validations:
+      required: true
+  - type: textarea
+    id: security
+    attributes:
+      label: 兼容性与安全影响
+      description: 请覆盖字节码/ABI 兼容、密钥、回滚、平台版本和迁移。
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: 验证计划
+      description: 请列出最小自动化检查，以及所需的模拟器或真机证据。
+    validations:
+      required: true
+  - type: checkboxes
+    id: agreement
+    attributes:
+      label: 确认
+      options:
+        - label: 方案确认后，我会使用 `Closes #<issue>` 将 PR 关联到本 Issue。
+          required: true
+

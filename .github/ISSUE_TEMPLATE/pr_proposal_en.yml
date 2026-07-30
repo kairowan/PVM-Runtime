@@ -1,0 +1,45 @@
+name: PR proposal (English)
+description: Agree on a code change before implementation.
+title: "proposal: "
+labels: ["proposal", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Open this proposal before a non-trivial PR. A maintainer can confirm scope, compatibility, and required evidence.
+  - type: textarea
+    id: change
+    attributes:
+      label: Proposed change
+      description: What is the smallest change that solves the problem?
+    validations:
+      required: true
+  - type: textarea
+    id: flow
+    attributes:
+      label: Affected flow
+      description: Trace the affected caller, shared implementation, platform hosts, and release path.
+    validations:
+      required: true
+  - type: textarea
+    id: security
+    attributes:
+      label: Compatibility and security impact
+      description: Cover bytecode/ABI compatibility, keys, rollback, platform versions, and migration.
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification plan
+      description: List the smallest automated check and any simulator or physical-device evidence.
+    validations:
+      required: true
+  - type: checkboxes
+    id: agreement
+    attributes:
+      label: Agreement
+      options:
+        - label: I will link the PR with `Closes #<issue>` after this proposal is accepted.
+          required: true
+

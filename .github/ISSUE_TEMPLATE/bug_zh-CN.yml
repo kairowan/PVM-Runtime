@@ -1,0 +1,65 @@
+name: 缺陷报告（中文）
+description: 报告 Runtime、工具链或平台宿主中可复现的问题。
+title: "bug: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈。请勿提交私钥、签名文件、访问令牌或专有 DSL 业务模块。
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: 提交前检查
+      options:
+        - label: 我已经搜索现有 Issue，确认没有重复问题。
+          required: true
+        - label: 我已经移除密钥和专有业务数据。
+          required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: 影响范围
+      options:
+        - C++17 VM / 字节码
+        - 服务端编译器 / 交付
+        - Android
+        - iOS
+        - HarmonyOS
+        - KMP
+        - 文档 / CI
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: 实际行为
+      description: 实际发生了什么？请提供准确的错误信息。
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期行为
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 复现步骤
+      description: 请提供能够安全复现问题的最小命令或操作序列。
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: 环境
+      description: 操作系统、SDK/工具链版本、模拟器或真机，以及相关提交。
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 日志或截图
+      description: 请上传脱敏后的证据，不要粘贴任何密钥。
+

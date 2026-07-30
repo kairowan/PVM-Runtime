@@ -1,0 +1,34 @@
+name: PR Policy Review
+
+on:
+  pull_request_target:
+    types: [opened, edited, reopened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: pr-policy-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      # pull_request_target is intentionally pinned to the trusted base branch.
+      # Never check out or execute code from the pull request head in this job.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Review pull request policy
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          python3 scripts/check_pr_policy.py
+          --event "$GITHUB_EVENT_PATH"
+          --repository "$GITHUB_REPOSITORY"
+          --comment
+

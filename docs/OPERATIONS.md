@@ -1,24 +1,26 @@
-# 发布与运维
+[简体中文](OPERATIONS.zh-CN.md)
 
-本文描述从 DSL 到设备 LKG 的标准操作路径。命令均从仓库根目录执行。
+# Release and operations
 
-## 环境分层
+All commands run from the repository root.
 
-| 环境 | 签名方式 | 模块服务 | 用途 |
+## Environment tiers
+
+| Environment | Signing | Module service | Purpose |
 |---|---|---|---|
-| Local | `server/var/keys/` 开发密钥 | 本机 HTTP localhost | 演示、单元和端到端测试 |
-| CI/Staging | 隔离测试 signer | HTTPS 测试仓库 | 集成、灰度演练、兼容验证 |
-| Production | KMS/HSM signer | HTTPS、鉴权、CDN/私有仓库 | 正式发布 |
+| Local | ignored development key | localhost HTTP | development loop |
+| CI/Staging | isolated test signer | test HTTPS repository | integration and rollout drills |
+| Production | KMS/HSM signer | authenticated HTTPS/CDN/private repository | release |
 
-生产构建不得读取本地开发私钥。
+Never copy local development private keys into CI or production.
 
-## 本地闭环
+## Local loop
 
 ```bash
 make demo
 ```
 
-如果只想分步运行：
+For separate processes:
 
 ```bash
 make bootstrap build
@@ -26,188 +28,70 @@ make publish
 PVM_ACTIVATION_TOKEN='replace-me' make serve
 ```
 
-默认模块服务监听 `127.0.0.1:8080`。`Online Provisioned` 和 `Enterprise Managed` Manifest/模块需要 Bearer token。
+The default service listens on `127.0.0.1:8080`. Online and enterprise
+manifest/module requests require a bearer token.
 
-## 发布前门禁
+## Pre-release gates
 
 ```bash
 make release-check
 ```
 
-门禁来源以 [`spec/release_gates.json`](../spec/release_gates.json) 为准：
-
-| Gate | 验证内容 |
+| Command | Scope |
 |---|---|
-| `make test` | 编译、签名、篡改、路径、状态迁移、HTTP、灰度与 LKG |
-| `make platform-check` | Android 完整 NDK、iOS 编译检查、Harmony DevEco 工程静态探测与 Node-API portable smoke |
-| `make verify-contracts` | Host IDL 生成结果、DSL lint、Renderer conformance |
-| `make docs-check` | README/docs 本地链接与 SVG XML |
-| `make delivery-matrix` | Android/iOS/HarmonyOS × 四 Profile |
-| `make android-demo-check` | Android Demo APK/AAB、Runtime AAR/Maven、R8 smoke 与安装包安全属性 |
-| `make ios-sdk-check` | iOS 15 静态 XCFramework、Swift 6 consumer 与产物安全属性 |
-| `make ios-demo-check` | iOS Simulator App、签名离线模块、Privacy Manifest 与 Package 接入 |
-| `make harmony-sdk-check` | DevEco API 24 Runtime HAR、兼容 API 23 的 unsigned HAP、双 ABI 与离线资源 |
-| `make kmp-check` | commonMain/JVM/iOS Simulator ARM64 编译与共享生命周期测试 |
-| `make compatibility` | 五业务域 × PVBC v1/v2/v3 |
-| `make sanitizer-check` | Linux ASan+UBSan；macOS 26 使用 UBSan |
-| `make fuzz-check` | Clang libFuzzer 包解析 smoke |
+| `make test` | compile, signatures, tamper, paths, migration, HTTP, rollout, LKG |
+| `make platform-check` | platform host build checks |
+| `make verify-contracts` | Host IDL, DSL lint, renderer conformance |
+| `make docs-check` | bilingual Markdown pairs, links, visual assets |
+| `make delivery-matrix` | Android/iOS/HarmonyOS × four profiles |
+| `make compatibility` | five domains × historical PVBC |
+| `make sanitizer-check fuzz-check` | native memory safety and parser smoke |
 
-这些门禁不能替代 `externalRequired` 中的 HSM、商店、真机、支付沙箱和红队证据。
-
-`android-demo-check`、`ios-sdk-check`、`ios-demo-check` 和
-`harmony-sdk-check` 是需要各自平台 SDK 的独立自动门禁，不并入可跨平台运行的
-`release-check` 聚合命令。
-
-Android 门禁使用 API 36、NDK `28.0.13004108` 构建并验证：
-
-- 可安装的 Debug APK 与 Debug AAB。
-- 可复用的 Release AAR 及本地 Maven 仓库。
-- 开启 R8 压缩和混淆的非 debuggable smoke APK。
-- APK 签名、AAB JAR 签名、ZIP 16 KiB page alignment、内置模块/公钥/ABI 与篡改拒绝。
-- 本地 Maven 与独立 AAR 字节一致，POM 保留 Runtime 的外部依赖。
-- Release AAR 中两种 ABI 的 ELF `PT_LOAD` 段至少按 16 KiB 对齐。
-
-执行命令：
+Run platform artifact gates in their SDK environments:
 
 ```bash
 make android-demo-check
+make ios-sdk-check ios-demo-check
+make harmony-sdk-check
+make kmp-check
 ```
 
-产物写入 `dist/android/`。Debug APK/AAB 和 R8 smoke APK 使用 Debug/测试签名，
-只用于开发、CI 与集成验收，不能作为生产签名或商店发布证据。Release AAR/Maven
-是 Runtime 库产物，不包含最终 App 的正式签名；接入方仍必须在自己的 Android
-工程中使用正式 application ID、release variant、keystore 或 Play App Signing
-生成生产 APK/AAB。
-
-仓库提供显式生产签名任务；四项输入缺一即失败，不会回退到 Debug keystore：
+Android production artifacts require target-app signing secrets:
 
 ```bash
-PVM_ANDROID_KEYSTORE=/secure/release.jks \
-PVM_ANDROID_STORE_PASSWORD='from-secret-store' \
-PVM_ANDROID_KEY_ALIAS='release' \
-PVM_ANDROID_KEY_PASSWORD='from-secret-store' \
+PVM_ANDROID_KEYSTORE=/secure/path/release.jks \
+PVM_ANDROID_STORE_PASSWORD='...' \
+PVM_ANDROID_KEY_ALIAS='...' \
+PVM_ANDROID_KEY_PASSWORD='...' \
 make android-production-packages
 ```
 
-产物为 `dist/android/PVMRuntime-demo-release.{apk,aab}`。GitHub
-`.github/workflows/release.yml` 从仓库 Secrets 恢复临时 keystore，发布完成后由
-GitHub Runner 回收；keystore 不进入仓库和 Actions artifact。
-
-交付矩阵产物仍是宿主工程输入。Android bootstrap 声明
-`packageFormats: ["apk", "aab"]`；仓库生成的 Demo 包只证明示例集成链路，正式业务
-App 必须使用自身签名策略构建。
-
-在安装完整 Xcode 的 macOS 上，iOS SDK 发布任务还必须执行：
+iOS distribution evidence uses:
 
 ```bash
-make ios-sdk-check
-```
-
-该门禁生成 `dist/ios/PVMBridge.xcframework`，检查 arm64 iPhoneOS 与
-arm64/x86_64 Simulator slice、iOS 15 deployment target、C ABI v3/Objective-C 符号、
-公开头文件、Swift 6 strict-concurrency、实际链接 consumer，以及私钥/本机路径泄漏。
-它不会生成 `.xcarchive` 或 IPA，也不能代替 codesign、真机、entitlement、隐私问卷和
-App Store 审核。
-
-Simulator 示例接入还必须执行：
-
-```bash
-make ios-demo-check
-make ios-demo-run
-```
-
-前者构建并校验 `PVMRuntimeDemo.app`；后者要求唯一已启动的 Simulator，安装并运行
-该 App。需要复现 README 截图时使用 `make ios-demo-screenshot`，它只重置
-`com.example.protected` Demo 的 Simulator 沙盒。该证据不能替代物理 iPhone、
-`.xcarchive`、Apple Distribution codesign 或 IPA。
-
-有正式 Team、Distribution Identity 和 Provisioning Profile 时，可生成并严格验证
-物理设备 Archive：
-
-```bash
-PVM_IOS_TEAM_ID=ABCDE12345 \
-PVM_IOS_SIGNING_IDENTITY='Apple Distribution: Example Corp' \
-PVM_IOS_PROVISIONING_PROFILE='PVM Runtime App Store' \
-PVM_IOS_BUNDLE_ID=com.example.product \
+PVM_IOS_DEVELOPMENT_TEAM=TEAMID \
+PVM_IOS_SIGNING_IDENTITY='Apple Distribution' \
+PVM_IOS_PROVISIONING_PROFILE_SPECIFIER='Profile Name' \
 make ios-device-archive
 ```
 
-该命令生成 `dist/ios/PVMRuntimeDemo.xcarchive` 并运行 `codesign --verify`；IPA export、
-TestFlight 和 App Store 提交仍使用目标组织审核配置。
+HarmonyOS production validation requires an explicitly selected Huawei-signed
+HAP; signing credentials remain in DevEco or the organization signing service.
 
-iOS 默认发布建议为 `offline_sealed`。任何在线字节码交付都必须针对实际模块能够改变
-的功能评估
-[Apple App Review Guidelines 2.5.2](https://developer.apple.com/app-store/review/guidelines/)；
-自动门禁通过不等于商店天然合规。
-
-在安装 DevEco Studio 6.1.1/API 24 的 macOS 上，HarmonyOS SDK 发布任务还必须执行：
-
-```bash
-make harmony-sdk-check
-```
-
-该门禁调用 `make harmony-packages`，构建兼容 API 23 的 Runtime HAR 和 Offline
-Sealed Demo unsigned HAP，并检查 arm64-v8a/x86_64 C++17 Node-API Runtime、ArkUI、
-模块、公钥与 bootstrap 一致性。产物写入 `dist/harmony/`。
-
-当仓库路径包含 DevEco 不接受的空格或 `+` 时，先准备一次性纯 ASCII 工程：
-
-```bash
-python3 scripts/build_harmony_artifacts.py \
-  --prepare-project /tmp/PVMRuntimeHarmonySigning
-```
-
-该命令只接受空目录，并注入当前 HarmonyOS Offline Sealed 交付输入。在临时工程的
-`Project Structure > Signing Configs` 中为 `default` product 配置 Huawei 自动调试
-签名后再构建 signed HAP；不得把 `signingConfigs`、证书、Profile 或密码复制回仓库。
-
-unsigned HAP 只用于 Emulator/开发联调，不是华为商业真机或应用市场签名结果。
-Emulator 使用：
-
-```bash
-make harmony-demo-run
-make harmony-demo-screenshot
-```
-
-物理设备必须显式提供 USB 目标和 Huawei 签名 HAP：
-
-```bash
-HARMONY_DEVICE_TARGET=3RM0224B30000105 \
-HARMONY_SIGNED_HAP=/path/to/huawei-debug-signed.hap \
-make harmony-device-screenshot
-```
-
-仅验证商业签名包而不安装时：
-
-```bash
-HARMONY_SIGNED_HAP=/secure/product-release-signed.hap \
-make harmony-production-check
-```
-
-该路径已在 HUAWEI Pura 70 ADY-AL10（HarmonyOS 6.1、API 23 兼容）使用 Huawei debug
-signed HAP 通过：真实 Offline Sealed 模块完成 count `0 → 1 → 2`、异步存储
-`Status: Not set`、输入 `Alice`，Home、force-stop、重启后状态恢复，并写出
-`docs/assets/harmony-demo.png`。这不是 commercial/release/AppGallery 签名或完整
-设备矩阵。HUKS、线上 Module Store、完整 Capability 和更多物理设备仍需独立验收。
-
-HarmonyOS 构建使用 CMake、ohpm 与 Hvigor，不依赖 Gradle。不要为了 HarmonyOS
-验收删除 `~/.gradle`；如需同时执行 Android 门禁，应使用任务专属
-`GRADLE_USER_HOME` 隔离缓存，而不是清理其他桌面项目共享的 Gradle 缓存。
-
-## KMP 制品
+## KMP artifacts
 
 ```bash
 make kmp-check
 make kmp-packages
 ```
 
-KMP 构建固定使用仓库内 `build/gradle-kmp-home`，不会清理或覆盖其他项目的 Gradle
-缓存。Maven 目录写入 `dist/kmp/maven`，坐标为
-`com.protectedvm:pvm-runtime-kmp:0.5.0`。
+Outputs are written to `dist/kmp/maven`. KMP uses the repository-local
+`build/gradle-kmp-home` cache and never cleans another desktop project's Gradle
+cache.
 
-## 编译与发布
+## Compile and publish
 
-### 本地私钥
+### Local private key
 
 ```bash
 PYTHONPATH=server/src python3 -m pvm_server.publish \
@@ -216,93 +100,92 @@ PYTHONPATH=server/src python3 -m pvm_server.publish \
   --repository server/var/repository
 ```
 
-### 远程 signer
+### Remote signer
 
 ```bash
 PYTHONPATH=server/src python3 -m pvm_server.publish \
-  path/to/module.pvm.json \
+  server/sample/counter.pvm.json \
   --signer-command '/opt/company/pvm-signer --environment production' \
-  --repository path/to/repository
+  --repository /srv/pvm/repository
 ```
 
-signer 从 stdin 接收原始 payload，并只向 stdout 返回 64 字节 Ed25519 签名。错误信息写 stderr，退出码必须非零。
+The signer receives the exact payload on stdin and writes only a 64-byte
+Ed25519 signature to stdout. Diagnostics go to stderr and failure uses a
+non-zero exit code. Production signer policy should bind environment, key ID,
+actor, artifact hash, and approval.
 
-发布器会：
+Publication:
 
-1. 解析 DSL 并执行 lint/Host IDL 检查。
-2. 编译、签名并写入内容寻址模块。
-3. 写入按模块 Hash 的访问策略。
-4. 保留上一版签名信封到 `history/`。
-5. 创建新的签名 Manifest payload。
-6. 原子替换控制文件并把 rollout 重置为 100%。
+1. lints DSL, IDL, profile, and budget contracts;
+2. compiles deterministic PVBC;
+3. signs and verifies the module;
+4. writes the immutable hash-addressed module;
+5. creates and signs a new manifest payload;
+6. atomically replaces control state and resets rollout to 100%.
 
-同一 release 与同一 Hash 重复发布是幂等操作；同一 release 不同内容或更小 release 会被拒绝。
-
-## 仓库布局
+## Repository layout
 
 ```text
 repository/
-├── access/<sha256>.json
-├── modules/<sha256>.pvm
+├── modules/
+│   └── <sha256>.pvm
 └── apps/<application>/<channel>/<platform>/<profile>/
-    ├── manifest.json
-    └── history/<release>-<sha256>.json
+    ├── access.json
+    └── manifest.json
 ```
 
-`manifest.json` 是服务端控制对象：
+`manifest.json` is a server-side control object:
 
 ```json
 {
-  "control_format": 1,
-  "current": {"envelope_format": 1, "...": "..."},
-  "previous": {"envelope_format": 1, "...": "..."},
+  "current": {"payload": "...", "signature": "..."},
+  "previous": {"payload": "...", "signature": "..."},
   "rollout_percentage": 100
 }
 ```
 
-服务端只下发选中的 `current` 或 `previous` 签名信封，不下发控制字段。
+Only signed envelopes are trusted by the device. The rollout percentage is an
+operational selector, not signed release authority.
 
-## 灰度
+## Rollout
 
-把新版本限制到 10% 的稳定设备桶：
+Start with a stable cohort:
 
 ```bash
 PYTHONPATH=server/src python3 -m pvm_server.release \
   path/to/manifest.json --percentage 10
 ```
 
-设备通过 `X-PVM-Installation-ID` 进入稳定 Hash 桶。没有安装 ID 的请求在部分灰度期间选择 previous，避免随机漂移。
-
-逐步扩大：
+Observe activation, verification, preload, crash-free sessions, capability
+errors, state migration, and business metrics before expanding:
 
 ```bash
 PYTHONPATH=server/src python3 -m pvm_server.release \
   path/to/manifest.json --percentage 25
-
 PYTHONPATH=server/src python3 -m pvm_server.release \
   path/to/manifest.json --percentage 100
 ```
 
-## 止血与业务回退
+Installation IDs map to stable buckets, so a device does not oscillate between
+current and previous during a rollout.
 
-停止更多设备升级：
+## Emergency stop and business rollback
 
 ```bash
 PYTHONPATH=server/src python3 -m pvm_server.release \
   path/to/manifest.json --rollback
 ```
 
-该操作把 rollout 设为 0%，不会降低已经安装新版本设备的 release floor。若已升级设备也必须回到旧逻辑：
+This sets rollout to zero and stops additional upgrades. It does not lower the
+release floor on devices that already accepted the release. To restore old
+behavior there, publish the old behavior as a newly signed, higher release.
 
-1. 从旧 DSL/提交恢复业务行为。
-2. 将 `module.release` 提升到比问题版本更大的值。
-3. 重新编译、签名和发布。
+Never lower `minimumRelease`, overwrite an existing hash URL, return an unsigned
+manifest, clear LKG to force downgrade, or bypass preload validation.
 
-不要删除客户端状态或放宽防回滚来实现运营回退。
+## Manifest and module service
 
-## Manifest 与模块服务
-
-启动：
+Development:
 
 ```bash
 PVM_ACTIVATION_TOKEN='replace-me' \
@@ -312,85 +195,55 @@ python3 -m pvm_server.serve \
   --audit-log server/var/audit.jsonl
 ```
 
-生产入口支持 TLS 1.2+、文件型 token、请求超时、请求 ID、安全响应头和健康探针：
+Production should additionally configure TLS 1.2+, token-file rotation, read
+timeouts, request-size limits, reverse-proxy/CDN policy, liveness/readiness, and
+an organization audit sink.
 
-```bash
-PVM_ACTIVATION_TOKEN_FILE=/run/secrets/pvm-token \
-PYTHONPATH=server/src python3 -m pvm_server.serve \
-  --repository /var/lib/pvm/repository \
-  --host 0.0.0.0 \
-  --port 8443 \
-  --tls-cert /run/secrets/tls.crt \
-  --tls-key /run/secrets/tls.key \
-  --audit-log /var/log/pvm/audit.jsonl
-```
+The reference service provides ETag, private cache headers for manifests,
+immutable long-lived cache headers for modules, request IDs, no-sniff and frame
+protection, same-origin module URLs, activation authorization, and profile
+access policy.
 
-探针为 `/livez` 和 `/readyz`。`Containerfile` 提供非 root 运行与容器健康检查。公网
-生产仍应在 API Gateway/CDN 后运行，并接入组织身份系统、集中审计、数据库和多副本
-编排；内置服务不冒充这些外部设施。
+## Audit
 
-重要行为：
+JSONL records manifest selection, release, rollout bucket, module fetches,
+request ID, status, actor where available, and timestamp. Production should
+correlate:
 
-- Manifest 使用 `private, max-age=60` 和 ETag。
-- 模块使用 Hash URL 与一年 immutable 缓存。
-- 受保护模块使用 private cache；公共 Profile 可使用 public cache。
-- 缺失或损坏 access policy 默认要求激活。
-- 路径段、平台、Profile 和模块 Hash 都进行严格检查。
+- manifest 200/304/401/409/500;
+- signature, binding, rollback, hash, and preload failures;
+- rollout changes and signer approvals;
+- cache activation and LKG fallback;
+- platform/app/version/device cohort without storing unnecessary personal data.
 
-## 审计
+## Incident handling
 
-参考服务写 JSONL：
+### Manifest service unavailable
 
-```json
-{"event":"manifest","path":"apps/.../manifest.json","release":4,"rollout":10,"bucket":7,"timestamp":0}
-{"event":"module","sha256":"...","size":638,"timestamp":0}
-{"event":"authorization_denied","sha256":"...","timestamp":0}
-```
+Keep the local LKG, apply bounded retry with jitter, preserve built-in fallback
+UI for profiles that require it, and never return an unsigned temporary
+manifest.
 
-生产接入至少应按以下维度聚合：
+### New module verification fails
 
-- Manifest 200/304/401/409/500。
-- release、平台、Profile、灰度桶和客户端版本。
-- 模块下载量、Hash、大小、CDN 命中和延迟。
-- Manifest/模块验签失败、绑定失败和防回滚拒绝。
-- LKG 命中率、更新失败率和首次激活成功率。
+Set rollout to zero, preserve the bad module and signed envelope for analysis,
+keep current LKG, and publish a corrected higher release.
 
-日志不得记录 activation token、私钥、完整状态或用户敏感数据。
+### Signing key suspected compromised
 
-## 故障处理
+Revoke signer access, freeze manifest control writes while preserving immutable
+reads, rotate trust through the platform release process, inventory every
+artifact signed by the key, and do not “repair” history by deleting audit data.
 
-### Manifest 服务不可用
+### State migration fails
 
-- 已安装用户继续使用符合 floor 的 LKG。
-- 首次安装用户显示内置 fallback UI，并重试带退避的激活。
-- 不要返回未签名的临时 Manifest。
+Stop rollout, retain the previous LKG and snapshot, reproduce with the exact
+module pair, and publish a higher release with corrected persistence IDs or an
+explicit product migration.
 
-### 新模块验证失败
+## Release record
 
-- 立即把 rollout 降为 0。
-- 保留问题 `.pvm`、Manifest 信封、编译器版本和 signer 审计用于复盘。
-- 用更高 release 发布修复，不能覆盖内容寻址文件。
-
-### 签名密钥疑似泄露
-
-- 停止 signer 权限和所有新发布。
-- 冻结 Manifest 控制写入，保留模块读取以维持 LKG。
-- 根据预先演练的 App 公钥轮换计划发布新信任根。
-- 不能仅删除仓库旧模块：离线设备仍可能接受被泄露 key 签名且高 release 的恶意内容。
-
-### 状态迁移失败
-
-- 检查新状态字段是否保留旧 `persistence_id`。
-- 类型变化需要显式业务迁移版本，不能让 VM 重新解释原字节。
-- 修复后使用更高 release 重发；不要清空用户数据作为默认策略。
-
-## 发布记录建议
-
-每次正式发布应归档：
-
-- DSL 源提交与编译器提交。
-- Host IDL/生成产物版本。
-- application/channel/platform/profile/release。
-- 模块 SHA-256、Manifest payload Hash 和 signer key ID。
-- release-check、对应平台 `android-demo-check`/`ios-sdk-check` 结果与外部证据链接。
-- 灰度时间线、指标、止血条件和负责人。
+Archive source revision, compiler/runtime/PVBC version, target/profile,
+capability IDL hash, module SHA-256, manifest payload hash, signer key ID,
+artifact hashes, automated gates, device evidence, rollout approvals, store
+submission IDs, known limitations, and rollback owner.

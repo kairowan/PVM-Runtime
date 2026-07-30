@@ -1,106 +1,97 @@
-# PVM Runtime 文档中心
+[简体中文](README.zh-CN.md)
 
-这里记录 PVM Runtime 的设计约束、可执行合同和生产接入边界。README 用于快速理解项目；本目录用于回答“为什么这样设计”“怎样正确集成”和“哪些证据才算完成”。
+# PVM Runtime documentation hub
 
-## 推荐阅读顺序
+This directory records design constraints, executable contracts, production
+integration boundaries, and acceptance evidence. The repository README is a
+product overview; these documents explain why the system is designed this way,
+how to integrate it correctly, and what evidence counts as complete.
 
-### 第一次了解项目
+## Recommended reading order
 
-1. [项目首页](../README.md)
-2. [架构与数据流](ARCHITECTURE.md)
-3. [安全模型](SECURITY_MODEL.md)
-4. [功能完成度](FUNCTIONAL_STATUS.md)
-5. [交付状态](DELIVERY_STATUS.md)
+### First introduction
 
-### 编写业务模块
+1. [Repository README](../README.md)
+2. [Architecture and data flow](ARCHITECTURE.md)
+3. [Functional status](FUNCTIONAL_STATUS.md)
 
-1. [DSL 与字节码](DSL_V1.md)
-2. [示例模块](../server/sample/counter.pvm.json)
-3. [Host IDL](../spec/host_idl.json)
-4. `make verify-contracts`
+### Writing business modules
 
-### 接入移动端 App
+1. [DSL and bytecode](DSL_V1.md)
+2. [Security model](SECURITY_MODEL.md)
+3. [`server/sample/counter.pvm.json`](../server/sample/counter.pvm.json)
 
-1. [三端集成](PLATFORM_INTEGRATION.md)
-2. [C ABI](../client/include/pvm/runtime_c.h)
-3. 对应平台的 `client/platform/<platform>/`
-4. `make platform-check delivery-matrix`
-5. Android 额外运行 `make android-demo-check`
-6. iOS 额外运行 `make ios-sdk-check ios-demo-check`
-7. HarmonyOS 额外运行 `make harmony-sdk-check`
-8. KMP 接入额外运行 `make kmp-check`
+### Integrating a mobile app
 
-### 负责发布与值班
+1. [Platform integration](PLATFORM_INTEGRATION.md)
+2. [Delivery status](DELIVERY_STATUS.md)
+3. [Renderer conformance](../spec/renderer_conformance.json)
+4. [Host IDL](../spec/host_idl.json)
 
-1. [发布与运维](OPERATIONS.md)
-2. [安全模型](SECURITY_MODEL.md)
-3. [发布门禁合同](../spec/release_gates.json)
-4. `make release-check`
+### Release and on-call
 
-## 文档地图
+1. [Operations](OPERATIONS.md)
+2. [Security model](SECURITY_MODEL.md)
+3. [Delivery status](DELIVERY_STATUS.md)
+4. [Security policy](../SECURITY.md)
 
-| 文档 | 面向角色 | 主要问题 |
-|---|---|---|
-| [ARCHITECTURE.md](ARCHITECTURE.md) | 架构师、Runtime/平台开发 | 组件如何协作，数据和信任怎样流动 |
-| [SECURITY_MODEL.md](SECURITY_MODEL.md) | 安全、发布、平台开发 | 防什么、不防什么、密钥和失败策略是什么 |
-| [DSL_V1.md](DSL_V1.md) | DSL/业务开发 | 能表达什么、如何编译、怎样兼容升级 |
-| [PLATFORM_INTEGRATION.md](PLATFORM_INTEGRATION.md) | Android/iOS/HarmonyOS 开发 | 怎样连接 VM、渲染器、验签和模块缓存 |
-| [OPERATIONS.md](OPERATIONS.md) | CI/CD、SRE、发布负责人 | 怎样签名、发布、灰度、止血和审计 |
-| [DELIVERY_STATUS.md](DELIVERY_STATUS.md) | 项目负责人、验收人员 | 哪些由仓库证明，哪些必须取得外部证据 |
-| [FUNCTIONAL_STATUS.md](FUNCTIONAL_STATUS.md) | 产品、平台、验收人员 | 哪些功能可运行，哪些只是合同或接入点 |
+## Document map
 
-## 核心术语
-
-| 术语 | 含义 |
+| Document | Answers |
 |---|---|
-| DSL | 构建时业务输入，描述状态、页面、处理器和 Effect，不进入生产模块 |
-| PVBC | PVM 私有字节码 payload；当前默认版本为 v5 |
-| PVMP | 包含 PVBC 和 Ed25519 签名的模块容器 |
-| Manifest | 经过 Ed25519 签名的模块发布描述，绑定 application、channel、platform、profile、release 和 Hash |
-| UIHost | 把 VM 的中立 UI Tree 映射到原生 UI 框架的宿主接口 |
-| Capability Host | 承载支付、网络、存储、相机等原生能力的版本化宿主接口 |
-| LKG | Last Known Good，最后一次完整验证并原子切换成功的本地模块 |
-| Release floor | 客户端允许接受的最低单调发布序号，用于首装和升级防回滚 |
-| Delivery Profile | 决定签名模块如何进入设备的交付策略，不改变 DSL/VM 语义 |
+| [Architecture](ARCHITECTURE.md) | Which component owns each trust decision and data transition? |
+| [DSL and bytecode](DSL_V1.md) | What can a module express and how does the VM validate it? |
+| [Security model](SECURITY_MODEL.md) | What is protected, from whom, and what is explicitly out of scope? |
+| [Platform integration](PLATFORM_INTEGRATION.md) | How do Android, iOS, HarmonyOS, and KMP connect? |
+| [Operations](OPERATIONS.md) | How are modules built, signed, rolled out, stopped, and audited? |
+| [Functional status](FUNCTIONAL_STATUS.md) | Which code is real and which adapters remain? |
+| [Delivery status](DELIVERY_STATUS.md) | Which claims have automated or external evidence? |
 
-## 版本关系
+## Core terminology
 
-| 组件 | 当前版本/范围 | 兼容策略 |
-|---|---|---|
-| Runtime | 5 | 读取 PVBC v1–v5 |
-| 默认字节码 | PVBC v5 | v4 稳定状态 ID；v5 输入事件值 |
-| 模块包 | PVMP v1 | Ed25519，64 字节签名 |
-| Manifest 信封 | v1 | Ed25519 签名 canonical JSON payload |
-| Host IDL | schema v1 | 生成接口必须与 `generated/host/` 一致 |
-
-## 当前可运行交付
-
-| 入口 | 输出或证明 |
+| Term | Meaning |
 |---|---|
-| `make demo` | 桌面端签名、发布、下载、执行与状态恢复闭环 |
-| `make android-demo-check` | Debug APK/AAB、R8 smoke APK、Release AAR/Maven 与包安全检查 |
-| `make ios-sdk-check` | iOS 15 静态 XCFramework、Swift 6 consumer 与产物安全检查 |
-| `make ios-demo-check` | Xcode Simulator App、签名离线模块、Privacy Manifest 与 Package 接入 |
-| `make harmony-sdk-check` | DevEco API 24 Runtime HAR、unsigned Emulator HAP、双 ABI 与离线资源检查 |
-| `make kmp-check` | commonMain/JVM/iOS Kotlin/Native 编译与生命周期测试 |
-| `make release-check` | 核心、三端可编译部分、兼容、模糊测试、文档与交付矩阵 |
+| DSL | Build-time business description; never interpreted on device |
+| PVBC | Verified private bytecode payload |
+| PVMP | Signed module container around PVBC |
+| Manifest | Signed release selection and immutable module metadata |
+| Runtime | Shared C++17 verifier and interpreter |
+| Host | Platform lifecycle, renderer, Module Store, and capabilities |
+| UI Tree | Neutral whole-tree UI batch emitted by the VM |
+| Capability | Versioned, declared call into native host functionality |
+| Native Surface | Host-owned native view for maps, players, camera, and similar features |
+| LKG | Last known good verified module |
+| Delivery Profile | Policy describing how a platform-bound module reaches the device |
 
-Android Demo 已在 HONOR BRP-AN00（API 35）验证；这是一台设备的 smoke 结果。iOS
-已提供 Swift Package、`PVMHost`、Privacy Manifest、XCFramework 与 Xcode Demo，并
-在 iOS 26.2 Simulator 完成交互/截图；真机和正式发布签名仍待完成。HarmonyOS 已有
-DevEco API 24（兼容 API 23）工程，真实构建 Runtime HAR 和 unsigned Emulator HAP，
-并包含 arm64-v8a/x86_64 C++17 Node-API、ArkTS Host 与 ArkUI Renderer。Huawei
-debug signed HAP 已在 HUAWEI Pura 70 ADY-AL10（HarmonyOS 6.1、API 23 兼容）运行真实
-Offline Sealed 模块，自动验证计数、异步存储、文本输入、Home/force-stop 后重启恢复
-并生成原始截图。该结果不是 commercial/release/AppGallery 签名，也只覆盖这一台设备；
-HUKS、线上 Module Store、完整 Capability 和更多物理设备仍待完成。KMP 公共模块
-已经进入产品构建并可生成 Maven 制品；Compose/CMP 平台 Host 与 Kuikly 仍需根据
-业务选型完成。剩余工作按
-[功能完成度](FUNCTIONAL_STATUS.md)中的核心阶段推进。
+## Version relationships
 
-## 文档维护规则
+- Runtime 5 reads PVBC v1–v5.
+- The compiler emits PVBC v5 by default.
+- C ABI v3 is the required mobile binding API.
+- Host IDL, renderer conformance, release gates, and state persistence are
+  independently versioned contracts.
+- Runtime, bytecode, platform package, and business release are related but not
+  interchangeable version numbers.
 
-- 描述“已实现”时必须能指向代码、生成产物或自动化门禁。
-- 商店审核、HSM、商业 SDK、真机和红队等外部状态只能记录为证据，不得写成仓库自动完成。
-- 改动字节码、Manifest、C ABI 或 Host IDL 时，同时更新对应文档和兼容测试。
-- 示例命令必须从仓库根目录可运行；发布命令不得默认引用生产密钥。
+## Current runnable delivery
+
+The repository can build and inspect Android APK/AAB/AAR/Maven, iOS static
+XCFramework and Simulator demo, HarmonyOS HAR and unsigned emulator HAP, KMP
+Maven variants, the delivery matrix, and the desktop module-service loop.
+Physical-device smoke exists for one Android and one HarmonyOS device; iOS
+evidence currently uses Simulator. See [Delivery status](DELIVERY_STATUS.md)
+before making a production claim.
+
+## Documentation maintenance
+
+- English files use `NAME.md`; Simplified Chinese uses `NAME.zh-CN.md`.
+- Every pair links to the other language and changes in one language update the
+  peer in the same PR.
+- Status claims name the command, artifact, simulator, device, account, or
+  external evidence that proves them.
+- A compiled interface is not described as an implemented adapter.
+- Simulator evidence is not described as physical-device evidence.
+- Development signing is not described as production signing.
+- `make docs-check` enforces pairing, links, and visual-asset integrity.
+
+See [Contributing](../CONTRIBUTING.md) for the Issue-to-PR workflow.

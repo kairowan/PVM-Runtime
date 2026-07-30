@@ -12,14 +12,50 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 MARKDOWN_LINK = re.compile(r"!?\[[^\]]*]\(([^)\s]+)(?:\s+['\"][^)]*['\"])?\)")
 HTML_SOURCE = re.compile(r"\bsrc=['\"]([^'\"]+)['\"]")
+EXCLUDED_PARTS = {".git", ".gradle", ".idea", "build", "dist"}
+
+
+def markdown_documents():
+    return sorted(
+        path
+        for path in ROOT.rglob("*.md")
+        if not EXCLUDED_PARTS.intersection(path.relative_to(ROOT).parts)
+    )
+
+
+def language_peer(document):
+    suffix = ".zh-CN.md"
+    if document.name.endswith(suffix):
+        return document.with_name(document.name[: -len(suffix)] + ".md")
+    return document.with_name(document.stem + suffix)
 
 
 def main():
-    documents = [ROOT / "README.md", *sorted((ROOT / "docs").glob("*.md"))]
+    documents = markdown_documents()
     errors = []
     for document in documents:
         source = document.read_text(encoding="utf-8")
-        for target in [*MARKDOWN_LINK.findall(source), *HTML_SOURCE.findall(source)]:
+        targets = [*MARKDOWN_LINK.findall(source), *HTML_SOURCE.findall(source)]
+        peer = language_peer(document)
+        if not peer.is_file():
+            errors.append(
+                "%s: missing language peer %s"
+                % (document.relative_to(ROOT), peer.relative_to(ROOT))
+            )
+        elif not any(
+            not target.startswith(("http://", "https://", "mailto:", "#"))
+            and (
+                document.parent
+                / urllib.parse.unquote(target.split("#", 1)[0])
+            ).resolve()
+            == peer.resolve()
+            for target in targets
+        ):
+            errors.append(
+                "%s: missing language switch link to %s"
+                % (document.relative_to(ROOT), peer.name)
+            )
+        for target in targets:
             if target.startswith(("http://", "https://", "mailto:", "#")):
                 continue
             path_text = urllib.parse.unquote(target.split("#", 1)[0])
@@ -41,9 +77,13 @@ def main():
     if errors:
         print("\n".join(errors), file=sys.stderr)
         return 1
-    print("Documentation: PASS (%d Markdown files, %d visual assets)" % (
-        len(documents), len(list((ROOT / "docs" / "assets").glob("*.*")))
-    ))
+    print(
+        "Documentation: PASS (%d bilingual Markdown files, %d visual assets)"
+        % (
+            len(documents),
+            len(list((ROOT / "docs" / "assets").glob("*.*"))),
+        )
+    )
     return 0
 
 

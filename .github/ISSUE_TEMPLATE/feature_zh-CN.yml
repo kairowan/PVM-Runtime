@@ -1,0 +1,47 @@
+name: 功能建议（中文）
+description: 建议面向用户的能力或平台集成功能。
+title: "feat: "
+labels: ["enhancement", "triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 问题
+      description: 请描述用户或集成问题，而不只是期望的实现方式。
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: 期望结果
+      description: 哪些可观察结果可以证明功能已经完成？
+    validations:
+      required: true
+  - type: dropdown
+    id: scope
+    attributes:
+      label: 范围
+      multiple: true
+      options:
+        - 共享 VM / ABI
+        - 服务端编译器 / 交付
+        - Android
+        - iOS
+        - HarmonyOS
+        - KMP
+        - 安全 / 运维
+        - 文档 / 自动化
+    validations:
+      required: true
+  - type: textarea
+    id: constraints
+    attributes:
+      label: 约束与替代方案
+      description: 请说明兼容性、安全、迁移成本和已经考虑过的替代方案。
+  - type: checkboxes
+    id: implementation
+    attributes:
+      label: 参与贡献
+      options:
+        - label: 范围确认后，我愿意提交对应 PR。
+
