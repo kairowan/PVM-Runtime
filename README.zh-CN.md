@@ -22,6 +22,8 @@
 - UI 仍由宿主原生后端渲染；当前构建覆盖 Android View、UIKit/SwiftUI，以及经
   DevEco API 24 编译的 ArkUI。KMP 公共生命周期/事件 API 已形成 JVM 与 Kotlin/Native
   制品；Compose/CMP Renderer 和 Kuikly 仍需按产品选型接入。
+- 本地迁移工具支持按单个类、多个类或一个/多个现有模块选择范围，在不修改老项目
+  源码的前提下生成可复核的 DSL 迁移骨架。
 - 支付、地图、相机、音视频、推送等重能力留在宿主，通过版本化 Capability IDL 调用。
 - `Offline Sealed` 与联网交付不是互相冒充的模式，而是明确分离的构建产物。
 
@@ -347,6 +349,7 @@ PVM Runtime 提高静态分析、篡改和错误交付的成本，但不承诺�
 | [架构与数据流](docs/ARCHITECTURE.zh-CN.md) | 组件职责、信任平面、加载与更新流程 |
 | [安全模型](docs/SECURITY_MODEL.zh-CN.md) | 威胁模型、密钥、控制项、非目标与响应 |
 | [DSL 与字节码](docs/DSL_V1.zh-CN.md) | DSL 语义、PVBC v1–v5、输入事件与状态迁移 |
+| [选择性迁移](docs/MIGRATION.zh-CN.md) | 从现有大型项目按类或模块渐进迁移 |
 | [三端集成](docs/PLATFORM_INTEGRATION.zh-CN.md) | Android、iOS、HarmonyOS 与 C ABI 生命周期 |
 | [发布与运维](docs/OPERATIONS.zh-CN.md) | 构建、发布、灰度、回滚、审计和故障处理 |
 | [交付状态](docs/DELIVERY_STATUS.zh-CN.md) | 自动化证据、外部验收与剩余边界 |

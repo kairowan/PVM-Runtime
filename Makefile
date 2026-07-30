@@ -10,7 +10,7 @@ ifeq ($(FUZZ_CXX),)
 FUZZ_CXX := clang++
 endif
 
-.PHONY: android-demo-apk android-demo-check android-packages android-production-packages bootstrap build compatibility delivery-matrix docs-check fuzz-check generate-host-idl harmony-demo-run harmony-demo-screenshot harmony-device-run harmony-device-screenshot harmony-packages harmony-production-check harmony-sdk-check host-manifest ios-demo-app ios-demo-check ios-demo-run ios-demo-screenshot ios-device-archive ios-packages ios-sdk-check kmp-check kmp-packages publish release-check sanitizer-check sdk-release-assets serve demo platform-check test verify-contracts
+.PHONY: android-demo-apk android-demo-check android-packages android-production-packages bootstrap build compatibility delivery-matrix docs-check fuzz-check generate-host-idl harmony-demo-run harmony-demo-screenshot harmony-device-run harmony-device-screenshot harmony-packages harmony-production-check harmony-sdk-check host-manifest ios-demo-app ios-demo-check ios-demo-run ios-demo-screenshot ios-device-archive ios-packages ios-sdk-check kmp-check kmp-packages migration-check publish release-check sanitizer-check sdk-release-assets serve demo platform-check test verify-contracts
 
 bootstrap:
 	PYTHONPATH="$(PYTHONPATH_VALUE)" $(PYTHON) -m pvm_server.keys --directory server/var/keys
@@ -183,9 +183,12 @@ demo: bootstrap build
 platform-check: build
 	$(PYTHON) scripts/check_platform_hosts.py
 
-test: build
+test: build migration-check
 	PYTHONPATH="$(PYTHONPATH_VALUE)" PVM_RUNTIME="$(CURDIR)/$(BUILD_DIR)/pvm_cli" \
 		$(PYTHON) tests/test_e2e.py
+
+migration-check:
+	PYTHONPATH="$(PYTHONPATH_VALUE)" $(PYTHON) tests/test_migrate.py
 
 sanitizer-check:
 	cmake -S client -B build/sanitized -DCMAKE_BUILD_TYPE=RelWithDebInfo \

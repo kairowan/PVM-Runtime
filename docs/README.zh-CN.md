@@ -17,9 +17,10 @@
 ### 编写业务模块
 
 1. [DSL 与字节码](DSL_V1.zh-CN.md)
-2. [示例模块](../server/sample/counter.pvm.json)
-3. [Host IDL](../spec/host_idl.json)
-4. `make verify-contracts`
+2. [选择性迁移](MIGRATION.zh-CN.md)
+3. [示例模块](../server/sample/counter.pvm.json)
+4. [Host IDL](../spec/host_idl.json)
+5. `make verify-contracts`
 
 ### 接入移动端 App
 
@@ -46,6 +47,7 @@
 | [ARCHITECTURE.zh-CN.md](ARCHITECTURE.zh-CN.md) | 架构师、Runtime/平台开发 | 组件如何协作，数据和信任怎样流动 |
 | [SECURITY_MODEL.zh-CN.md](SECURITY_MODEL.zh-CN.md) | 安全、发布、平台开发 | 防什么、不防什么、密钥和失败策略是什么 |
 | [DSL_V1.zh-CN.md](DSL_V1.zh-CN.md) | DSL/业务开发 | 能表达什么、如何编译、怎样兼容升级 |
+| [MIGRATION.zh-CN.md](MIGRATION.zh-CN.md) | 老项目负责人、业务开发 | 怎样按类或模块选择性迁移并复核结果 |
 | [PLATFORM_INTEGRATION.zh-CN.md](PLATFORM_INTEGRATION.zh-CN.md) | Android/iOS/HarmonyOS 开发 | 怎样连接 VM、渲染器、验签和模块缓存 |
 | [OPERATIONS.zh-CN.md](OPERATIONS.zh-CN.md) | CI/CD、SRE、发布负责人 | 怎样签名、发布、灰度、止血和审计 |
 | [DELIVERY_STATUS.zh-CN.md](DELIVERY_STATUS.zh-CN.md) | 项目负责人、验收人员 | 哪些由仓库证明，哪些必须取得外部证据 |

@@ -33,6 +33,9 @@ a stable runtime and four explicit delivery profiles:
   View, UIKit/SwiftUI, and ArkUI compiled with DevEco API 24.
 - KMP publishes shared lifecycle and event APIs for JVM and Kotlin/Native.
   Compose/CMP and Kuikly renderers remain product-specific ports.
+- The local migration scanner can select one class, multiple classes, or one
+  or more existing modules and generate a reviewable DSL scaffold without
+  modifying the legacy project.
 - Payments, maps, camera, media, push, and other privileged features remain in
   the host and are called through versioned capability IDs.
 - Offline and network delivery are separate build outputs, not runtime flags
@@ -307,6 +310,7 @@ See [Security model](docs/SECURITY_MODEL.md) and [Security policy](SECURITY.md).
 | [Architecture](docs/ARCHITECTURE.md) | Trust planes, loading, state, updates |
 | [Security model](docs/SECURITY_MODEL.md) | Threats, keys, controls, non-goals |
 | [DSL and bytecode](docs/DSL_V1.md) | DSL semantics and PVBC v1–v5 |
+| [Selective migration](docs/MIGRATION.md) | Migrate selected classes or modules from an existing app |
 | [Platform integration](docs/PLATFORM_INTEGRATION.md) | Android, iOS, HarmonyOS, KMP |
 | [Operations](docs/OPERATIONS.md) | Build, publish, rollout, rollback, audit |
 | [Delivery status](docs/DELIVERY_STATUS.md) | Automated and external evidence |

@@ -1,0 +1,830 @@
+#!/usr/bin/env python3
+"""Scan selected legacy code and generate a reviewable PVM migration scaffold."""
+
+import argparse
+import json
+import os
+import re
+from collections import Counter, deque
+from pathlib import Path
+
+from .compiler import CompileError, Compiler, PLATFORMS, PROFILES
+
+
+SOURCE_LANGUAGES = {
+    ".java": "java",
+    ".kt": "kotlin",
+    ".swift": "swift",
+    ".ets": "arkts",
+}
+SKIPPED_DIRECTORIES = {
+    ".build",
+    ".git",
+    ".gradle",
+    ".idea",
+    "Pods",
+    "build",
+    "DerivedData",
+    "dist",
+    "node_modules",
+    "vendor",
+}
+MAX_SOURCE_BYTES = 2 * 1024 * 1024
+GENERATED_FILES = {
+    "capabilities.json",
+    "migration-report.json",
+    "migration-report.md",
+    "module.pvm.json",
+}
+
+DECLARATIONS = {
+    "kotlin": re.compile(
+        r"(?m)^[ \t]*(?:(?:public|internal|private|protected|open|abstract|"
+        r"sealed|data|enum|annotation|value|expect|actual)\s+)*"
+        r"(?P<kind>class|object|interface)\s+(?P<name>[A-Za-z_]\w*)"
+    ),
+    "java": re.compile(
+        r"(?m)^[ \t]*(?:(?:public|private|protected|abstract|static|final|"
+        r"sealed|non-sealed|strictfp)\s+)*"
+        r"(?P<kind>class|interface|enum|record)\s+(?P<name>[A-Za-z_]\w*)"
+    ),
+    "swift": re.compile(
+        r"(?m)^[ \t]*(?:(?:public|internal|private|fileprivate|open|final|"
+        r"indirect|nonisolated)\s+)*"
+        r"(?P<kind>class|struct|enum|protocol|actor)\s+(?P<name>[A-Za-z_]\w*)"
+    ),
+    "arkts": re.compile(
+        r"(?m)^[ \t]*(?:@\w+(?:\([^)]*\))?\s*)*"
+        r"(?:(?:export|default|abstract|declare)\s+)*"
+        r"(?P<kind>class|struct|enum|interface)\s+(?P<name>[A-Za-z_]\w*)"
+    ),
+}
+
+PACKAGE_PATTERNS = {
+    "kotlin": re.compile(r"(?m)^[ \t]*package\s+([A-Za-z_][\w.]*)"),
+    "java": re.compile(r"(?m)^[ \t]*package\s+([A-Za-z_][\w.]*)\s*;"),
+}
+IMPORT_PATTERNS = {
+    "kotlin": re.compile(r"(?m)^[ \t]*import\s+([^\s;]+)"),
+    "java": re.compile(r"(?m)^[ \t]*import\s+(?:static\s+)?([^;]+)\s*;"),
+    "swift": re.compile(r"(?m)^[ \t]*import\s+([A-Za-z_]\w*)"),
+    "arkts": re.compile(r"(?m)^[ \t]*import\b[^\n]*?\bfrom\s+['\"]([^'\"]+)['\"]"),
+}
+
+STATE_PATTERNS = {
+    "kotlin": re.compile(
+        r"\bvar\s+(?P<name>[A-Za-z_]\w*)\s*"
+        r"(?::\s*(?P<type>[A-Za-z_][\w<>?.]*))?\s*=\s*"
+        r"(?P<value>[^;\n]+)"
+    ),
+    "java": re.compile(
+        r"(?m)^[ \t]*(?:(?:public|private|protected|static|transient|volatile)\s+)*"
+        r"(?P<type>String|int|long|boolean|Integer|Long|Boolean)\s+"
+        r"(?P<name>[A-Za-z_]\w*)\s*=\s*(?P<value>[^;\n]+)"
+    ),
+    "swift": re.compile(
+        r"\bvar\s+(?P<name>[A-Za-z_]\w*)\s*"
+        r"(?::\s*(?P<type>String|Int|Int64|Bool))?\s*=\s*"
+        r"(?P<value>[^\n]+)"
+    ),
+    "arkts": re.compile(
+        r"(?m)^[ \t]*(?:@\w+(?:\([^)]*\))?[ \t]*)*"
+        r"(?:(?:public|private|protected|static|readonly)\s+)*"
+        r"(?P<name>[A-Za-z_]\w*)\s*:\s*"
+        r"(?P<type>string|number|boolean)\s*=\s*(?P<value>[^;\n]+)"
+    ),
+}
+
+UI_HINTS = (
+    ("text", r"\b(?:Text|TextView|UILabel)\s*(?:\(|\b)"),
+    ("button", r"\b(?:Button|UIButton)\s*(?:\(|\b)"),
+    ("input", r"\b(?:EditText|TextField|TextInput|UITextField)\s*(?:\(|\b)"),
+    ("image", r"\b(?:Image|ImageView|UIImageView)\s*(?:\(|\b)"),
+    ("row", r"\b(?:Row|HStack|LinearLayout\.HORIZONTAL)\s*(?:\(|\b)"),
+    ("column", r"\b(?:Column|VStack|UIStackView)\s*(?:\(|\b)"),
+    ("list", r"\b(?:List|RecyclerView|UITableView)\s*(?:\(|\b)"),
+    ("scroll", r"\b(?:Scroll|ScrollView|UIScrollView)\s*(?:\(|\b)"),
+    ("stack", r"\b(?:Stack|ZStack|FrameLayout)\s*(?:\(|\b)"),
+    ("switch", r"\b(?:Switch|Toggle|UISwitch)\s*(?:\(|\b)"),
+)
+
+CAPABILITY_HINTS = (
+    ("payment.purchase", r"\b(?:BillingClient|StoreKit|IAP|Purchase|Payment)\b"),
+    ("camera.capture", r"\b(?:Camera|AVCapture|ImagePicker)\b"),
+    ("location.current", r"\b(?:Location|CoreLocation|CLLocation)\b"),
+    ("map.control", r"\b(?:MapView|MapKit|GoogleMap|AMap)\b"),
+    ("network.websocket", r"\b(?:WebSocket|URLSessionWebSocketTask)\b"),
+    ("network.http", r"\b(?:OkHttp|Retrofit|URLSession|HttpClient|fetch)\b"),
+    ("database.scoped", r"\b(?:RoomDatabase|SQLite|CoreData|RelationalStore)\b"),
+    ("secure.keystore", r"\b(?:Keychain|KeyStore|HUKS)\b"),
+    ("storage.kv", r"\b(?:SharedPreferences|UserDefaults|Preferences)\b"),
+    ("notification.post", r"\b(?:NotificationManager|UNUserNotificationCenter)\b"),
+    ("push.inbox", r"\b(?:FirebaseMessaging|PushKit|PushService)\b"),
+    ("biometric.auth", r"\b(?:BiometricPrompt|LocalAuthentication|UserAuth)\b"),
+    ("bluetooth.scan", r"\b(?:Bluetooth|CoreBluetooth)\b"),
+    ("media.player", r"\b(?:MediaPlayer|AVPlayer)\b"),
+    ("share.system", r"\b(?:ACTION_SEND|UIActivityViewController|ShareController)\b"),
+    ("clipboard.system", r"\b(?:ClipboardManager|UIPasteboard|Pasteboard)\b"),
+    ("file.scoped", r"\b(?:FileManager|FileInputStream|fileIo)\b"),
+)
+
+MANUAL_REVIEW_HINTS = (
+    ("reflection", r"\b(?:Class\.forName|NSClassFromString|Mirror|Reflect)\b"),
+    ("concurrency", r"\b(?:Thread|CoroutineScope|DispatchQueue|Task|Promise|async|await)\b"),
+    ("dynamic_loading", r"\b(?:DexClassLoader|dlopen|loadLibrary|NSBundle)\b"),
+    ("custom_drawing", r"\b(?:Canvas|drawRect|CustomPainter|XComponent)\b"),
+    ("web_content", r"\b(?:WebView|WKWebView)\b"),
+)
+
+SENSITIVE_STATE = re.compile(
+    r"(?:api[_-]?key|password|secret|token|private[_-]?key|credential)",
+    re.IGNORECASE,
+)
+
+
+class MigrationError(ValueError):
+    pass
+
+
+def _line_number(source, offset):
+    return source.count("\n", 0, offset) + 1
+
+
+def _masked(source):
+    # ponytail: this dependency-free lexical mask covers ordinary mobile source.
+    # Move to compiler ASTs/Tree-sitter if macro-heavy or generated code becomes common.
+    pattern = re.compile(
+        r'(?s)/\*.*?\*/|//[^\n]*|"""(?:.|\n)*?"""|"(?:\\.|[^"\\])*"|'
+        r"'(?:\\.|[^'\\])*'"
+    )
+
+    def hide(match):
+        return "".join("\n" if character == "\n" else " " for character in match.group())
+
+    return pattern.sub(hide, source)
+
+
+def _matching_brace(masked, opening):
+    depth = 0
+    for index in range(opening, len(masked)):
+        if masked[index] == "{":
+            depth += 1
+        elif masked[index] == "}":
+            depth -= 1
+            if depth == 0:
+                return index + 1
+    return len(masked)
+
+
+def _safe_relative(path, root):
+    resolved = path.resolve()
+    try:
+        return resolved.relative_to(root.resolve())
+    except ValueError as error:
+        raise MigrationError(f"path escapes source root: {path}") from error
+
+
+def _source_files(root):
+    diagnostics = []
+    files = []
+    for path in sorted(root.rglob("*")):
+        relative = path.relative_to(root)
+        if SKIPPED_DIRECTORIES.intersection(relative.parts):
+            continue
+        if path.suffix not in SOURCE_LANGUAGES or not path.is_file():
+            continue
+        if path.is_symlink():
+            diagnostics.append({"path": relative.as_posix(), "reason": "symlink skipped"})
+            continue
+        if path.stat().st_size > MAX_SOURCE_BYTES:
+            diagnostics.append(
+                {"path": relative.as_posix(), "reason": "source exceeds 2 MiB limit"}
+            )
+            continue
+        files.append(path)
+    return files, diagnostics
+
+
+def _units_for_file(path, root):
+    language = SOURCE_LANGUAGES[path.suffix]
+    relative = path.relative_to(root).as_posix()
+    source = path.read_text(encoding="utf-8")
+    masked = _masked(source)
+    package_match = PACKAGE_PATTERNS.get(language)
+    package = ""
+    if package_match:
+        match = package_match.search(masked)
+        package = match.group(1) if match else ""
+    imports = sorted(set(IMPORT_PATTERNS[language].findall(source)))
+    declarations = list(DECLARATIONS[language].finditer(masked))
+    units = []
+    for match in declarations:
+        opening = masked.find("{", match.end())
+        next_declaration = next(
+            (candidate.start() for candidate in declarations if candidate.start() > match.start()),
+            len(masked),
+        )
+        if opening < 0 or opening > next_declaration:
+            end = source.find("\n", match.end())
+            end = len(source) if end < 0 else end
+        else:
+            end = _matching_brace(masked, opening)
+        name = match.group("name")
+        start = match.start()
+        line = _line_number(source, start)
+        qualified = f"{package}.{name}" if package else name
+        units.append(
+            {
+                "id": f"{relative}:{name}@{line}",
+                "path": relative,
+                "language": language,
+                "name": name,
+                "qualifiedName": qualified,
+                "kind": match.group("kind"),
+                "startLine": line,
+                "endLine": _line_number(source, end),
+                "imports": imports,
+                "_body": source[start:end],
+                "_masked": masked[start:end],
+            }
+        )
+    if not declarations:
+        units.append(
+            {
+                "id": f"{relative}:<file>",
+                "path": relative,
+                "language": language,
+                "name": path.stem,
+                "qualifiedName": path.stem,
+                "kind": "file",
+                "startLine": 1,
+                "endLine": source.count("\n") + 1,
+                "imports": imports,
+                "_body": source,
+                "_masked": masked,
+            }
+        )
+    return units
+
+
+def _literal(value, declared_type):
+    value = value.strip().rstrip(",")
+    if value in ("true", "false", "True", "False"):
+        return "bool", value.lower() == "true", False
+    if re.fullmatch(r"-?\d+[lL]?", value):
+        return "int", int(value.rstrip("lL")), False
+    if (
+        len(value) >= 2
+        and value[0] == value[-1]
+        and value[0] in ("'", '"')
+        and "$" not in value
+        and "\\(" not in value
+    ):
+        return "string", "", value[1:-1] != ""
+    normalized = (declared_type or "").rstrip("?")
+    if normalized in ("String", "string"):
+        return "string", "", True
+    return None
+
+
+def _state_analysis(unit):
+    states = []
+    review = []
+    source = unit["_body"]
+    masked = unit["_masked"]
+    for match in STATE_PATTERNS[unit["language"]].finditer(source):
+        if not masked[match.start("name") : match.end("name")].strip():
+            continue
+        name = match.group("name")
+        line = unit["startLine"] + _line_number(source, match.start()) - 1
+        if SENSITIVE_STATE.search(name):
+            review.append({"id": "sensitive_state", "line": line, "token": name})
+            continue
+        parsed = _literal(match.group("value"), match.groupdict().get("type"))
+        if parsed is None:
+            review.append({"id": "non_literal_state", "line": line, "token": name})
+            continue
+        value_type, initial, redacted = parsed
+        states.append(
+            {
+                "name": name,
+                "type": value_type,
+                "initial": initial,
+                "initialRedacted": redacted,
+                "line": line,
+            }
+        )
+    unique = {}
+    for state in states:
+        unique.setdefault(state["name"], state)
+    return list(unique.values()), review
+
+
+def _matches(unit, hints, include_imports=False):
+    source = unit["_masked"]
+    found = []
+    for identifier, pattern in hints:
+        match = re.search(pattern, source, re.IGNORECASE)
+        from_import = False
+        if match is None and include_imports:
+            match = re.search(
+                pattern,
+                "\n".join(unit["imports"]),
+                re.IGNORECASE,
+            )
+            from_import = match is not None
+        if match:
+            found.append(
+                {
+                    "id": identifier,
+                    "line": (
+                        None
+                        if from_import
+                        else unit["startLine"] + _line_number(source, match.start()) - 1
+                    ),
+                    "token": match.group(0).strip(),
+                }
+            )
+    return found
+
+
+def _analyze(unit):
+    states, state_review = _state_analysis(unit)
+    return {
+        **{key: value for key, value in unit.items() if not key.startswith("_")},
+        "states": states,
+        "uiHints": _matches(unit, UI_HINTS),
+        "capabilityHints": _matches(unit, CAPABILITY_HINTS, include_imports=True),
+        "manualReview": state_review + _matches(unit, MANUAL_REVIEW_HINTS),
+    }
+
+
+def _module_relative(root, module):
+    value = module
+    if ":" in value and "/" not in value and "\\" not in value:
+        value = value.strip(":").replace(":", "/")
+    path = Path(value)
+    path = path if path.is_absolute() else root / path
+    relative = _safe_relative(path, root)
+    if not path.is_dir():
+        raise MigrationError(f"module directory does not exist: {module}")
+    value = relative.as_posix().rstrip("/")
+    return "" if value == "." else value
+
+
+def _selector_matches(unit, selector):
+    normalized = selector.replace("\\", "/")
+    if ":" in normalized:
+        path, name = normalized.rsplit(":", 1)
+        return unit["path"] == path.lstrip("./") and unit["name"] == name
+    return normalized in (unit["id"], unit["name"], unit["qualifiedName"])
+
+
+def scan_project(source_root, classes=(), modules=(), include_dependencies=False):
+    root = Path(source_root).resolve()
+    if not root.is_dir():
+        raise MigrationError(f"source root is not a directory: {source_root}")
+    files, diagnostics = _source_files(root)
+    units = []
+    for path in files:
+        try:
+            units.extend(_units_for_file(path, root))
+        except UnicodeDecodeError:
+            diagnostics.append(
+                {"path": path.relative_to(root).as_posix(), "reason": "non-UTF-8 source skipped"}
+            )
+    by_name = {}
+    for unit in units:
+        by_name.setdefault(unit["name"], []).append(unit)
+    for unit in units:
+        dependencies = []
+        ambiguous = []
+        tokens = set(re.findall(r"\b[A-Za-z_]\w*\b", unit["_masked"]))
+        for name in sorted(tokens):
+            candidates = by_name.get(name, [])
+            if len(candidates) == 1 and candidates[0]["id"] != unit["id"]:
+                dependencies.append(candidates[0]["id"])
+            elif len(candidates) > 1:
+                ambiguous.append(
+                    {"name": name, "candidates": [item["id"] for item in candidates]}
+                )
+        unit["localDependencies"] = dependencies
+        unit["ambiguousLocalDependencies"] = ambiguous
+
+    selected = {}
+    for selector in classes:
+        matches = [unit for unit in units if _selector_matches(unit, selector)]
+        if not matches:
+            raise MigrationError(f"class selector did not match: {selector}")
+        if len(matches) > 1:
+            choices = ", ".join(unit["id"] for unit in matches)
+            raise MigrationError(f"ambiguous class selector {selector}; use one of: {choices}")
+        selected[matches[0]["id"]] = matches[0]
+
+    module_paths = [_module_relative(root, module) for module in modules]
+    for module in module_paths:
+        prefix = f"{module}/" if module else ""
+        for unit in units:
+            if not prefix or unit["path"].startswith(prefix):
+                selected[unit["id"]] = unit
+
+    if not classes and not modules:
+        selected = {unit["id"]: unit for unit in units}
+
+    if include_dependencies:
+        pending = deque(selected)
+        by_id = {unit["id"]: unit for unit in units}
+        while pending:
+            current = by_id[pending.popleft()]
+            for dependency in current["localDependencies"]:
+                if dependency not in selected:
+                    selected[dependency] = by_id[dependency]
+                    pending.append(dependency)
+
+    analyzed = []
+    selected_ids = set(selected)
+    for unit in sorted(selected.values(), key=lambda item: item["id"]):
+        item = _analyze(unit)
+        item["unselectedLocalDependencies"] = [
+            dependency
+            for dependency in item["localDependencies"]
+            if dependency not in selected_ids
+        ]
+        analyzed.append(item)
+    review_count = sum(
+        len(unit["uiHints"])
+        + len(unit["capabilityHints"])
+        + len(unit["manualReview"])
+        + len(unit["unselectedLocalDependencies"])
+        + len(unit["ambiguousLocalDependencies"])
+        for unit in analyzed
+    )
+    return {
+        "schemaVersion": 1,
+        "sourceRoot": root.name,
+        "selection": {
+            "classes": list(classes),
+            "modules": module_paths,
+            "includeDependencies": bool(include_dependencies),
+        },
+        "summary": {
+            "discoveredSourceFiles": len(files),
+            "discoveredUnits": len(units),
+            "selectedUnits": len(analyzed),
+            "autoConvertibleStates": sum(len(unit["states"]) for unit in analyzed),
+            "reviewItems": review_count,
+        },
+        "diagnostics": diagnostics,
+        "units": analyzed,
+    }
+
+
+def _safe_name(value, fallback):
+    normalized = re.sub(r"[^A-Za-z0-9_]+", "_", value).strip("_")
+    if not normalized:
+        return fallback
+    if normalized[0].isdigit():
+        normalized = f"m_{normalized}"
+    return normalized
+
+
+def _dsl(report, application_id, platform, profile, module_id, channel, release):
+    if platform not in PLATFORMS or platform == "desktop":
+        raise MigrationError("platform must be android, ios, or harmonyos")
+    if profile not in PROFILES:
+        raise MigrationError("unsupported delivery profile: " + profile)
+    if not report["units"]:
+        raise MigrationError("selection contains no source units")
+    state_name_counts = Counter(
+        state["name"] for unit in report["units"] for state in unit["states"]
+    )
+    state = {}
+    pages = {}
+    page_names = set()
+    for index, unit in enumerate(report["units"], 1):
+        page_name = _safe_name(unit["name"], f"page_{index}").lower()
+        candidate = page_name
+        suffix = 2
+        while candidate in page_names:
+            candidate = f"{page_name}_{suffix}"
+            suffix += 1
+        page_name = candidate
+        page_names.add(page_name)
+        children = [
+            {
+                "type": "text",
+                "id": f"{page_name}_title",
+                "props": {"text": unit["name"]},
+            }
+        ]
+        for state_index, item in enumerate(unit["states"], 1):
+            source_name = item["name"]
+            if state_name_counts[source_name] == 1:
+                target_name = _safe_name(source_name, f"state_{state_index}")
+            else:
+                target_name = _safe_name(
+                    f"{unit['name']}_{source_name}", f"state_{index}_{state_index}"
+                )
+            unique_name = target_name
+            unique_suffix = 2
+            while unique_name in state:
+                unique_name = f"{target_name}_{unique_suffix}"
+                unique_suffix += 1
+            state[unique_name] = {
+                "type": item["type"],
+                "persistence_id": f"{page_name}.{source_name}",
+                "initial": item["initial"],
+            }
+            children.append(
+                {
+                    "type": "text",
+                    "id": f"{page_name}_state_{state_index}",
+                    "props": {"text": f"{source_name}: {{{unique_name}}}"},
+                }
+            )
+        pages[page_name] = {
+            "type": "column",
+            "id": f"{page_name}_root",
+            "props": {"accessibility_label": f"Migrated {unit['name']}"},
+            "children": children,
+        }
+    entry_page = next(iter(pages))
+    source = {
+        "module": {
+            "id": module_id,
+            "application_id": application_id,
+            "tenant": "migration",
+            "channel": channel,
+            "release": release,
+            "key_version": 1,
+            "minimum_runtime": 5,
+            "entry_page": entry_page,
+            "capabilities": [],
+            "capability_versions": {},
+            "network_domains": [],
+            "storage_scopes": [],
+            "budget": {
+                "max_instructions_per_event": 1000,
+                "max_stack": 32,
+                "max_state_bytes": 65536,
+                "max_ui_nodes": max(100, len(pages) * 20),
+                "max_tasks": 16,
+            },
+        },
+        "delivery": {
+            "profile": profile,
+            "platform": platform,
+            "fallback_ui": profile == "online_provisioned",
+            "startup_dependencies_bundled": profile == "offline_sealed",
+            "native_dynamic_download": False,
+            "external_code_artifacts": [],
+        },
+        "state": state,
+        "handlers": {},
+        "pages": pages,
+    }
+    Compiler(source).build()
+    return source
+
+
+def _capability_report(report):
+    usages = {}
+    for unit in report["units"]:
+        for hint in unit["capabilityHints"]:
+            usages.setdefault(hint["id"], []).append(
+                {"unit": unit["id"], "line": hint["line"], "token": hint["token"]}
+            )
+    return {
+        "schemaVersion": 1,
+        "approved": [],
+        "suggested": [
+            {"id": identifier, "requiresApproval": True, "evidence": evidence}
+            for identifier, evidence in sorted(usages.items())
+        ],
+    }
+
+
+def _markdown(report):
+    summary = report["summary"]
+    lines = [
+        "# Migration report / 迁移报告",
+        "",
+        "> The source project was scanned read-only. Generated DSL is a review scaffold.",
+        "> 扫描过程不会修改源项目；生成的 DSL 是需要人工复核的迁移骨架。",
+        "",
+        "## Summary / 摘要",
+        "",
+        f"- Selected units / 已选单元：{summary['selectedUnits']}",
+        f"- Auto-converted states / 自动转换状态：{summary['autoConvertibleStates']}",
+        f"- Review items / 待复核项：{summary['reviewItems']}",
+        "",
+        "## Selected units / 已选类与文件",
+        "",
+    ]
+    for unit in report["units"]:
+        lines.extend(
+            [
+                f"### `{unit['qualifiedName']}`",
+                "",
+                f"- Source / 来源：`{unit['path']}:{unit['startLine']}`",
+                f"- Language / 语言：`{unit['language']}`",
+                f"- Converted states / 已转换状态：{len(unit['states'])}",
+                "- Redacted defaults / 已脱敏默认值："
+                + (
+                    ", ".join(
+                        state["name"]
+                        for state in unit["states"]
+                        if state["initialRedacted"]
+                    )
+                    or "none / 无"
+                ),
+                "- UI hints / UI 提示："
+                + (", ".join(item["id"] for item in unit["uiHints"]) or "none / 无"),
+                "- Capability hints / 能力提示："
+                + (
+                    ", ".join(item["id"] for item in unit["capabilityHints"])
+                    or "none / 无"
+                ),
+                "- Manual review / 人工复核："
+                + (
+                    ", ".join(item["id"] for item in unit["manualReview"])
+                    or "none / 无"
+                ),
+                "- Unselected local dependencies / 未选择的本地依赖："
+                + (
+                    ", ".join(unit["unselectedLocalDependencies"])
+                    or "none / 无"
+                ),
+                "- Ambiguous local dependencies / 有歧义的本地依赖："
+                + (
+                    ", ".join(
+                        dependency["name"]
+                        for dependency in unit["ambiguousLocalDependencies"]
+                    )
+                    or "none / 无"
+                ),
+                "",
+            ]
+        )
+    lines.extend(
+        [
+            "## Next review / 后续复核",
+            "",
+            "1. Confirm state names, persistence IDs, and redacted string defaults.",
+            "2. 按报告重建 UI 层级，不要把 UI 提示当成已完成转换。",
+            "3. Approve required capabilities and implement them with existing app services.",
+            "4. 编译、签名并通过原页面与 PVM 页面行为对照测试后再切换路由。",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def _write(path, content, force):
+    if path.exists() and not force:
+        raise MigrationError(f"output exists; pass --force to replace generated file: {path}")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(path.name + ".tmp")
+    temporary.write_text(content, encoding="utf-8")
+    os.replace(temporary, path)
+
+
+def _require_output_outside_source(output, source):
+    output = Path(output).resolve()
+    source = Path(source).resolve()
+    try:
+        output.relative_to(source)
+    except ValueError:
+        return
+    raise MigrationError("output must be outside the legacy source root")
+
+
+def write_conversion(
+    report,
+    output,
+    *,
+    application_id,
+    platform,
+    profile="offline_sealed",
+    module_id="migration.module",
+    channel="enterprise",
+    release=1,
+    force=False,
+):
+    output = Path(output).resolve()
+    if output.exists():
+        unknown = {path.name for path in output.iterdir()} - GENERATED_FILES
+        if unknown:
+            raise MigrationError(
+                "output directory contains non-migration files: " + ", ".join(sorted(unknown))
+            )
+        if any(output.iterdir()) and not force:
+            raise MigrationError("output directory is not empty; pass --force to replace generated files")
+    output.mkdir(parents=True, exist_ok=True)
+    dsl = _dsl(
+        report,
+        application_id,
+        platform,
+        profile,
+        module_id,
+        channel,
+        release,
+    )
+    artifacts = {
+        "migration-report.json": json.dumps(report, indent=2, sort_keys=True) + "\n",
+        "migration-report.md": _markdown(report),
+        "capabilities.json": json.dumps(
+            _capability_report(report), indent=2, sort_keys=True
+        )
+        + "\n",
+        "module.pvm.json": json.dumps(dsl, indent=2, sort_keys=True) + "\n",
+    }
+    for name, content in artifacts.items():
+        _write(output / name, content, force)
+    return {name: output / name for name in artifacts}
+
+
+def _selection_arguments(parser):
+    parser.add_argument(
+        "--class",
+        dest="classes",
+        action="append",
+        default=[],
+        help="class name, qualified name, or relative/path.ext:Class; repeat for multiple",
+    )
+    parser.add_argument(
+        "--module",
+        dest="modules",
+        action="append",
+        default=[],
+        help="module directory relative to source root; repeat to combine modules",
+    )
+    parser.add_argument("--include-dependencies", action="store_true")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    subparsers = parser.add_subparsers(dest="action", required=True)
+
+    scan_parser = subparsers.add_parser("scan", help="inventory migration candidates")
+    scan_parser.add_argument("source", type=Path)
+    _selection_arguments(scan_parser)
+    scan_parser.add_argument("--output", type=Path)
+    scan_parser.add_argument("--force", action="store_true")
+
+    convert_parser = subparsers.add_parser(
+        "convert", help="generate a reviewable DSL migration scaffold"
+    )
+    convert_parser.add_argument("source", type=Path)
+    _selection_arguments(convert_parser)
+    convert_parser.add_argument("--output", required=True, type=Path)
+    convert_parser.add_argument("--application-id", required=True)
+    convert_parser.add_argument(
+        "--platform", required=True, choices=("android", "ios", "harmonyos")
+    )
+    convert_parser.add_argument(
+        "--profile", choices=tuple(PROFILES), default="offline_sealed"
+    )
+    convert_parser.add_argument("--module-id", default="migration.module")
+    convert_parser.add_argument("--channel", default="enterprise")
+    convert_parser.add_argument("--release", type=int, default=1)
+    convert_parser.add_argument("--force", action="store_true")
+
+    args = parser.parse_args()
+    try:
+        if args.action == "convert" and not args.classes and not args.modules:
+            raise MigrationError("convert requires at least one --class or --module selector")
+        report = scan_project(
+            args.source,
+            classes=args.classes,
+            modules=args.modules,
+            include_dependencies=args.include_dependencies,
+        )
+        if args.action == "scan":
+            encoded = json.dumps(report, indent=2, sort_keys=True) + "\n"
+            if args.output:
+                _require_output_outside_source(args.output, args.source)
+                _write(args.output, encoded, args.force)
+                print(args.output)
+            else:
+                print(encoded, end="")
+            return
+        _require_output_outside_source(args.output, args.source)
+        artifacts = write_conversion(
+            report,
+            args.output,
+            application_id=args.application_id,
+            platform=args.platform,
+            profile=args.profile,
+            module_id=args.module_id,
+            channel=args.channel,
+            release=args.release,
+            force=args.force,
+        )
+        print("\n".join(str(path) for path in artifacts.values()))
+    except (MigrationError, CompileError, OSError) as error:
+        parser.error(str(error))
+
+
+if __name__ == "__main__":
+    main()

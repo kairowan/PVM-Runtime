@@ -18,8 +18,9 @@ how to integrate it correctly, and what evidence counts as complete.
 ### Writing business modules
 
 1. [DSL and bytecode](DSL_V1.md)
-2. [Security model](SECURITY_MODEL.md)
-3. [`server/sample/counter.pvm.json`](../server/sample/counter.pvm.json)
+2. [Selective legacy migration](MIGRATION.md)
+3. [Security model](SECURITY_MODEL.md)
+4. [`server/sample/counter.pvm.json`](../server/sample/counter.pvm.json)
 
 ### Integrating a mobile app
 
@@ -41,6 +42,7 @@ how to integrate it correctly, and what evidence counts as complete.
 |---|---|
 | [Architecture](ARCHITECTURE.md) | Which component owns each trust decision and data transition? |
 | [DSL and bytecode](DSL_V1.md) | What can a module express and how does the VM validate it? |
+| [Selective migration](MIGRATION.md) | How are individual classes or existing modules converted safely? |
 | [Security model](SECURITY_MODEL.md) | What is protected, from whom, and what is explicitly out of scope? |
 | [Platform integration](PLATFORM_INTEGRATION.md) | How do Android, iOS, HarmonyOS, and KMP connect? |
 | [Operations](OPERATIONS.md) | How are modules built, signed, rolled out, stopped, and audited? |
