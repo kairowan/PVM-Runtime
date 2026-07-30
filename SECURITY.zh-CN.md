@@ -6,9 +6,9 @@
 
 请勿在公开 Issue、Discussion、PR、截图或日志中披露疑似漏洞。
 
-请使用仓库的
-[GitHub 私密漏洞报告](https://github.com/kairowan/PVM-Runtime/security/advisories/new)
-表单，并提供：
+仓库协作者请创建
+[GitHub Security Advisory](https://github.com/kairowan/PVM-Runtime/security/advisories/new)
+草稿，并提供：
 
 - 受影响的提交、版本、平台和交付 Profile；
 - 使用开发密钥和非生产模块的最小复现；
@@ -35,4 +35,3 @@
 PVM Runtime 会验证签名模块、执行 release 防回滚、限制 Capability，
 并降低业务逻辑暴露程度。它不是 DRM，也不承诺设备完全失陷后仍然保密。
 完整边界见[安全模型](docs/SECURITY_MODEL.zh-CN.md)。
-

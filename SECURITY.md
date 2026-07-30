@@ -7,9 +7,9 @@
 Do not disclose suspected vulnerabilities in public Issues, Discussions, pull
 requests, screenshots, or logs.
 
-Use this repository's
-[GitHub Private Vulnerability Reporting](https://github.com/kairowan/PVM-Runtime/security/advisories/new)
-form. Include:
+Repository collaborators should use a
+[GitHub Security Advisory](https://github.com/kairowan/PVM-Runtime/security/advisories/new)
+draft. Include:
 
 - the affected commit, release, platform, and delivery profile;
 - a minimal reproduction using non-production keys and modules;
@@ -39,4 +39,3 @@ PVM Runtime verifies signed modules, enforces release rollback rules, constrains
 capabilities, and reduces exposure of business logic. It is not DRM and does
 not claim confidentiality on a fully compromised device. See
 [the security model](docs/SECURITY_MODEL.md) for the complete boundary.
-

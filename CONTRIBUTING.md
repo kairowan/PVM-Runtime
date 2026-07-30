@@ -64,6 +64,5 @@ enforces the pairing and validates local links and visual assets.
 
 ## Security reports
 
-Do not open public Issues for suspected vulnerabilities. Follow
-[SECURITY.md](SECURITY.md) and use GitHub Private Vulnerability Reporting.
-
+Do not open regular Issues for suspected vulnerabilities. Follow
+[SECURITY.md](SECURITY.md) and use a GitHub Security Advisory.

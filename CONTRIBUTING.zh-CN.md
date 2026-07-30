@@ -57,6 +57,5 @@ make kmp-check
 
 ## 安全漏洞
 
-疑似安全漏洞不得提交公开 Issue。请按照
-[SECURITY.zh-CN.md](SECURITY.zh-CN.md) 使用 GitHub 私密漏洞报告。
-
+疑似安全漏洞不得提交普通 Issue。请按照
+[SECURITY.zh-CN.md](SECURITY.zh-CN.md) 使用 GitHub Security Advisory。
