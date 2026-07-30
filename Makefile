@@ -2,12 +2,14 @@ PYTHON ?= python3
 BUILD_DIR ?= build/client
 PYTHONPATH_VALUE := $(CURDIR)/server/src
 ANDROID_SDK_PATH ?= $(firstword $(wildcard $(ANDROID_SDK_ROOT) $(ANDROID_HOME) $(HOME)/Library/Android/sdk $(HOME)/Desktop/android/sdk))
+HARMONY_DEVICE_TARGET ?=
+HARMONY_SIGNED_HAP ?=
 FUZZ_CXX := $(firstword $(wildcard /opt/homebrew/opt/llvm/bin/clang++ /usr/local/opt/llvm/bin/clang++))
 ifeq ($(FUZZ_CXX),)
 FUZZ_CXX := clang++
 endif
 
-.PHONY: android-demo-apk android-demo-check android-packages bootstrap build compatibility delivery-matrix docs-check fuzz-check generate-host-idl host-manifest ios-demo-app ios-demo-check ios-demo-run ios-demo-screenshot ios-packages ios-sdk-check publish release-check sanitizer-check serve demo platform-check test verify-contracts
+.PHONY: android-demo-apk android-demo-check android-packages bootstrap build compatibility delivery-matrix docs-check fuzz-check generate-host-idl harmony-demo-run harmony-demo-screenshot harmony-device-run harmony-device-screenshot harmony-packages harmony-sdk-check host-manifest ios-demo-app ios-demo-check ios-demo-run ios-demo-screenshot ios-packages ios-sdk-check publish release-check sanitizer-check serve demo platform-check test verify-contracts
 
 bootstrap:
 	PYTHONPATH="$(PYTHONPATH_VALUE)" $(PYTHON) -m pvm_server.keys --directory server/var/keys
@@ -70,6 +72,32 @@ ios-demo-run: ios-demo-check
 ios-demo-screenshot: ios-demo-check
 	$(PYTHON) scripts/run_ios_demo.py \
 		--reset --seed-screenshot --screenshot docs/assets/ios-demo.png
+
+harmony-packages: delivery-matrix
+	$(PYTHON) scripts/build_harmony_artifacts.py
+
+harmony-sdk-check: build harmony-packages
+	$(PYTHON) scripts/check_harmony_artifacts.py
+
+harmony-demo-run: harmony-sdk-check
+	$(PYTHON) scripts/run_harmony_demo.py
+
+harmony-demo-screenshot: harmony-sdk-check
+	$(PYTHON) scripts/run_harmony_demo.py \
+		--reset --seed-screenshot --screenshot docs/assets/harmony-demo.png
+
+harmony-device-run:
+	@test -n "$(HARMONY_DEVICE_TARGET)" || (echo "Set HARMONY_DEVICE_TARGET to the USB target ID" && exit 1)
+	@test -f "$(HARMONY_SIGNED_HAP)" || (echo "Set HARMONY_SIGNED_HAP to a Huawei-signed HAP" && exit 1)
+	HARMONY_HAP="$(HARMONY_SIGNED_HAP)" $(PYTHON) scripts/run_harmony_demo.py \
+		--physical --target "$(HARMONY_DEVICE_TARGET)"
+
+harmony-device-screenshot:
+	@test -n "$(HARMONY_DEVICE_TARGET)" || (echo "Set HARMONY_DEVICE_TARGET to the USB target ID" && exit 1)
+	@test -f "$(HARMONY_SIGNED_HAP)" || (echo "Set HARMONY_SIGNED_HAP to a Huawei-signed HAP" && exit 1)
+	HARMONY_HAP="$(HARMONY_SIGNED_HAP)" $(PYTHON) scripts/run_harmony_demo.py \
+		--physical --target "$(HARMONY_DEVICE_TARGET)" \
+		--reset --seed-screenshot --screenshot docs/assets/harmony-demo.png
 
 host-manifest:
 	PYTHONPATH="$(PYTHONPATH_VALUE)" $(PYTHON) -m pvm_server.host_manifest \

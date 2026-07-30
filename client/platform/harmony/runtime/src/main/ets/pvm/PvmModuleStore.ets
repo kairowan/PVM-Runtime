@@ -62,22 +62,48 @@ interface State {
 }
 
 export class PvmModuleStore {
+  private root: string
+  private server: string
+  private applicationId: string
+  private channel: string
+  private profile: string
+  private transport: ModuleTransport
+  private files: ModuleFiles
+  private validator: ModuleValidator
+  private publicKeyPath: string
+  private signatureVerifier: ModuleSignatureVerifier
+  private activationToken: string
+  private installationId: string
+  private minimumRelease: number
+
   constructor(
-    private root: string,
-    private server: string,
-    private applicationId: string,
-    private channel: string,
-    private profile: string,
-    private transport: ModuleTransport,
-    private files: ModuleFiles,
-    private validator: ModuleValidator,
-    private publicKeyPath: string,
-    private signatureVerifier: ModuleSignatureVerifier,
-    private activationToken: string = '',
-    private installationId: string = '',
-    private minimumRelease: number = 0,
+    root: string,
+    server: string,
+    applicationId: string,
+    channel: string,
+    profile: string,
+    transport: ModuleTransport,
+    files: ModuleFiles,
+    validator: ModuleValidator,
+    publicKeyPath: string,
+    signatureVerifier: ModuleSignatureVerifier,
+    activationToken: string = '',
+    installationId: string = '',
+    minimumRelease: number = 0,
   ) {
+    this.root = root
     this.server = server.replace(/\/+$/, '')
+    this.applicationId = applicationId
+    this.channel = channel
+    this.profile = profile
+    this.transport = transport
+    this.files = files
+    this.validator = validator
+    this.publicKeyPath = publicKeyPath
+    this.signatureVerifier = signatureVerifier
+    this.activationToken = activationToken
+    this.installationId = installationId
+    this.minimumRelease = minimumRelease
     if (!server.startsWith('https://')) throw new Error('Module service must use HTTPS')
     if (!PvmModuleStore.segment(applicationId) || !PvmModuleStore.segment(channel)) {
       throw new Error('Invalid module store binding')
@@ -104,7 +130,7 @@ export class PvmModuleStore {
     } catch (error) {
       const cached = this.lastKnownGood()
       if (cached !== undefined) return cached
-      throw error
+      throw new Error(`${error}`)
     }
   }
 

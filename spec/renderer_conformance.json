@@ -25,7 +25,7 @@
   "backends": {
     "android-compose-cmp": "adapter-required",
     "android-view": "compiled",
-    "arkui": "sdk-required",
+    "arkui": "compiled",
     "kuikly": "adapter-required",
     "swiftui": "compiled",
     "uikit": "compiled"

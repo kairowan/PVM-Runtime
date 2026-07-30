@@ -213,7 +213,7 @@ client/
   tools/provision.py       桌面参考 Module Store
   platform/android/        Kotlin/JNI/Renderer/Module Store
   platform/ios/            Objective-C++/Swift/Renderer/Module Store
-  platform/harmony/        Node-API/ArkTS/Renderer/Module Store
+  platform/harmony/        DevEco 工程、Runtime HAR、Demo HAP、Node-API/ArkTS/ArkUI
 spec/                      Host IDL、Renderer 与发布门禁合同
 generated/                 生成的 Kotlin/Swift/ArkTS/C++ 接口
 ```
@@ -233,8 +233,10 @@ Profile 只改变模块来源与打包约束。Android `Offline Sealed` 可嵌�
 - KeyStore/Keychain/HUKS 缓存密钥与平台完整性证明。
 - 商业支付、地图、相机、媒体和推送 Adapter。
 - iOS 真机、archive/Apple Distribution codesign 与审核证据；Simulator Demo 已提供。
-- HarmonyOS DevEco 工程、HAR/HAP、HUKS Adapter 和真机；当前只有可移植
-  Node-API/ArkTS/ArkUI 合同。
+- HarmonyOS 已有 DevEco API 24 工程、兼容 API 23 的 Runtime HAR 与 unsigned
+  Emulator HAP，以及 arm64-v8a/x86_64 C++17 Node-API/ArkUI 构建；Huawei debug
+  signed HAP 已在一台 HUAWEI Pura 70 完成交互和状态恢复。仍需 HUKS、线上 Module
+  Store、完整 Capability、commercial/release/AppGallery 签名和更多物理设备证据。
 - KMP/CMP 的目标项目构建；Kuikly 只在产品需要时锁定版本并实现 Adapter。
 - 正式 KMS/HSM、组织日志、应用市场审核、支付沙箱、红队和性能 SLO。
 

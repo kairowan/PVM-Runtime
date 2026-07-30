@@ -1,0 +1,9 @@
+{
+  "module": {
+    "name": "runtime",
+    "type": "har",
+    "deviceTypes": [
+      "phone"
+    ]
+  }
+}

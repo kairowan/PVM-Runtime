@@ -29,7 +29,9 @@
 | iOS SDK 交付 | Swift Package、`@MainActor PVMHost`、Privacy Manifest、静态 XCFramework 门禁 |
 | iOS XCFramework | `make ios-sdk-check` 生成 `dist/ios/PVMBridge.xcframework` |
 | iOS Demo | Xcode App target；iPhone 17 Pro Max Simulator（iOS 26.2）交互与截图通过 |
-| HarmonyOS 边界 | 仅可移植 Node-API/ArkTS 合同；本机无 DevEco，无 HAR/HAP |
+| HarmonyOS SDK 交付 | DevEco API 24 工程（兼容 API 23）、Runtime HAR、unsigned Emulator HAP |
+| HarmonyOS Native ABI | arm64-v8a、x86_64 C++17 Node-API Runtime |
+| HarmonyOS 运行证据 | HUAWEI Pura 70、HarmonyOS 6.1（API 23 兼容）；Huawei debug signed HAP 交互、恢复与截图通过 |
 | 生产包 | 正式签名 APK/AAB、IPA、HAP 仍由目标工程与发布账号生成 |
 | 历史兼容矩阵 | 5 业务域 × PVBC v1/v2/v3 = 15 |
 
@@ -43,9 +45,9 @@
 | 发布服务 | 内容寻址、访问策略、签名 Manifest、ETag、灰度、审计 | HTTP/篡改/灰度/LKG 测试 | 生产 CDN、数据库、鉴权 HA |
 | Android | Gradle Library/Demo、Kotlin/JNI/View、严格绑定的 Module Store、双 ABI `.so`、AAR/Maven、Debug APK/AAB、R8 smoke | `make platform-check android-demo-check`；HONOR API 35 人工真机验收 | Compose/CMP、更多设备/性能、业务 Capability、正式签名与商店 |
 | iOS | Swift Package、Objective-C++/Swift、`PVMHost`、UIKit/SwiftUI、严格绑定的 CryptoKit Store、Privacy Manifest、静态 XCFramework、Xcode Demo | `make platform-check ios-sdk-check ios-demo-check`；iOS 26.2 Simulator 交互/截图 | 真机、archive/Apple Distribution codesign、完整 NativeSurface、审核 |
-| HarmonyOS | 可移植 Node-API/ArkTS/ArkUI 合同与严格绑定的 Module Store | 可移植 C++/合同检查 | DevEco HAR/HSP/HAP、HUKS Adapter、真机 |
-| Capability | 27 项版本化合同；Android 5 项、iOS 4 项基础 Adapter | `make verify-contracts platform-check` | Harmony 具体 Adapter；其余供应商/系统能力 |
-| Delivery | 四 Profile 与 12 套宿主嵌入输入；Android 有 Demo APK/AAB 和 SDK AAR/Maven；iOS 有 XCFramework 与 Simulator Demo | `make delivery-matrix android-demo-check ios-sdk-check ios-demo-check` | 正式签名三端安装包、各商店/MDM 上传和审批 |
+| HarmonyOS | DevEco API 24/兼容 API 23 工程、C++17 Node-API/ArkTS Host、ArkUI Renderer、Runtime HAR、Offline Sealed unsigned Demo HAP | `make harmony-sdk-check`；HAR/HAP 与双 ABI 已真实构建；Pura 70 debug signed HAP 真机 smoke | commercial/release/AppGallery 签名、HUKS、线上 Module Store、完整 Capability 与更多物理设备实验室 |
+| Capability | 27 项版本化合同；Android 5 项、iOS 4 项、HarmonyOS 2 项基础 Adapter | `make verify-contracts platform-check` | HarmonyOS 其余 25 项及其他供应商/系统能力 |
+| Delivery | 四 Profile 与 12 套宿主嵌入输入；Android 有 Demo APK/AAB 和 SDK AAR/Maven；iOS 有 XCFramework 与 Simulator Demo；HarmonyOS 有 HAR 与 unsigned Emulator HAP | `make delivery-matrix android-demo-check ios-sdk-check ios-demo-check harmony-sdk-check` | 正式签名三端安装包、各商店/MDM 上传和审批 |
 | 兼容性 | v1–v5 Runtime 读取、五域历史矩阵 | `make compatibility test` | 真实流量、长期升级数据 |
 
 ## Android 本轮交付证据
@@ -88,13 +90,33 @@ Debug APK/AAB 与 R8 smoke APK 都是开发/测试构建；其中 APK 使用测�
 [Apple App Review Guidelines 2.5.2](https://developer.apple.com/app-store/review/guidelines/)，
 不能因为模块有签名或 VM 受限就宣称天然合规。
 
+## HarmonyOS SDK 本轮交付证据
+
+| 证据 | 结果 | 说明 |
+|---|---|---|
+| DevEco 工程 | API 24，`compatibleSdkVersion` API 23 | Runtime HAR 与 Demo HAP 两个模块 |
+| Runtime HAR | `dist/harmony/pvm-runtime-0.5.0.har` | ArkTS Host、ArkUI Renderer 与 C++17 VM |
+| Demo HAP | `dist/harmony/PVMRuntime-demo-unsigned.hap` | Offline Sealed unsigned 开发产物，仅面向 Emulator |
+| Native ABI | arm64-v8a、x86_64 | 两个 ABI 都包含完整 Node-API/C++17 Runtime |
+| 离线资源 | module、公钥、bootstrap | 平台/Profile/Hash 绑定进入 HAP |
+| 构建门禁 | `make harmony-sdk-check` | 构建并检查 HAR/HAP、ABI 和离线资源 |
+| 真机 | HUAWEI Pura 70 ADY-AL10、HarmonyOS 6.1（API 23 兼容） | USB `3RM0224B30000105` |
+| 真机 HAP | Huawei debug signed HAP | 签名验证后安装并运行真实 Offline Sealed 模块 |
+| 自动交互 | 通过 | count 0→1→2、`Status: Not set`、`Alice`、Home/force-stop/relaunch 恢复 |
+| 截图 | `docs/assets/harmony-demo.png` | 由目标设备直接采集的原始 PNG |
+
+`dist/harmony/PVMRuntime-demo-unsigned.hap` 仍不具备华为商业真机或应用市场要求的
+签名身份；本次真机使用的是另行生成并验证的 Huawei debug signed HAP。该结果不是
+commercial/release/AppGallery 签名，并且只覆盖一台 Pura 70。HUKS、线上 Module
+Store、完整 Capability 和更多物理设备结果仍不在本轮证据内。
+
 ## 原计划时间段映射
 
 仓库把原 0–36 个月方案压缩为一条可执行工程基线：
 
 | 时间段 | 仓库内交付 | 可执行验收 | 仍需外部证据 |
 |---|---|---|---|
-| 4–9 个月 | 三端 Host、平台验签、Native Renderer、LKG、四 Profile；Android Gradle SDK/Demo；iOS SDK/XCFramework/Xcode Demo | `make platform-check delivery-matrix android-demo-check ios-sdk-check ios-demo-check`；HONOR API 35；iOS 26.2 Simulator | iOS 真机/发布签名、HarmonyOS DevEco 工程与真机、Android 扩展设备矩阵、推送账号 |
+| 4–9 个月 | 三端 Host、平台验签、Native Renderer、LKG、四 Profile；Android Gradle SDK/Demo；iOS SDK/XCFramework/Xcode Demo；HarmonyOS HAR/unsigned Emulator HAP | `make platform-check delivery-matrix android-demo-check ios-sdk-check ios-demo-check harmony-sdk-check`；HONOR API 35；iOS 26.2 Simulator；Pura 70 HarmonyOS 6.1（API 23 兼容） | iOS 真机/发布签名、HarmonyOS commercial/release/AppGallery 签名与更多真机、Android 扩展设备矩阵、推送账号 |
 | 10–18 个月 | Host/组件 IDL、六类 Renderer 接口、重能力合同 | `make verify-contracts` | 各 SDK Adapter 与沙箱凭证 |
 | 19–27 个月 | 远程 signer、签名 Manifest、防回滚、灰度、审计和门禁 | `make test sanitizer-check fuzz-check` | 正式 KMS/HSM、商店审核、红队 |
 | 28–36 个月 | 五业务域历史兼容矩阵与交付治理 | `make compatibility release-check` | 真实业务流量、性能 SLO、升级演练 |
@@ -113,11 +135,12 @@ Debug APK/AAB 与 R8 smoke APK 都是开发/测试构建；其中 APK 使用测�
 | `android-demo-artifacts` | `make android-demo-check` | Android APK/AAB/AAR/Maven 与包安全属性 |
 | `ios-sdk-artifacts` | `make ios-sdk-check` | iOS XCFramework、Swift consumer 与产物安全属性 |
 | `ios-demo-artifact` | `make ios-demo-check` | iOS Simulator App、签名离线模块与 Package 集成 |
+| `harmony-sdk-artifacts` | `make harmony-sdk-check` | HarmonyOS HAR、unsigned Emulator HAP、双 ABI 与离线资源 |
 | `historical-bytecode` | `make compatibility` | 15 项历史模块升级 |
 | `sanitizers` | `make sanitizer-check` | Linux ASan+UBSan / macOS UBSan |
 | `package-fuzz-smoke` | `make fuzz-check` | 包解析覆盖引导 smoke |
 
-Android 与 iOS 另有 SDK 专项门禁：
+三个移动平台另有 SDK 专项门禁：
 
 | 命令 | 证明范围 |
 |---|---|
@@ -126,10 +149,18 @@ Android 与 iOS 另有 SDK 专项门禁：
 | `make ios-sdk-check` | 生成并检查静态 XCFramework slice/架构/iOS 15、公开符号、Swift 6 consumer 与敏感内容 |
 | `make ios-demo-check` | 构建并检查 Xcode Simulator Demo、ad-hoc 签名、Privacy Manifest 与 Offline Sealed 资源 |
 | `make ios-demo-run` | 安装并启动到唯一已 Boot 的 iOS Simulator |
+| `make harmony-packages` | 使用 DevEco API 24 构建 Runtime HAR 与兼容 API 23 的 unsigned Demo HAP |
+| `make harmony-sdk-check` | 构建并检查 HAR/HAP、arm64-v8a/x86_64 Runtime 和 Offline Sealed 资源 |
+| `make harmony-demo-run` | 安装并启动到唯一 HarmonyOS Emulator |
+| `make harmony-demo-screenshot` | 在 Emulator 执行交互并采集原始截图 |
+| `make harmony-device-run` | 使用显式 USB 目标和 Huawei 签名 HAP 安装、启动与验证 |
+| `make harmony-device-screenshot` | 在物理设备执行确定性交互、状态恢复并采集原始截图；Pura 70 已通过 |
 
-三个平台专项门禁都已登记在 `spec/release_gates.json`；Android 门禁要求 Android
-SDK，两个 iOS 门禁要求完整 Xcode，所以不并入可跨平台运行的 `release-check` 聚合
-命令。对应平台的 CI/发布任务必须单独执行。
+Android、iOS 和 HarmonyOS 产物门禁都已登记在 `spec/release_gates.json`；它们分别
+要求 Android SDK、完整 Xcode 和 DevEco SDK，所以不并入可跨平台运行的
+`release-check` 聚合命令。对应平台的 CI/发布任务必须单独执行。运行/截图命令不是
+产物门禁；本轮物理设备结果是使用显式 USB 目标和 Huawei debug signed HAP 得到的
+独立 smoke 证据。
 
 统一入口：
 
@@ -147,7 +178,7 @@ macOS 26 的 Apple ASan runtime 当前会在 dyld 初始化阶段自旋，因此
 |---|---|---|
 | `hsm-production-key` | KMS/HSM key ID、访问策略、轮换演练和审计导出 | 安全/平台 |
 | `store-policy-review` | Google Play、Apple、Huawei 对精确 Profile/版本的审核记录 | 发布/法务 |
-| `device-lab` | 已有 HONOR BRP-AN00/API 35 交互与状态恢复 smoke；仍需三端、多设备及相机/媒体/推送/后台结果 | QA/平台 |
+| `device-lab` | 已有 HONOR BRP-AN00/API 35 与 HUAWEI Pura 70/HarmonyOS 6.1（API 23 兼容）交互、状态恢复 smoke；仍需三端多物理设备及相机/媒体/推送/后台结果 | QA/平台 |
 | `billing-sandboxes` | Play Billing、StoreKit、Huawei IAP、企业支付回执 | 支付团队 |
 | `red-team` | 黑盒、Root/Jailbreak、Hook 和部分源码泄露报告 | 安全团队 |
 
@@ -187,8 +218,10 @@ Runtime 静态 XCFramework 和 `make ios-sdk-check` 已提供；Xcode Demo 与 S
 
 剩余核心阶段为：
 
-1. **HarmonyOS 产品 SDK**：DevEco 工程、HAR/HSP、HUKS/文件/网络实现、ArkUI Renderer、
-   基础 Capability、示例 HAP 与真机。当前仅有可移植合同。
+1. **HarmonyOS 产品化补齐**：DevEco API 24 工程、Runtime HAR、ArkUI Renderer、
+   两项基础 Capability 与 unsigned Emulator HAP 已完成构建，Huawei debug signed
+   HAP 已在一台 Pura 70 完成交互、状态恢复和截图；仍需 HUKS、线上 Module Store、
+   完整 Capability、commercial/release/AppGallery 签名 HAP 与更多物理真机。
 2. **KMP/CMP 产品化（Kuikly 按需）**：KMP source set、Android/iOS actual Runtime、
    Compose Host 和 Maven 分发；只有产品采用 Kuikly 时才锁定版本并实现 Adapter。
 3. **生产验收与运营**：iOS 真机/archive/Apple Distribution codesign，正式 signer/HSM、公钥轮换、

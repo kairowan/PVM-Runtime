@@ -36,8 +36,78 @@ export interface SignatureVerifier {
   verify(payload: ArrayBuffer, signature: ArrayBuffer, publicKeyPath: string): boolean
 }
 
-type SyncHandler = (operation: string, argumentsValue: object[]) => string
-type AsyncHandler = (operation: string, argumentsValue: object[]) => Promise<string>
+interface NativeCallbacks {
+  onUi(json: string): void
+  onSyncEffect(capability: string, operation: string, argumentsJson: string): string
+  onAsyncEffect(
+    taskId: string,
+    capability: string,
+    operation: string,
+    argumentsJson: string,
+  ): void
+  onVerifySignature(payload: ArrayBuffer, signature: ArrayBuffer, publicKeyPath: string): boolean
+}
+
+class NativeCallbackAdapter implements NativeCallbacks {
+  private host?: PvmRuntimeHost
+  private renderer: UiRenderer
+  private capabilities: CapabilityRegistry
+  private signatureVerifier: SignatureVerifier
+
+  constructor(
+    renderer: UiRenderer,
+    capabilities: CapabilityRegistry,
+    signatureVerifier: SignatureVerifier,
+  ) {
+    this.renderer = renderer
+    this.capabilities = capabilities
+    this.signatureVerifier = signatureVerifier
+  }
+
+  attach(host: PvmRuntimeHost): void {
+    this.host = host
+  }
+
+  onUi(json: string): void {
+    const host = this.requireHost()
+    const batch = JSON.parse(json) as UiBatch
+    if (batch.operation !== 'replace') throw new Error('Unsupported UI batch')
+    this.renderer.replaceTree(
+      batch.root,
+      (node, event, value) => host.dispatch(node, event, value),
+    )
+  }
+
+  onSyncEffect(capability: string, operation: string, argumentsJson: string): string {
+    return this.capabilities.invokeSync(capability, operation, argumentsJson)
+  }
+
+  onAsyncEffect(
+    taskId: string,
+    capability: string,
+    operation: string,
+    argumentsJson: string,
+  ): void {
+    this.requireHost().completeAsync(taskId, capability, operation, argumentsJson)
+  }
+
+  onVerifySignature(
+    payload: ArrayBuffer,
+    signature: ArrayBuffer,
+    publicKeyPath: string,
+  ): boolean {
+    return this.signatureVerifier.verify(payload, signature, publicKeyPath)
+  }
+
+  private requireHost(): PvmRuntimeHost {
+    if (this.host === undefined) throw new Error('PVM Runtime host is not ready')
+    return this.host
+  }
+}
+
+export type CapabilityArgument = string | number | boolean
+type SyncHandler = (operation: string, argumentsValue: CapabilityArgument[]) => string
+type AsyncHandler = (operation: string, argumentsValue: CapabilityArgument[]) => Promise<string>
 
 export class CapabilityRegistry {
   private sync: Map<string, SyncHandler> = new Map()
@@ -72,7 +142,7 @@ export class CapabilityRegistry {
     this.requireDeclared(id)
     const handler = this.sync.get(id)
     if (handler === undefined) throw new Error(`Missing capability ${id}`)
-    return handler(operation, JSON.parse(argumentsJson) as object[])
+    return handler(operation, JSON.parse(argumentsJson) as CapabilityArgument[])
   }
 
   async invokeAsync(id: string, operation: string, argumentsJson: string): Promise<string> {
@@ -80,7 +150,7 @@ export class CapabilityRegistry {
       this.requireDeclared(id)
       const handler = this.async.get(id)
       if (handler === undefined) throw new Error(`Missing capability ${id}`)
-      return await handler(operation, JSON.parse(argumentsJson) as object[])
+      return await handler(operation, JSON.parse(argumentsJson) as CapabilityArgument[])
     } catch (error) {
       return JSON.stringify({ ok: false, error: `${error}` })
     }
@@ -107,6 +177,8 @@ export class PvmRuntimeHost {
   private handle: object
   private closed: boolean = false
   private taskGeneration: number = 0
+  private capabilities: CapabilityRegistry
+  private asyncFailure: string = ''
 
   constructor(
     modulePath: string,
@@ -115,10 +187,12 @@ export class PvmRuntimeHost {
     minimumRelease: number,
     expectedChannel: string,
     expectedProfile: string,
-    private renderer: UiRenderer,
-    private capabilities: CapabilityRegistry,
-    private signatureVerifier: SignatureVerifier,
+    renderer: UiRenderer,
+    capabilities: CapabilityRegistry,
+    signatureVerifier: SignatureVerifier,
   ) {
+    this.capabilities = capabilities
+    const callbacks = new NativeCallbackAdapter(renderer, capabilities, signatureVerifier)
     this.handle = pvm.create(
       modulePath,
       publicKeyPath,
@@ -126,37 +200,9 @@ export class PvmRuntimeHost {
       minimumRelease,
       expectedChannel,
       expectedProfile,
-      {
-        onUi: (json: string): void => {
-          const batch = JSON.parse(json) as UiBatch
-          if (batch.operation !== 'replace') throw new Error('Unsupported UI batch')
-          this.renderer.replaceTree(
-            batch.root,
-            (node, event, value) => this.dispatch(node, event, value),
-          )
-        },
-        onSyncEffect: (capability: string, operation: string, args: string): string =>
-          this.capabilities.invokeSync(capability, operation, args),
-        onAsyncEffect: (
-          taskId: string,
-          capability: string,
-          operation: string,
-          args: string,
-        ): void => {
-          const generation = this.taskGeneration
-          this.capabilities.invokeAsync(capability, operation, args).then((result) => {
-            if (!this.closed && generation === this.taskGeneration) {
-              pvm.complete(this.handle, taskId, result)
-            }
-          })
-        },
-        onVerifySignature: (
-          payload: ArrayBuffer,
-          signature: ArrayBuffer,
-          keyPath: string,
-        ): boolean => this.signatureVerifier.verify(payload, signature, keyPath),
-      },
+      callbacks,
     )
+    callbacks.attach(this)
     try {
       this.policy = JSON.parse(pvm.metadata(this.handle)) as RuntimePolicy
       if (this.policy.platform !== 'harmonyos') {
@@ -172,7 +218,7 @@ export class PvmRuntimeHost {
     } catch (error) {
       pvm.destroy(this.handle)
       this.closed = true
-      throw error
+      throw new Error(`${error}`)
     }
   }
 
@@ -183,14 +229,48 @@ export class PvmRuntimeHost {
 
   dispatch(nodeId: number, event: string, value?: string): void {
     this.requireOpen()
-    const code: Record<string, number> = { tap: 1, change: 2, submit: 3, appear: 4 }
-    const eventCode = code[event]
-    if (eventCode === undefined) throw new Error(`Unknown VM event ${event}`)
+    let eventCode: number
+    switch (event) {
+      case 'tap':
+        eventCode = 1
+        break
+      case 'change':
+        eventCode = 2
+        break
+      case 'submit':
+        eventCode = 3
+        break
+      case 'appear':
+        eventCode = 4
+        break
+      default:
+        throw new Error(`Unknown VM event ${event}`)
+    }
     if (value === undefined) {
       pvm.dispatch(this.handle, nodeId, eventCode)
     } else {
       pvm.dispatchValue(this.handle, nodeId, eventCode, value)
     }
+  }
+
+  completeAsync(
+    taskId: string,
+    capability: string,
+    operation: string,
+    argumentsJson: string,
+  ): void {
+    const generation = this.taskGeneration
+    this.capabilities.invokeAsync(capability, operation, argumentsJson).then((result) => {
+      if (!this.closed && generation === this.taskGeneration) {
+        try {
+          pvm.complete(this.handle, taskId, result)
+        } catch (error) {
+          this.recordAsyncFailure(error)
+        }
+      }
+    }).catch((error: object) => {
+      this.recordAsyncFailure(error)
+    })
   }
 
   snapshot(): ArrayBuffer {
@@ -219,5 +299,15 @@ export class PvmRuntimeHost {
 
   private requireOpen(): void {
     if (this.closed) throw new Error('Runtime is closed')
+    if (this.asyncFailure.length > 0) {
+      throw new Error(`Runtime async completion failed: ${this.asyncFailure}`)
+    }
+  }
+
+  private recordAsyncFailure(error: object): void {
+    if (this.closed || this.asyncFailure.length > 0) return
+    this.asyncFailure = `${error}`
+    this.taskGeneration += 1
+    pvm.cancel(this.handle)
   }
 }

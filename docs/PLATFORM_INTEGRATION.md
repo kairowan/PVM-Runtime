@@ -366,13 +366,40 @@ iPhoneOS slice 和 arm64/x86_64 Simulator slice，最低 iOS 15。门禁检查�
 
 ### 已提供
 
-- `pvm_napi.cpp`：标准 Node-API 桥。
+- DevEco Studio 6.1.1/API 24 工程，`compatibleSdkVersion` 为 API 23。
+- `runtime` HAR：ArkTS Host、ArkUI Renderer、CryptoFramework Ed25519 verifier、
+  状态生命周期和完整 C++17 VM。
+- `demo` HAP：Offline Sealed Counter，内嵌平台/Profile 绑定的模块、公钥和 bootstrap。
+- `pvm_napi.cpp`：标准 Node-API 桥，随 HAR/HAP 构建 arm64-v8a 与 x86_64。
 - `PvmRuntimeHost.ets`：ArkTS Runtime/Capability Host。
-- `PvmModuleStore.ets`：签名 Manifest、缓存与 LKG。
-- `ArkUiRenderer.ets`：ArkUI 工厂接口。
+- `PvmModuleStore.ets`：线上 Manifest、缓存与 LKG 参考实现。
+- `PvmRuntimeSession.ets` / `PvmRuntimeTree.ets`：状态恢复、原生 ArkUI 递归渲染和事件回传。
+- `installBasicHarmonyCapabilities`：`ui.toast` 与 `storage.kv` 基础 Adapter。
 
-这些是可移植 Node-API/ArkTS 合同和参考实现；当前仓库没有经 DevEco 编译的 HAR/HSP，
-也没有可安装 HAP。
+执行：
+
+```bash
+make harmony-sdk-check
+```
+
+会构建并检查 `dist/harmony/pvm-runtime-0.5.0.har` 和
+`dist/harmony/PVMRuntime-demo-unsigned.hap`。后者是 Emulator/开发联调产物，不具备
+华为商业真机或应用市场要求的正式签名。
+
+Demo 的 UI 不是静态 ArkUI Mock：原生控件事件经 Node-API 进入同一套 C++17 VM，
+再由整批 UI Tree 驱动 ArkUI 重绘。除 DevEco 编译与 HAR/HAP 产物外，当前还使用
+Huawei debug signed HAP 在 USB 目标 `3RM0224B30000105`、HUAWEI Pura 70 ADY-AL10
+（HarmonyOS 6.1、API 23 兼容）运行真实 Offline Sealed 模块。自动交互验证了 count
+`0 → 1 → 2`、异步 `Status: Not set`、输入 `Alice`，以及 Home、force-stop 和
+重启后的状态恢复，原始截图为 `docs/assets/harmony-demo.png`。
+
+物理设备运行必须显式提供目标与已签名 HAP，脚本会验证包签名和仓库 Demo 身份：
+
+```bash
+HARMONY_DEVICE_TARGET=3RM0224B30000105 \
+HARMONY_SIGNED_HAP=/path/to/huawei-debug-signed.hap \
+make harmony-device-run
+```
 
 ### App 必须注入
 
@@ -401,10 +428,13 @@ decodeUtf8
 
 - ArkTS Host 把 UI 批次交给项目注入的 ArkUI Renderer/Node Factory。
 - Node-API 回调和 VM 生命周期必须在宿主选定的串行上下文中使用。
-- `SignatureVerifier` 由目标 DevEco/Harmony Crypto 或 HUKS Adapter 实现。
+- Runtime HAR 的模块验签由 Harmony CryptoFramework Ed25519 verifier 实现；线上
+  Module Store 仍需目标 App 注入文件、传输、Validator 与 Manifest 验签边界。
 - HUKS 可保护缓存密钥；HAP/HSP/远程资源策略仍由 Profile 与发布流水线约束。
 
-当前机器没有 DevEco/HarmonyOS SDK，因此仓库门禁只编译可移植 Node-API C++ 并检查 ArkTS 合同，不能声称 HAP 或真机验证。
+Pura 70 结果是一台 API 23 兼容物理设备的纵向 smoke，不代表完整设备矩阵或生产发布。
+目标团队仍需完成 commercial/release/AppGallery 签名 HAP、HUKS、线上 Module
+Store、完整 Capability，以及更多设备的生命周期、性能和设备实验室验收。
 
 ## KMP/CMP 与 Kuikly 边界
 

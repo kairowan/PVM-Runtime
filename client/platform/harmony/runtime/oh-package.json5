@@ -1,0 +1,11 @@
+{
+  "name": "@pvm/runtime",
+  "version": "0.5.0",
+  "description": "Reusable PVM C++17 VM host for HarmonyOS",
+  "main": "Index.ets",
+  "author": "kairowan",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "libpvm_harmony.so": "file:./src/main/cpp/types/libpvm_harmony"
+  }
+}

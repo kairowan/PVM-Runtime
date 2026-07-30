@@ -17,8 +17,8 @@
 - 一份 DSL 源码按目标平台和交付 Profile 生成独立签名模块，共用同一种 PVBC
   格式与业务语义，不复制多套业务源码；单个 `.pvm` 不会跨平台混用。
 - 一个 C++17 Runtime 负责签名、绑定、防回滚、字节码和资源预算验证。
-- UI 仍由宿主原生后端渲染；当前构建覆盖 Android View、UIKit/SwiftUI 和 ArkUI
-  合同，Compose/CMP 与 Kuikly 仅是尚未接入产品构建的原型。
+- UI 仍由宿主原生后端渲染；当前构建覆盖 Android View、UIKit/SwiftUI，以及经
+  DevEco API 24 编译的 ArkUI，Compose/CMP 与 Kuikly 仅是尚未接入产品构建的原型。
 - 支付、地图、相机、音视频、推送等重能力留在宿主，通过版本化 Capability IDL 调用。
 - `Offline Sealed` 与联网交付不是互相冒充的模式，而是明确分离的构建产物。
 
@@ -134,16 +134,21 @@ Maven/独立 AAR 一致性、APK ZIP alignment，以及 AAR 内 ELF `PT_LOAD` �
   <tr>
     <th>Android · HONOR 真机</th>
     <th>iOS · iPhone 17 Pro Max Simulator</th>
+    <th>HarmonyOS · HUAWEI Pura 70 真机</th>
   </tr>
   <tr>
     <td><img src="docs/assets/android-demo.png" width="300" alt="PVM Runtime Android demo running signed bytecode on a physical device"></td>
     <td><img src="docs/assets/ios-demo.png" width="300" alt="PVM Runtime iOS demo running signed bytecode in the iOS Simulator"></td>
+    <td><img src="docs/assets/harmony-demo.png" width="300" alt="PVM Runtime HarmonyOS demo running signed bytecode on a HUAWEI Pura 70 physical device"></td>
   </tr>
 </table>
 
-两端运行的是同一份 Counter DSL 的平台绑定模块；图中的计数、异步存储状态与输入值都
+三端运行的是同一份 Counter DSL 的平台绑定模块；图中的计数、异步存储状态与输入值都
 经过原生控件事件 → Host → C++17 VM → 原生重绘链路，不是静态 Mock。Android 是一台
-HONOR 物理设备的 smoke 证据，iOS 是 Simulator 证据，两者都不替代完整设备矩阵。
+HONOR 物理设备的 smoke 证据，iOS 是 Simulator 证据，HarmonyOS 是 HUAWEI Pura 70
+ADY-AL10（HarmonyOS 6.1、API 23 兼容）的物理设备证据。HarmonyOS 自动交互验证了计数
+`0 → 1 → 2`、异步存储 `Status: Not set`、输入 `Alice`，以及 Home、force-stop 后
+重启的状态恢复；这些结果仍不替代三端完整设备矩阵。
 
 这些 APK/AAB 使用 Android Debug/测试签名，只是可安装的工程与 CI 证据，不是生产
 商店包。正式业务 App 应依赖 Runtime Maven/AAR，嵌入自己平台/Profile 对应的模块，
@@ -188,6 +193,49 @@ iOS 产品默认建议使用 `offline_sealed`，由目标 App 在审核包内携
 [Apple App Review Guidelines 2.5.2](https://developer.apple.com/app-store/review/guidelines/)；
 签名、受限 VM 或 Profile 名称本身都不代表天然合规。
 
+### 构建 HarmonyOS Runtime HAR 与 Demo HAP
+
+安装 DevEco Studio 6.1.1/API 24 后执行：
+
+```bash
+make harmony-sdk-check
+```
+
+该门禁构建并检查兼容 API 23 的 Runtime HAR 和 Offline Sealed Demo unsigned HAP，
+包括 arm64-v8a/x86_64 C++17 Node-API Runtime、ArkTS Host、ArkUI Renderer，以及
+模块、公钥和 bootstrap 绑定。产物写入 `dist/harmony/`。unsigned HAP 只用于
+HarmonyOS Emulator/开发联调，不是华为商业真机或应用市场可接受的正式签名包。
+
+如果仓库路径包含 DevEco 不接受的空格或 `+`，先准备一份不携带签名材料的临时工程：
+
+```bash
+python3 scripts/build_harmony_artifacts.py \
+  --prepare-project /tmp/PVMRuntimeHarmonySigning
+```
+
+然后只在该临时工程的 `Project Structure > Signing Configs` 中为 `default` product
+配置 Huawei 自动调试签名并构建 `demo-default-signed.hap`。脚本拒绝覆盖非空目录，
+账号证书、Profile 和密码不会写回仓库。
+
+Emulator 交互命令为：
+
+```bash
+make harmony-demo-run
+make harmony-demo-screenshot
+```
+
+物理设备使用显式目标和华为签名 HAP：
+
+```bash
+HARMONY_DEVICE_TARGET=3RM0224B30000105 \
+HARMONY_SIGNED_HAP=/path/to/huawei-debug-signed.hap \
+make harmony-device-screenshot
+```
+
+当前已在 HUAWEI Pura 70 ADY-AL10（HarmonyOS 6.1、API 23 兼容）安装 Huawei debug signed
+HAP，并通过真实 Offline Sealed 模块完成上述自动交互、状态恢复和原始截图。该证据
+不是 commercial/release/AppGallery 签名，也只覆盖这一台物理设备。
+
 ### 执行发布门禁
 
 ```bash
@@ -209,7 +257,8 @@ fuzz-check         1000 次覆盖引导包解析模糊测试
 
 需要 Android SDK 的 `make android-demo-check` 已登记为独立自动门禁，但不并入可在
 无 Android SDK 环境运行的 `release-check` 聚合命令。需要 Xcode 的
-`make ios-sdk-check` 同样登记为独立 iOS SDK 门禁，不并入该聚合命令。
+`make ios-sdk-check` 和需要 DevEco 的 `make harmony-sdk-check` 同样登记为独立
+平台 SDK 门禁，不并入该聚合命令。
 
 `delivery-matrix` 生成供目标 App 工程嵌入的模块、公钥、Capability 和 bootstrap。
 仓库内的 Android Demo 会把 Android Offline Sealed 输入封装成测试 APK/AAB；正式
@@ -273,11 +322,15 @@ PVM Runtime 提高静态分析、篡改和错误交付的成本，但不承诺�
 仓库内的编译、签名、发布、缓存、VM、三端桥接和自动化门禁已经形成闭环；Android
 已经具备可分发 AAR/Maven、可安装 APK/AAB 和单台物理设备证据；iOS 已具备 Swift
 Package、统一 Host、Privacy Manifest、可重复生成的静态 XCFramework，以及可运行
-Simulator Demo。进入真实产品前仍需要使用目标 App、账号和 SDK 完成：
+Simulator Demo；HarmonyOS 已具备 DevEco API 24 工程、兼容 API 23 的 HAR 和
+unsigned Emulator HAP，以及 arm64-v8a/x86_64 C++17 Node-API/ArkUI 构建证据，并在
+HUAWEI Pura 70（HarmonyOS 6.1、API 23 兼容）完成 debug signed HAP 真机 smoke。
+进入真实产品前仍需要使用目标 App、账号和 SDK 完成：
 
 - 正式 KMS/HSM、密钥轮换和审计接入。
-- iOS 真机、archive/Apple Distribution codesign 与审核证据；HarmonyOS DevEco
-  HAR/HAP 和真机。
+- iOS 真机、archive/Apple Distribution codesign 与审核证据；HarmonyOS
+  commercial/release/AppGallery 签名与更多物理设备实验室证据。
+- HarmonyOS HUKS、线上 Module Store、完整 Capability Adapter 与生产发布配置。
 - KMP/CMP 的真实构建模块与发布产物；Kuikly 仅在产品确有需要时锁定版本并实现 Adapter。
 - 支付、地图、相机、媒体、推送等实际 Capability Adapter。
 - 应用商店审核、支付沙箱、持续长时 fuzz、红队和性能 SLO。

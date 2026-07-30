@@ -3,7 +3,10 @@
 这份清单按“能够在当前仓库运行”统计，不把类型声明、接口占位或目标 App 需要实现的
 Adapter 算作完成。平台编译只能证明源码与当前 SDK/头文件相容，不能替代真机验收；
 Android 已额外完成一台 HONOR API 35 设备的交互与状态恢复验收；iOS 已完成 iOS 26.2
-Simulator 的等价业务交互与截图，但这不是物理设备证据。
+Simulator 的等价业务交互与截图，但这不是物理设备证据。HarmonyOS 已经由 DevEco
+API 24 真实构建兼容 API 23 的 HAR 与 unsigned Emulator HAP，并使用 Huawei debug
+signed HAP 在 HUAWEI Pura 70 ADY-AL10（HarmonyOS 6.1、API 23 兼容）完成真实 Offline
+Sealed 模块交互、状态恢复和截图；这仍不是商业发布签名或完整设备矩阵。
 
 ## 核心链路
 
@@ -24,6 +27,8 @@ Simulator 的等价业务交互与截图，但这不是物理设备证据。
 | iOS Swift Package、统一 Host、Privacy Manifest | 已实现 | `make ios-sdk-check` |
 | iOS 静态 XCFramework | 可重复生成 | `dist/ios/PVMBridge.xcframework` |
 | iOS Xcode Demo | 已实现 | `make ios-demo-check` 与 iOS 26.2 Simulator 截图 |
+| HarmonyOS DevEco Runtime SDK | 已实现 | `make harmony-sdk-check` 构建 HAR、unsigned HAP 与双 ABI |
+| HarmonyOS 真机 Demo 交互 | 已验证 | Pura 70 上验证 count 0→1→2、异步存储、Alice 输入、Home/force-stop 重启恢复与截图 |
 | 生产签名 APK/AAB、IPA、HAP | 目标工程负责 | 仍需正式身份、证书和商店配置 |
 
 ## Android 产品化基线
@@ -48,7 +53,7 @@ Simulator 的等价业务交互与截图，但这不是物理设备证据。
 | Android Compose/CMP | 未进入 Gradle 构建的递归树/输入值原型 | 建立真实 KMP/CMP 模块、依赖、事件语义和测试 |
 | UIKit | 11 类节点、Stack 约束、属性、四类事件、输入值、NativeSurface 工厂和 appear absent→present；Simulator Counter 已验收 | 图片加载、复杂布局/复用与真机校准 |
 | SwiftUI | 递归树、输入绑定、Switch、四类事件、enabled/无障碍和 appear absent→present | NativeSurface 仍是占位；图片与复杂列表策略 |
-| ArkUI | 可移植的中立树、事件值和 appear absent→present 工厂合同 | 需要 DevEco SDK、真实工程和业务 `ArkUiNodeFactory` |
+| ArkUI | DevEco API 24 编译的递归原生树、事件值和 appear absent→present 语义；Pura 70 已完成 Counter 交互、状态恢复与截图 | 复杂布局性能、NativeSurface 业务工厂与更多真机校准 |
 | Kuikly | 未进入构建、未锁定 SDK 版本的 Port 原型 | 仅在产品需要时选定版本并实现/编译/真机验证 |
 
 `spec/renderer_conformance.json` 中的 `compiled`、`sdk-required` 和
@@ -62,7 +67,7 @@ Simulator 的等价业务交互与截图，但这不是物理设备证据。
 |---|---|
 | Android | `ui.toast`、`storage.kv`、`network.http`、`push.inbox`、`permission.request` |
 | iOS | `ui.toast`、`storage.kv`、`network.http`、`push.inbox` |
-| HarmonyOS | Registry/策略边界已实现；具体系统 Adapter 未实现 |
+| HarmonyOS | `ui.toast`、`storage.kv` 基础 Adapter；其余系统 Adapter 未实现 |
 
 以下能力当前只有版本化合同，必须由目标 App/供应商 SDK 实现后才能使用：
 
@@ -89,9 +94,11 @@ Native Component `camera.preview`、`host.screen`、`map.view` 和 `player.view`
 
 剩余工作按依赖关系收束为三个核心阶段：
 
-1. **HarmonyOS 产品 SDK**：建立真实 DevEco 工程和 HAR/HSP 分发物，实现文件、网络、
-   HUKS/验签、Validator、基础 Capability 与 ArkUI 节点，并生成示例 HAP 和真机证据。
-   当前仓库只有可移植 Node-API/ArkTS 合同，不能把它当成 HAR/HAP。
+1. **HarmonyOS 产品化补齐**：DevEco API 24 工程、兼容 API 23 的 Runtime HAR、
+   arm64-v8a/x86_64 C++17 Node-API、ArkUI Renderer、两项基础 Capability 和
+   unsigned Emulator HAP 已完成构建，Huawei debug signed HAP 已在一台 Pura 70
+   完成交互、状态恢复与截图；仍需 HUKS、线上 Module Store、完整 Capability、
+   commercial/release/AppGallery 签名 HAP 和更多物理设备实验室证据。
 2. **KMP/CMP 产品化（Kuikly 按需）**：建立 `commonMain/androidMain/iosMain`、平台
    actual Runtime、Compose Host 和 Maven 分发；只有业务明确采用 Kuikly 时才锁定版本
    并实现独立 Adapter。Android/iOS target 复用现有平台模块，不新增虚构的 `kmp`

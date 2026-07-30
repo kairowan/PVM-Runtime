@@ -6,9 +6,16 @@ dist/
 .cxx/
 .externalNativeBuild/
 .idea/
+.hvigor/
+oh_modules/
 local.properties
 *.apk
 *.aab
+*.hap
+*.har
+client/platform/harmony/demo/src/main/resources/rawfile/bootstrap.json
+client/platform/harmony/demo/src/main/resources/rawfile/module-public-key.pem
+client/platform/harmony/demo/src/main/resources/rawfile/module.pvm
 *.jks
 *.keystore
 key.properties

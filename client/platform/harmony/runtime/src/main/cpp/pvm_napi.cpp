@@ -22,6 +22,7 @@ bool is_safe_integer(double value) {
 
 struct Bridge {
   napi_env env{nullptr};
+  napi_ref callback_receiver{nullptr};
   napi_ref ui{nullptr};
   napi_ref sync_effect{nullptr};
   napi_ref async_effect{nullptr};
@@ -34,10 +35,12 @@ struct Bridge {
       pvm_runtime_destroy(runtime);
       runtime = nullptr;
     }
+    if (callback_receiver != nullptr) napi_delete_reference(env, callback_receiver);
     if (ui != nullptr) napi_delete_reference(env, ui);
     if (sync_effect != nullptr) napi_delete_reference(env, sync_effect);
     if (async_effect != nullptr) napi_delete_reference(env, async_effect);
     if (verify_signature != nullptr) napi_delete_reference(env, verify_signature);
+    callback_receiver = nullptr;
     ui = nullptr;
     sync_effect = nullptr;
     async_effect = nullptr;
@@ -54,9 +57,10 @@ void check(napi_status status, const char* operation) {
 std::string string_value(napi_env env, napi_value value) {
   std::size_t size = 0;
   check(napi_get_value_string_utf8(env, value, nullptr, 0, &size), "Expected UTF-8 string");
-  std::string result(size, '\0');
+  std::string result(size + 1, '\0');
   check(napi_get_value_string_utf8(env, value, result.data(), size + 1, &size),
         "Cannot read UTF-8 string");
+  result.resize(size);
   return result;
 }
 
@@ -70,20 +74,23 @@ napi_value string_value(napi_env env, const char* value) {
   return string_value(env, value, NAPI_AUTO_LENGTH);
 }
 
-napi_value call(napi_env env, napi_ref callback, std::size_t argc, napi_value* argv) {
+napi_value call(napi_env env, napi_ref receiver, napi_ref callback, std::size_t argc,
+                napi_value* argv) {
   napi_value function = nullptr;
-  napi_value global = nullptr;
+  napi_value receiver_value = nullptr;
   napi_value result = nullptr;
   check(napi_get_reference_value(env, callback, &function), "Missing host callback");
-  check(napi_get_global(env, &global), "Cannot access global object");
-  check(napi_call_function(env, global, function, argc, argv, &result), "Host callback failed");
+  check(napi_get_reference_value(env, receiver, &receiver_value), "Missing callback receiver");
+  check(napi_call_function(env, receiver_value, function, argc, argv, &result),
+        "Host callback failed");
   return result;
 }
 
 void ui_callback(void* context, const char* json, std::size_t size) {
   auto& bridge = *static_cast<Bridge*>(context);
   napi_value argument = string_value(bridge.env, json, size);
-  static_cast<void>(call(bridge.env, bridge.ui, 1, &argument));
+  static_cast<void>(
+      call(bridge.env, bridge.callback_receiver, bridge.ui, 1, &argument));
 }
 
 const char* sync_effect_callback(void* context, const char* capability, const char* operation,
@@ -94,7 +101,8 @@ const char* sync_effect_callback(void* context, const char* capability, const ch
       string_value(bridge.env, operation),
       string_value(bridge.env, arguments_json),
   };
-  const auto result = call(bridge.env, bridge.sync_effect, 3, arguments);
+  const auto result =
+      call(bridge.env, bridge.callback_receiver, bridge.sync_effect, 3, arguments);
   napi_valuetype type = napi_undefined;
   check(napi_typeof(bridge.env, result, &type), "Cannot inspect capability result");
   if (type != napi_string) return nullptr;
@@ -112,7 +120,8 @@ void async_effect_callback(void* context, std::uint64_t task_id, const char* cap
       string_value(bridge.env, operation),
       string_value(bridge.env, arguments_json),
   };
-  static_cast<void>(call(bridge.env, bridge.async_effect, 4, arguments));
+  static_cast<void>(
+      call(bridge.env, bridge.callback_receiver, bridge.async_effect, 4, arguments));
 }
 
 int signature_verify_callback(void* context, const std::uint8_t* payload,
@@ -135,7 +144,8 @@ int signature_verify_callback(void* context, const std::uint8_t* payload,
       signature_buffer,
       string_value(bridge.env, public_key_path),
   };
-  const auto result = call(bridge.env, bridge.verify_signature, 3, arguments);
+  const auto result =
+      call(bridge.env, bridge.callback_receiver, bridge.verify_signature, 3, arguments);
   bool verified = false;
   check(napi_get_value_bool(bridge.env, result, &verified),
         "Signature verifier must return boolean");
@@ -179,6 +189,8 @@ napi_value create(napi_env env, napi_callback_info info) {
     const auto argv = arguments(env, info, 7);
     auto bridge = std::make_unique<Bridge>();
     bridge->env = env;
+    check(napi_create_reference(env, argv[6], 1, &bridge->callback_receiver),
+          "Cannot retain callback receiver");
     bridge->ui = callback_property(env, argv[6], "onUi");
     bridge->sync_effect = callback_property(env, argv[6], "onSyncEffect");
     bridge->async_effect = callback_property(env, argv[6], "onAsyncEffect");

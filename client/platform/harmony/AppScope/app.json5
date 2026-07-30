@@ -1,0 +1,11 @@
+{
+  "app": {
+    "bundleName": "com.example.protected",
+    "vendor": "kairowan",
+    "versionCode": 5,
+    "versionName": "0.5.0",
+    "buildVersion": "5",
+    "icon": "$media:app_icon",
+    "label": "$string:app_name"
+  }
+}

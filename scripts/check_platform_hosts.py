@@ -118,14 +118,53 @@ def check_ios():
 
 
 def check_harmony_bridge():
+    project = ROOT / "client/platform/harmony"
+    required = [
+        project / "build-profile.json5",
+        project / "runtime/oh-package.json5",
+        project / "runtime/src/main/cpp/pvm_napi.cpp",
+        project / "runtime/src/main/ets/pvm/PvmRuntimeHost.ets",
+        project / "runtime/src/main/ets/pvm/PvmRuntimeTree.ets",
+        project / "demo/src/main/module.json5",
+    ]
+    missing = [str(path.relative_to(ROOT)) for path in required if not path.is_file()]
+    if missing:
+        print(f"Harmony host: SKIP (DevEco project files unavailable: {', '.join(missing)})")
+        return
+    profile = (project / "build-profile.json5").read_text(encoding="utf-8")
+    if (
+        '"compileSdkVersion": "6.1.1(24)"' not in profile
+        or '"compatibleSdkVersion": "6.1.0(23)"' not in profile
+    ):
+        raise RuntimeError("Harmony build profile must compile with API 24 and support API 23")
+
+    sdk_candidates = [
+        os.environ.get("DEVECO_SDK_HOME"),
+        "/Applications/DevEco-Studio.app/Contents/sdk",
+    ]
+    deveco_sdk = next(
+        (
+            Path(value)
+            for value in sdk_candidates
+            if value
+            and (
+                (Path(value) / "default/sdk-pkg.json").is_file()
+                or (Path(value) / "sdk-pkg.json").is_file()
+            )
+        ),
+        None,
+    )
+
     node = shutil.which("node")
     compiler = shutil.which("c++")
     if node is None or compiler is None:
-        print("Harmony host: SKIP (Node-API headers unavailable)")
+        suffix = "DevEco SDK detected" if deveco_sdk else "DevEco SDK unavailable"
+        print(f"Harmony portable bridge: SKIP (Node-API headers unavailable; {suffix})")
         return
     node_include = Path(node).resolve().parents[1] / "include" / "node"
     if not (node_include / "node_api.h").is_file():
-        print("Harmony host: SKIP (Node-API headers unavailable)")
+        suffix = "DevEco SDK detected" if deveco_sdk else "DevEco SDK unavailable"
+        print(f"Harmony portable bridge: SKIP (Node-API headers unavailable; {suffix})")
         return
     run(
         [
@@ -139,14 +178,16 @@ def check_harmony_bridge():
             "-I" + str(node_include),
             "-Iclient/include",
             "-c",
-            "client/platform/harmony/src/main/cpp/pvm_napi.cpp",
+            "client/platform/harmony/runtime/src/main/cpp/pvm_napi.cpp",
             "-o",
             "build/pvm_napi.o",
         ]
     )
+    sdk_status = "DevEco SDK detected" if deveco_sdk else "DevEco SDK unavailable"
     print(
         "Harmony portable bridge: PASS "
-        "(desktop Node-API headers only; DevEco/ArkTS/HAR/HAP not verified)"
+        f"(API 24/compatible API 23 project + desktop Node-API smoke; {sdk_status}; "
+        "full HAR/HAP gate: make harmony-sdk-check)"
     )
 
 

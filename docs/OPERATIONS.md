@@ -39,21 +39,23 @@ make release-check
 | Gate | 验证内容 |
 |---|---|
 | `make test` | 编译、签名、篡改、路径、状态迁移、HTTP、灰度与 LKG |
-| `make platform-check` | Android 完整 NDK、iOS 编译检查、Harmony Node-API 可移植检查 |
+| `make platform-check` | Android 完整 NDK、iOS 编译检查、Harmony DevEco 工程静态探测与 Node-API portable smoke |
 | `make verify-contracts` | Host IDL 生成结果、DSL lint、Renderer conformance |
 | `make docs-check` | README/docs 本地链接与 SVG XML |
 | `make delivery-matrix` | Android/iOS/HarmonyOS × 四 Profile |
 | `make android-demo-check` | Android Demo APK/AAB、Runtime AAR/Maven、R8 smoke 与安装包安全属性 |
 | `make ios-sdk-check` | iOS 15 静态 XCFramework、Swift 6 consumer 与产物安全属性 |
 | `make ios-demo-check` | iOS Simulator App、签名离线模块、Privacy Manifest 与 Package 接入 |
+| `make harmony-sdk-check` | DevEco API 24 Runtime HAR、兼容 API 23 的 unsigned HAP、双 ABI 与离线资源 |
 | `make compatibility` | 五业务域 × PVBC v1/v2/v3 |
 | `make sanitizer-check` | Linux ASan+UBSan；macOS 26 使用 UBSan |
 | `make fuzz-check` | Clang libFuzzer 包解析 smoke |
 
 这些门禁不能替代 `externalRequired` 中的 HSM、商店、真机、支付沙箱和红队证据。
 
-`android-demo-check`、`ios-sdk-check` 和 `ios-demo-check` 是需要各自平台 SDK 的
-独立自动门禁，不并入可跨平台运行的 `release-check` 聚合命令。
+`android-demo-check`、`ios-sdk-check`、`ios-demo-check` 和
+`harmony-sdk-check` 是需要各自平台 SDK 的独立自动门禁，不并入可跨平台运行的
+`release-check` 聚合命令。
 
 Android 门禁使用 API 36、NDK `28.0.13004108` 构建并验证：
 
@@ -108,6 +110,53 @@ iOS 默认发布建议为 `offline_sealed`。任何在线字节码交付都必�
 的功能评估
 [Apple App Review Guidelines 2.5.2](https://developer.apple.com/app-store/review/guidelines/)；
 自动门禁通过不等于商店天然合规。
+
+在安装 DevEco Studio 6.1.1/API 24 的 macOS 上，HarmonyOS SDK 发布任务还必须执行：
+
+```bash
+make harmony-sdk-check
+```
+
+该门禁调用 `make harmony-packages`，构建兼容 API 23 的 Runtime HAR 和 Offline
+Sealed Demo unsigned HAP，并检查 arm64-v8a/x86_64 C++17 Node-API Runtime、ArkUI、
+模块、公钥与 bootstrap 一致性。产物写入 `dist/harmony/`。
+
+当仓库路径包含 DevEco 不接受的空格或 `+` 时，先准备一次性纯 ASCII 工程：
+
+```bash
+python3 scripts/build_harmony_artifacts.py \
+  --prepare-project /tmp/PVMRuntimeHarmonySigning
+```
+
+该命令只接受空目录，并注入当前 HarmonyOS Offline Sealed 交付输入。在临时工程的
+`Project Structure > Signing Configs` 中为 `default` product 配置 Huawei 自动调试
+签名后再构建 signed HAP；不得把 `signingConfigs`、证书、Profile 或密码复制回仓库。
+
+unsigned HAP 只用于 Emulator/开发联调，不是华为商业真机或应用市场签名结果。
+Emulator 使用：
+
+```bash
+make harmony-demo-run
+make harmony-demo-screenshot
+```
+
+物理设备必须显式提供 USB 目标和 Huawei 签名 HAP：
+
+```bash
+HARMONY_DEVICE_TARGET=3RM0224B30000105 \
+HARMONY_SIGNED_HAP=/path/to/huawei-debug-signed.hap \
+make harmony-device-screenshot
+```
+
+该路径已在 HUAWEI Pura 70 ADY-AL10（HarmonyOS 6.1、API 23 兼容）使用 Huawei debug
+signed HAP 通过：真实 Offline Sealed 模块完成 count `0 → 1 → 2`、异步存储
+`Status: Not set`、输入 `Alice`，Home、force-stop、重启后状态恢复，并写出
+`docs/assets/harmony-demo.png`。这不是 commercial/release/AppGallery 签名或完整
+设备矩阵。HUKS、线上 Module Store、完整 Capability 和更多物理设备仍需独立验收。
+
+HarmonyOS 构建使用 CMake、ohpm 与 Hvigor，不依赖 Gradle。不要为了 HarmonyOS
+验收删除 `~/.gradle`；如需同时执行 Android 门禁，应使用任务专属
+`GRADLE_USER_HOME` 隔离缓存，而不是清理其他桌面项目共享的 Gradle 缓存。
 
 ## 编译与发布
 

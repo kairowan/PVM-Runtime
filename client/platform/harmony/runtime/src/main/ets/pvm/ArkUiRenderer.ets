@@ -16,11 +16,13 @@ export class ArkUiRenderer implements UiRenderer {
   private renderGeneration: number = 0
   private visibleNodeIds: Set<number> = new Set()
   private appearedNodeIds: Set<number> = new Set()
+  private host: ArkUiViewHost
+  private factory: ArkUiNodeFactory
 
-  constructor(
-    private host: ArkUiViewHost,
-    private factory: ArkUiNodeFactory,
-  ) {}
+  constructor(host: ArkUiViewHost, factory: ArkUiNodeFactory) {
+    this.host = host
+    this.factory = factory
+  }
 
   replaceTree(
     root: UiNode,
