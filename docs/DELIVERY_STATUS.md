@@ -32,6 +32,8 @@
 | HarmonyOS SDK 交付 | DevEco API 24 工程（兼容 API 23）、Runtime HAR、unsigned Emulator HAP |
 | HarmonyOS Native ABI | arm64-v8a、x86_64 C++17 Node-API Runtime |
 | HarmonyOS 运行证据 | HUAWEI Pura 70、HarmonyOS 6.1（API 23 兼容）；Huawei debug signed HAP 交互、恢复与截图通过 |
+| KMP SDK | commonMain/JVM/iOS Kotlin/Native；`com.protectedvm:pvm-runtime-kmp:0.5.0` |
+| 自动化 | GitHub Actions 核心、Android、Apple、KMP、容器与显式生产签名发布工作流 |
 | 生产包 | 正式签名 APK/AAB、IPA、HAP 仍由目标工程与发布账号生成 |
 | 历史兼容矩阵 | 5 业务域 × PVBC v1/v2/v3 = 15 |
 
@@ -42,10 +44,11 @@
 | DSL/编译器 | 状态、页面、处理器、Effect、输入事件值、Profile/IDL/预算检查 | `make test verify-contracts` | 完整语言愿景、IDE、真实业务规模 |
 | 模块安全 | 确定性 PVBC、Ed25519、C ABI v3 五项绑定、防回滚、验证器 | `make test fuzz-check sanitizer-check` | 长时 fuzz、独立安全审计 |
 | 状态演进 | v4 稳定 ID、改名/新增迁移、类型冲突拒绝 | 状态迁移端到端测试 | 大版本业务迁移工具链 |
-| 发布服务 | 内容寻址、访问策略、签名 Manifest、ETag、灰度、审计 | HTTP/篡改/灰度/LKG 测试 | 生产 CDN、数据库、鉴权 HA |
+| 发布服务 | 内容寻址、访问策略、签名 Manifest、ETag、灰度、审计、TLS、健康检查、请求 ID、容器 | HTTP/篡改/灰度/LKG/服务边界测试 | 生产 CDN、数据库、身份系统与多副本 HA |
 | Android | Gradle Library/Demo、Kotlin/JNI/View、严格绑定的 Module Store、双 ABI `.so`、AAR/Maven、Debug APK/AAB、R8 smoke | `make platform-check android-demo-check`；HONOR API 35 人工真机验收 | Compose/CMP、更多设备/性能、业务 Capability、正式签名与商店 |
 | iOS | Swift Package、Objective-C++/Swift、`PVMHost`、UIKit/SwiftUI、严格绑定的 CryptoKit Store、Privacy Manifest、静态 XCFramework、Xcode Demo | `make platform-check ios-sdk-check ios-demo-check`；iOS 26.2 Simulator 交互/截图 | 真机、archive/Apple Distribution codesign、完整 NativeSurface、审核 |
 | HarmonyOS | DevEco API 24/兼容 API 23 工程、C++17 Node-API/ArkTS Host、ArkUI Renderer、Runtime HAR、Offline Sealed unsigned Demo HAP | `make harmony-sdk-check`；HAR/HAP 与双 ABI 已真实构建；Pura 70 debug signed HAP 真机 smoke | commercial/release/AppGallery 签名、HUKS、线上 Module Store、完整 Capability 与更多物理设备实验室 |
+| KMP | commonMain Runtime Port、生命周期/事件模型、JVM 与三种 iOS target、Maven publication | `make kmp-check kmp-packages` | 目标 Compose 版本、平台 actual Host 与 UI 真机验证 |
 | Capability | 27 项版本化合同；Android 5 项、iOS 4 项、HarmonyOS 2 项基础 Adapter | `make verify-contracts platform-check` | HarmonyOS 其余 25 项及其他供应商/系统能力 |
 | Delivery | 四 Profile 与 12 套宿主嵌入输入；Android 有 Demo APK/AAB 和 SDK AAR/Maven；iOS 有 XCFramework 与 Simulator Demo；HarmonyOS 有 HAR 与 unsigned Emulator HAP | `make delivery-matrix android-demo-check ios-sdk-check ios-demo-check harmony-sdk-check` | 正式签名三端安装包、各商店/MDM 上传和审批 |
 | 兼容性 | v1–v5 Runtime 读取、五域历史矩阵 | `make compatibility test` | 真实流量、长期升级数据 |
@@ -136,6 +139,7 @@ Store、完整 Capability 和更多物理设备结果仍不在本轮证据内。
 | `ios-sdk-artifacts` | `make ios-sdk-check` | iOS XCFramework、Swift consumer 与产物安全属性 |
 | `ios-demo-artifact` | `make ios-demo-check` | iOS Simulator App、签名离线模块与 Package 集成 |
 | `harmony-sdk-artifacts` | `make harmony-sdk-check` | HarmonyOS HAR、unsigned Emulator HAP、双 ABI 与离线资源 |
+| `kmp-sdk-artifacts` | `make kmp-check` | commonMain、JVM 和 iOS Simulator ARM64 编译与生命周期测试 |
 | `historical-bytecode` | `make compatibility` | 15 项历史模块升级 |
 | `sanitizers` | `make sanitizer-check` | Linux ASan+UBSan / macOS UBSan |
 | `package-fuzz-smoke` | `make fuzz-check` | 包解析覆盖引导 smoke |
@@ -155,6 +159,7 @@ Store、完整 Capability 和更多物理设备结果仍不在本轮证据内。
 | `make harmony-demo-screenshot` | 在 Emulator 执行交互并采集原始截图 |
 | `make harmony-device-run` | 使用显式 USB 目标和 Huawei 签名 HAP 安装、启动与验证 |
 | `make harmony-device-screenshot` | 在物理设备执行确定性交互、状态恢复并采集原始截图；Pura 70 已通过 |
+| `make kmp-packages` | 构建并发布 JVM、metadata 和 Kotlin/Native Maven 变体到 `dist/kmp/maven` |
 
 Android、iOS 和 HarmonyOS 产物门禁都已登记在 `spec/release_gates.json`；它们分别
 要求 Android SDK、完整 Xcode 和 DevEco SDK，所以不并入可跨平台运行的
@@ -222,8 +227,9 @@ Runtime 静态 XCFramework 和 `make ios-sdk-check` 已提供；Xcode Demo 与 S
    两项基础 Capability 与 unsigned Emulator HAP 已完成构建，Huawei debug signed
    HAP 已在一台 Pura 70 完成交互、状态恢复和截图；仍需 HUKS、线上 Module Store、
    完整 Capability、commercial/release/AppGallery 签名 HAP 与更多物理真机。
-2. **KMP/CMP 产品化（Kuikly 按需）**：KMP source set、Android/iOS actual Runtime、
-   Compose Host 和 Maven 分发；只有产品采用 Kuikly 时才锁定版本并实现 Adapter。
+2. **KMP/CMP 产品化（Kuikly 按需）**：commonMain、JVM/iOS 编译、测试和 Maven
+   分发已完成；仍需 Android/iOS actual Runtime 与选定版本的 Compose Host。只有产品
+   采用 Kuikly 时才锁定版本并实现 Adapter。
 3. **生产验收与运营**：iOS 真机/archive/Apple Distribution codesign，正式 signer/HSM、公钥轮换、
    三端正式签名包、全量设备矩阵、业务 Capability、性能 SLO、审计告警、红队、商店
    与支付沙箱。

@@ -29,6 +29,8 @@ Sealed 模块交互、状态恢复和截图；这仍不是商业发布签名或�
 | iOS Xcode Demo | 已实现 | `make ios-demo-check` 与 iOS 26.2 Simulator 截图 |
 | HarmonyOS DevEco Runtime SDK | 已实现 | `make harmony-sdk-check` 构建 HAR、unsigned HAP 与双 ABI |
 | HarmonyOS 真机 Demo 交互 | 已验证 | Pura 70 上验证 count 0→1→2、异步存储、Alice 输入、Home/force-stop 重启恢复与截图 |
+| KMP 公共 SDK | 已实现 | `make kmp-check` 编译 commonMain/JVM/iOS Simulator ARM64 并运行生命周期测试 |
+| KMP Maven 制品 | 可重复生成 | `make kmp-packages`，坐标 `com.protectedvm:pvm-runtime-kmp:0.5.0` |
 | 生产签名 APK/AAB、IPA、HAP | 目标工程负责 | 仍需正式身份、证书和商店配置 |
 
 ## Android 产品化基线
@@ -50,7 +52,7 @@ Sealed 模块交互、状态恢复和截图；这仍不是商业发布签名或�
 | 后端 | 当前可用范围 | 仍需处理 |
 |---|---|---|
 | Android View | 11 类节点、属性、四类事件、输入值、NativeSurface 工厂和 appear absent→present；HONOR API 35 已验收交互/状态恢复 | 图片加载策略、更多 API/厂商设备、样式与性能 |
-| Android Compose/CMP | 未进入 Gradle 构建的递归树/输入值原型 | 建立真实 KMP/CMP 模块、依赖、事件语义和测试 |
+| Android Compose/CMP | KMP 公共调用层已进入独立 Gradle 构建；递归 Compose Tree 仍是 Port | 锁定目标 Compose 版本、连接平台 Host 并做 UI/真机测试 |
 | UIKit | 11 类节点、Stack 约束、属性、四类事件、输入值、NativeSurface 工厂和 appear absent→present；Simulator Counter 已验收 | 图片加载、复杂布局/复用与真机校准 |
 | SwiftUI | 递归树、输入绑定、Switch、四类事件、enabled/无障碍和 appear absent→present | NativeSurface 仍是占位；图片与复杂列表策略 |
 | ArkUI | DevEco API 24 编译的递归原生树、事件值和 appear absent→present 语义；Pura 70 已完成 Counter 交互、状态恢复与截图 | 复杂布局性能、NativeSurface 业务工厂与更多真机校准 |
@@ -99,10 +101,10 @@ Native Component `camera.preview`、`host.screen`、`map.view` 和 `player.view`
    unsigned Emulator HAP 已完成构建，Huawei debug signed HAP 已在一台 Pura 70
    完成交互、状态恢复与截图；仍需 HUKS、线上 Module Store、完整 Capability、
    commercial/release/AppGallery 签名 HAP 和更多物理设备实验室证据。
-2. **KMP/CMP 产品化（Kuikly 按需）**：建立 `commonMain/androidMain/iosMain`、平台
-   actual Runtime、Compose Host 和 Maven 分发；只有业务明确采用 Kuikly 时才锁定版本
-   并实现独立 Adapter。Android/iOS target 复用现有平台模块，不新增虚构的 `kmp`
-   字节码平台。
+2. **KMP/CMP 产品化（Kuikly 按需）**：`commonMain` 生命周期/事件 API、JVM/iOS
+   Kotlin/Native 编译、测试和 Maven 分发已完成；仍需根据目标 App 建立平台 actual
+   Runtime 与 Compose Host。只有业务明确采用 Kuikly 时才锁定版本并实现独立 Adapter。
+   Android/iOS target 复用现有平台模块，不新增虚构的 `kmp` 字节码平台。
 3. **生产验收与运营**：完成 iOS 真机/发布签名，为三端生成正式签名 APK/AAB、IPA、
    HAP，补齐完整设备矩阵、业务 Capability、HSM/KMS、生产鉴权、审计、告警、性能、
    商店与支付沙箱证据。iOS 在线字节码交付还必须按具体产品评估 Apple 2.5.2，不能

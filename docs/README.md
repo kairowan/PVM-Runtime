@@ -28,6 +28,7 @@
 5. Android 额外运行 `make android-demo-check`
 6. iOS 额外运行 `make ios-sdk-check ios-demo-check`
 7. HarmonyOS 额外运行 `make harmony-sdk-check`
+8. KMP 接入额外运行 `make kmp-check`
 
 ### 负责发布与值班
 
@@ -81,6 +82,7 @@
 | `make ios-sdk-check` | iOS 15 静态 XCFramework、Swift 6 consumer 与产物安全检查 |
 | `make ios-demo-check` | Xcode Simulator App、签名离线模块、Privacy Manifest 与 Package 接入 |
 | `make harmony-sdk-check` | DevEco API 24 Runtime HAR、unsigned Emulator HAP、双 ABI 与离线资源检查 |
+| `make kmp-check` | commonMain/JVM/iOS Kotlin/Native 编译与生命周期测试 |
 | `make release-check` | 核心、三端可编译部分、兼容、模糊测试、文档与交付矩阵 |
 
 Android Demo 已在 HONOR BRP-AN00（API 35）验证；这是一台设备的 smoke 结果。iOS
@@ -91,8 +93,9 @@ DevEco API 24（兼容 API 23）工程，真实构建 Runtime HAR 和 unsigned E
 debug signed HAP 已在 HUAWEI Pura 70 ADY-AL10（HarmonyOS 6.1、API 23 兼容）运行真实
 Offline Sealed 模块，自动验证计数、异步存储、文本输入、Home/force-stop 后重启恢复
 并生成原始截图。该结果不是 commercial/release/AppGallery 签名，也只覆盖这一台设备；
-HUKS、线上 Module Store、完整 Capability 和更多物理设备仍待完成。KMP/CMP 和
-Kuikly 也仍是未进入产品构建的原型。剩余工作按
+HUKS、线上 Module Store、完整 Capability 和更多物理设备仍待完成。KMP 公共模块
+已经进入产品构建并可生成 Maven 制品；Compose/CMP 平台 Host 与 Kuikly 仍需根据
+业务选型完成。剩余工作按
 [功能完成度](FUNCTIONAL_STATUS.md)中的核心阶段推进。
 
 ## 文档维护规则

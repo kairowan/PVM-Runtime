@@ -18,7 +18,8 @@
   格式与业务语义，不复制多套业务源码；单个 `.pvm` 不会跨平台混用。
 - 一个 C++17 Runtime 负责签名、绑定、防回滚、字节码和资源预算验证。
 - UI 仍由宿主原生后端渲染；当前构建覆盖 Android View、UIKit/SwiftUI，以及经
-  DevEco API 24 编译的 ArkUI，Compose/CMP 与 Kuikly 仅是尚未接入产品构建的原型。
+  DevEco API 24 编译的 ArkUI。KMP 公共生命周期/事件 API 已形成 JVM 与 Kotlin/Native
+  制品；Compose/CMP Renderer 和 Kuikly 仍需按产品选型接入。
 - 支付、地图、相机、音视频、推送等重能力留在宿主，通过版本化 Capability IDL 调用。
 - `Offline Sealed` 与联网交付不是互相冒充的模式，而是明确分离的构建产物。
 
@@ -69,7 +70,8 @@
 - 中立 UI Tree、事件回传、Native Surface、同步和异步 Capability。
 - Android View、UIKit/SwiftUI 与 ArkUI 合同统一 `appear` absent→present 语义；三端
   Host 在 cancel/close 后丢弃迟到异步回调。
-- Compose/CMP 与 Kuikly 目前只是未进入 Gradle/Swift 产品构建的 Port 原型。
+- KMP `commonMain` API 已完成 JVM/iOS 编译、生命周期回归与 Maven 发布；Compose/CMP
+  与 Kuikly Renderer 仍是需要目标 UI 框架版本和业务适配器的 Port。
 
 ### 安全交付
 
@@ -253,6 +255,7 @@ delivery-matrix    3 平台 × 4 Profile 交付产物
 compatibility      5 业务域 × PVBC v1/v2/v3 历史兼容
 sanitizer-check    Linux ASan+UBSan / macOS UBSan
 fuzz-check         1000 次覆盖引导包解析模糊测试
+kmp-check          commonMain/JVM/iOS Simulator ARM64 编译与生命周期测试
 ```
 
 需要 Android SDK 的 `make android-demo-check` 已登记为独立自动门禁，但不并入可在
@@ -264,6 +267,17 @@ fuzz-check         1000 次覆盖引导包解析模糊测试
 仓库内的 Android Demo 会把 Android Offline Sealed 输入封装成测试 APK/AAB；正式
 APK/AAB 仍由接入方 Android 工程使用生产身份与签名生成。
 
+KMP 公共制品使用项目独立 Gradle 缓存，不会清理桌面其他工程的缓存：
+
+```bash
+make kmp-check
+make kmp-packages
+```
+
+输出为 `com.protectedvm:pvm-runtime-kmp:0.5.0` 的 JVM、metadata 和 Kotlin/Native
+变体。公共层通过 `PvmRuntimePort` 复用 Android/iOS/HarmonyOS Host，不创造新的
+“KMP 字节码平台”。
+
 ### 单独运行模块服务
 
 ```bash
@@ -271,7 +285,9 @@ make bootstrap publish
 PVM_ACTIVATION_TOKEN='replace-me' make serve
 ```
 
-开发私钥位于被忽略的 `server/var/keys/`。正式环境必须改用隔离签名服务或 HSM，不能把演示私钥带入生产。
+模块服务现已提供 TLS 1.2+、token 文件、liveness/readiness、请求 ID、安全响应头、
+超时和容器健康检查。开发私钥位于被忽略的 `server/var/keys/`；正式环境必须改用
+隔离签名服务或 HSM，不能把演示私钥带入生产。
 
 ## 项目结构
 
@@ -280,7 +296,7 @@ PVM_ACTIVATION_TOKEN='replace-me' make serve
 ├── client/                  C++17 VM、C ABI、三端 Host 与模块仓库
 │   ├── include/pvm/         公共 C/C++ 接口
 │   ├── src/                 验证器、解释器、桌面 Host
-│   ├── platform/            Android（Library/Demo）、iOS（SDK/Demo）、HarmonyOS、Kuikly
+│   ├── platform/            Android、iOS、HarmonyOS、KMP 与 Kuikly
 │   ├── tests/               C ABI 与 libFuzzer 入口
 │   └── tools/               桌面 Provisioner
 ├── server/                  DSL 编译、签名、发布与模块服务
@@ -331,7 +347,7 @@ HUAWEI Pura 70（HarmonyOS 6.1、API 23 兼容）完成 debug signed HAP 真机 
 - iOS 真机、archive/Apple Distribution codesign 与审核证据；HarmonyOS
   commercial/release/AppGallery 签名与更多物理设备实验室证据。
 - HarmonyOS HUKS、线上 Module Store、完整 Capability Adapter 与生产发布配置。
-- KMP/CMP 的真实构建模块与发布产物；Kuikly 仅在产品确有需要时锁定版本并实现 Adapter。
+- KMP 平台 `actual`/Compose Host；Kuikly 仅在产品确有需要时锁定版本并实现 Adapter。
 - 支付、地图、相机、媒体、推送等实际 Capability Adapter。
 - 应用商店审核、支付沙箱、持续长时 fuzz、红队和性能 SLO。
 

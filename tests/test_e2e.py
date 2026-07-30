@@ -366,6 +366,17 @@ class ProtectedRuntimeTest(unittest.TestCase):
         server = ModuleServer(("127.0.0.1", 0), repository, "test-token")
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
+        origin = "http://127.0.0.1:%d" % server.server_address[1]
+        with urllib.request.urlopen(origin + "/readyz") as ready:
+            self.assertEqual(ready.status, 200)
+            self.assertEqual(ready.headers["X-Content-Type-Options"], "nosniff")
+            self.assertEqual(len(ready.headers["X-PVM-Request-ID"]), 32)
+        with self.assertRaises(urllib.error.HTTPError) as rejected_method:
+            urllib.request.urlopen(
+                urllib.request.Request(origin + "/healthz", data=b"", method="POST")
+            )
+        self.assertEqual(rejected_method.exception.code, 405)
+        self.assertEqual(rejected_method.exception.headers["Allow"], "GET, HEAD")
         manifest = json.loads(
             (
                 repository
@@ -516,6 +527,9 @@ class ProtectedRuntimeTest(unittest.TestCase):
         thread.join(timeout=2)
         events = [json.loads(line)["event"] for line in audit.read_text().splitlines()]
         self.assertEqual(events, ["manifest", "manifest"])
+        self.assertTrue(
+            all(len(json.loads(line)["request_id"]) == 32 for line in audit.read_text().splitlines())
+        )
 
 
 if __name__ == "__main__":

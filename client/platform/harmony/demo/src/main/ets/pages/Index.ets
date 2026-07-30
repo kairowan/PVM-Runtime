@@ -10,7 +10,7 @@ const TAG = 'PVMRuntimeDemo'
 @Component
 struct Index {
   private readonly session: PvmRuntimeSession =
-    createDemoSession(getContext(this) as common.UIAbilityContext)
+    createDemoSession(this.getUIContext().getHostContext() as common.UIAbilityContext)
 
   onPageHide(): void {
     try {

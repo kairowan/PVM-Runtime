@@ -237,7 +237,8 @@ Profile 只改变模块来源与打包约束。Android `Offline Sealed` 可嵌�
   Emulator HAP，以及 arm64-v8a/x86_64 C++17 Node-API/ArkUI 构建；Huawei debug
   signed HAP 已在一台 HUAWEI Pura 70 完成交互和状态恢复。仍需 HUKS、线上 Module
   Store、完整 Capability、commercial/release/AppGallery 签名和更多物理设备证据。
-- KMP/CMP 的目标项目构建；Kuikly 只在产品需要时锁定版本并实现 Adapter。
+- KMP commonMain/JVM/iOS 制品已经建立；目标项目仍需连接平台 actual Runtime 与选定
+  版本的 Compose Host。Kuikly 只在产品需要时锁定版本并实现 Adapter。
 - 正式 KMS/HSM、组织日志、应用市场审核、支付沙箱、红队和性能 SLO。
 
 安全假设与剩余风险见[安全模型](SECURITY_MODEL.md)，当前证据见[交付状态](DELIVERY_STATUS.md)。

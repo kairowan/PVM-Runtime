@@ -438,9 +438,14 @@ Store、完整 Capability，以及更多设备的生命周期、性能和设备�
 
 ## KMP/CMP 与 Kuikly 边界
 
-`compose/PvmComposeRenderer.kt` 和 `platform/kuikly/PvmKuiklyRenderer.kt` 目前只是
-中立树与事件 Port 原型，没有进入现有 Gradle/Swift 构建，也没有锁定或验证任何
-Compose Multiplatform/Kuikly SDK 版本。因此它们不是可发布 KMP/CMP/Kuikly SDK。
+`client/platform/kmp` 现在提供可发布的 `commonMain` API：`PvmRuntimePort`、
+`PvmRuntimeClient`、启动绑定、事件和快照模型。`make kmp-check` 会编译 JVM 与 iOS
+Simulator ARM64 并运行生命周期测试，`make kmp-packages` 生成
+`com.protectedvm:pvm-runtime-kmp:0.5.0` Maven 变体。
+
+`compose/PvmComposeRenderer.kt` 和 `platform/kuikly/PvmKuiklyRenderer.kt` 仍是中立树
+与事件 Port；它们没有锁定具体 Compose Multiplatform/Kuikly SDK 版本。因此公共
+KMP API 已可分发，但目标 UI 框架 Adapter 仍必须在产品选型后编译和真机验证。
 
 产品确实需要 KMP/CMP 时，应分别复用现有 Android 和 iOS Runtime，不新增虚构的
 `kmp` 字节码平台；只有需要 Kuikly 的产品才应锁定具体版本并实现、编译和真机验证

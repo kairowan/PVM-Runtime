@@ -47,6 +47,7 @@ make release-check
 | `make ios-sdk-check` | iOS 15 静态 XCFramework、Swift 6 consumer 与产物安全属性 |
 | `make ios-demo-check` | iOS Simulator App、签名离线模块、Privacy Manifest 与 Package 接入 |
 | `make harmony-sdk-check` | DevEco API 24 Runtime HAR、兼容 API 23 的 unsigned HAP、双 ABI 与离线资源 |
+| `make kmp-check` | commonMain/JVM/iOS Simulator ARM64 编译与共享生命周期测试 |
 | `make compatibility` | 五业务域 × PVBC v1/v2/v3 |
 | `make sanitizer-check` | Linux ASan+UBSan；macOS 26 使用 UBSan |
 | `make fuzz-check` | Clang libFuzzer 包解析 smoke |
@@ -78,6 +79,20 @@ make android-demo-check
 工程中使用正式 application ID、release variant、keystore 或 Play App Signing
 生成生产 APK/AAB。
 
+仓库提供显式生产签名任务；四项输入缺一即失败，不会回退到 Debug keystore：
+
+```bash
+PVM_ANDROID_KEYSTORE=/secure/release.jks \
+PVM_ANDROID_STORE_PASSWORD='from-secret-store' \
+PVM_ANDROID_KEY_ALIAS='release' \
+PVM_ANDROID_KEY_PASSWORD='from-secret-store' \
+make android-production-packages
+```
+
+产物为 `dist/android/PVMRuntime-demo-release.{apk,aab}`。GitHub
+`.github/workflows/release.yml` 从仓库 Secrets 恢复临时 keystore，发布完成后由
+GitHub Runner 回收；keystore 不进入仓库和 Actions artifact。
+
 交付矩阵产物仍是宿主工程输入。Android bootstrap 声明
 `packageFormats: ["apk", "aab"]`；仓库生成的 Demo 包只证明示例集成链路，正式业务
 App 必须使用自身签名策略构建。
@@ -105,6 +120,20 @@ make ios-demo-run
 该 App。需要复现 README 截图时使用 `make ios-demo-screenshot`，它只重置
 `com.example.protected` Demo 的 Simulator 沙盒。该证据不能替代物理 iPhone、
 `.xcarchive`、Apple Distribution codesign 或 IPA。
+
+有正式 Team、Distribution Identity 和 Provisioning Profile 时，可生成并严格验证
+物理设备 Archive：
+
+```bash
+PVM_IOS_TEAM_ID=ABCDE12345 \
+PVM_IOS_SIGNING_IDENTITY='Apple Distribution: Example Corp' \
+PVM_IOS_PROVISIONING_PROFILE='PVM Runtime App Store' \
+PVM_IOS_BUNDLE_ID=com.example.product \
+make ios-device-archive
+```
+
+该命令生成 `dist/ios/PVMRuntimeDemo.xcarchive` 并运行 `codesign --verify`；IPA export、
+TestFlight 和 App Store 提交仍使用目标组织审核配置。
 
 iOS 默认发布建议为 `offline_sealed`。任何在线字节码交付都必须针对实际模块能够改变
 的功能评估
@@ -148,6 +177,13 @@ HARMONY_SIGNED_HAP=/path/to/huawei-debug-signed.hap \
 make harmony-device-screenshot
 ```
 
+仅验证商业签名包而不安装时：
+
+```bash
+HARMONY_SIGNED_HAP=/secure/product-release-signed.hap \
+make harmony-production-check
+```
+
 该路径已在 HUAWEI Pura 70 ADY-AL10（HarmonyOS 6.1、API 23 兼容）使用 Huawei debug
 signed HAP 通过：真实 Offline Sealed 模块完成 count `0 → 1 → 2`、异步存储
 `Status: Not set`、输入 `Alice`，Home、force-stop、重启后状态恢复，并写出
@@ -157,6 +193,17 @@ signed HAP 通过：真实 Offline Sealed 模块完成 count `0 → 1 → 2`、�
 HarmonyOS 构建使用 CMake、ohpm 与 Hvigor，不依赖 Gradle。不要为了 HarmonyOS
 验收删除 `~/.gradle`；如需同时执行 Android 门禁，应使用任务专属
 `GRADLE_USER_HOME` 隔离缓存，而不是清理其他桌面项目共享的 Gradle 缓存。
+
+## KMP 制品
+
+```bash
+make kmp-check
+make kmp-packages
+```
+
+KMP 构建固定使用仓库内 `build/gradle-kmp-home`，不会清理或覆盖其他项目的 Gradle
+缓存。Maven 目录写入 `dist/kmp/maven`，坐标为
+`com.protectedvm:pvm-runtime-kmp:0.5.0`。
 
 ## 编译与发布
 
@@ -264,6 +311,23 @@ python3 -m pvm_server.serve \
   --repository server/var/repository \
   --audit-log server/var/audit.jsonl
 ```
+
+生产入口支持 TLS 1.2+、文件型 token、请求超时、请求 ID、安全响应头和健康探针：
+
+```bash
+PVM_ACTIVATION_TOKEN_FILE=/run/secrets/pvm-token \
+PYTHONPATH=server/src python3 -m pvm_server.serve \
+  --repository /var/lib/pvm/repository \
+  --host 0.0.0.0 \
+  --port 8443 \
+  --tls-cert /run/secrets/tls.crt \
+  --tls-key /run/secrets/tls.key \
+  --audit-log /var/log/pvm/audit.jsonl
+```
+
+探针为 `/livez` 和 `/readyz`。`Containerfile` 提供非 root 运行与容器健康检查。公网
+生产仍应在 API Gateway/CDN 后运行，并接入组织身份系统、集中审计、数据库和多副本
+编排；内置服务不冒充这些外部设施。
 
 重要行为：
 

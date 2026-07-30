@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Install native toolchain
+        run: sudo apt-get update && sudo apt-get install -y clang cmake ninja-build openssl
+      - name: Core, contracts, compatibility, and docs
+        run: make test verify-contracts compatibility docs-check
+      - name: Sanitizers and package fuzz smoke
+        run: make sanitizer-check fuzz-check
+
+  kmp:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v6
+      - name: Compile shared JVM and Kotlin/Native targets
+        run: make kmp-packages
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pvm-kmp-maven
+          path: dist/kmp/maven
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v6
+      - name: Install Android SDK packages
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;28.0.13004108" "cmake;3.22.1"
+      - name: Build and inspect Android SDK, APK, and AAB
+        run: make android-demo-check
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pvm-android-development
+          path: |
+            dist/android/PVMRuntime-demo-debug.apk
+            dist/android/PVMRuntime-demo-debug.aab
+            dist/android/PVMRuntime-demo-minified-smoke.apk
+            dist/android/pvm-runtime-0.5.0.aar
+
+  apple:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Build iOS SDK and Simulator application
+        run: make ios-sdk-check ios-demo-check
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pvm-ios-development
+          path: |
+            dist/ios/PVMBridge.xcframework
+            build/ios-demo/DerivedData/Build/Products/Debug-iphonesimulator/PVMRuntimeDemo.app
+
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build module service image
+        run: docker build -f Containerfile -t pvm-module-service:${GITHUB_SHA} .

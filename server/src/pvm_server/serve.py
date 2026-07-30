@@ -7,6 +7,8 @@ import hmac
 import json
 import os
 import re
+import secrets
+import ssl
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -18,13 +20,26 @@ from .manifest import decode_envelope
 
 
 class ModuleHandler(BaseHTTPRequestHandler):
-    server_version = "PVMModuleService/0.1"
+    server_version = "PVMModuleService/0.2"
+    protocol_version = "HTTP/1.1"
+
+    def setup(self):
+        super().setup()
+        self.connection.settimeout(self.server.request_timeout)
+
+    def handle_one_request(self):
+        self.request_id = secrets.token_hex(16)
+        super().handle_one_request()
 
     def _send(self, status, body=b"", content_type="application/json", headers=None):
         headers = headers or {}
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
+        self.send_header("X-PVM-Request-ID", self.request_id)
         if "Cache-Control" not in headers:
             self.send_header("Cache-Control", "no-store")
         for key, value in headers.items():
@@ -47,11 +62,25 @@ class ModuleHandler(BaseHTTPRequestHandler):
     def do_HEAD(self):
         self.do_GET()
 
+    def do_POST(self):
+        self._send(405, b'{"error":"method not allowed"}\n', headers={"Allow": "GET, HEAD"})
+
+    do_DELETE = do_POST
+    do_PATCH = do_POST
+    do_PUT = do_POST
+
     def do_GET(self):
         raw_path = unquote(urlparse(self.path).path)
         parts = [part for part in raw_path.split("/") if part]
-        if parts == ["healthz"]:
+        if parts in (["healthz"], ["livez"]):
             self._send(200, b'{"status":"ok"}\n')
+            return
+        if parts == ["readyz"]:
+            ready = self.server.repository.is_dir()
+            self._send(
+                200 if ready else 503,
+                b'{"status":"ready"}\n' if ready else b'{"status":"unavailable"}\n',
+            )
             return
         if len(parts) == 7 and parts[:2] == ["v1", "apps"] and parts[6] == "manifest":
             _, _, app_id, channel, platform, profile, _ = parts
@@ -162,6 +191,7 @@ class ModuleHandler(BaseHTTPRequestHandler):
                 "bucket": bucket,
                 "path": str(path.relative_to(self.server.repository)),
                 "release": payload.get("release"),
+                "request_id": self.request_id,
                 "rollout": rollout,
             },
         )
@@ -185,7 +215,10 @@ class ModuleHandler(BaseHTTPRequestHandler):
             return
         protected = self.server.module_requires_activation(digest)
         if protected and not self._authorized():
-            self.server.audit("authorization_denied", {"sha256": digest})
+            self.server.audit(
+                "authorization_denied",
+                {"request_id": self.request_id, "sha256": digest},
+            )
             self._error(401, "activation required")
             return
         path = self.server.repository / "modules" / filename
@@ -197,7 +230,10 @@ class ModuleHandler(BaseHTTPRequestHandler):
         if hashlib.sha256(body).hexdigest() != digest:
             self._error(500, "repository integrity failure")
             return
-        self.server.audit("module", {"sha256": digest, "size": len(body)})
+        self.server.audit(
+            "module",
+            {"request_id": self.request_id, "sha256": digest, "size": len(body)},
+        )
         self._send(
             200,
             body,
@@ -217,15 +253,28 @@ class ModuleHandler(BaseHTTPRequestHandler):
 
 
 class ModuleServer(ThreadingHTTPServer):
+    daemon_threads = True
+    request_queue_size = 128
+
     def __init__(
-        self, address, repository, activation_token, allow_unauthenticated=False, audit_path=None
+        self,
+        address,
+        repository,
+        activation_token,
+        allow_unauthenticated=False,
+        audit_path=None,
+        request_timeout=15,
     ):
         super().__init__(address, ModuleHandler)
         self.repository = Path(repository).resolve()
+        if not self.repository.is_dir():
+            self.server_close()
+            raise ValueError("module repository does not exist: %s" % self.repository)
         self.activation_token = activation_token
         self.allow_unauthenticated = allow_unauthenticated
         self.audit_path = Path(audit_path) if audit_path else None
         self.audit_lock = threading.Lock()
+        self.request_timeout = request_timeout
 
     def audit(self, event, fields):
         if self.audit_path is None:
@@ -252,21 +301,46 @@ def main():
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", default=8080, type=int)
     parser.add_argument("--audit-log", type=Path)
+    parser.add_argument("--activation-token-file", type=Path)
+    parser.add_argument("--request-timeout", default=15, type=int)
+    parser.add_argument("--tls-cert", type=Path)
+    parser.add_argument("--tls-key", type=Path)
     parser.add_argument(
         "--allow-unauthenticated",
         action="store_true",
         help="development only: allow provisioned manifests without an activation token",
     )
     args = parser.parse_args()
-    token = os.environ.get("PVM_ACTIVATION_TOKEN", "")
+    if args.request_timeout < 1 or args.request_timeout > 300:
+        parser.error("--request-timeout must be between 1 and 300 seconds")
+    if bool(args.tls_cert) != bool(args.tls_key):
+        parser.error("--tls-cert and --tls-key must be supplied together")
+    token_file = args.activation_token_file or (
+        Path(os.environ["PVM_ACTIVATION_TOKEN_FILE"])
+        if os.environ.get("PVM_ACTIVATION_TOKEN_FILE")
+        else None
+    )
+    token = (
+        token_file.read_text(encoding="utf-8").strip()
+        if token_file
+        else os.environ.get("PVM_ACTIVATION_TOKEN", "")
+    )
     server = ModuleServer(
         (args.host, args.port),
         args.repository,
         token,
         args.allow_unauthenticated,
         args.audit_log,
+        args.request_timeout,
     )
-    print("module service listening on http://%s:%d" % (args.host, args.port), flush=True)
+    scheme = "http"
+    if args.tls_cert:
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
+        context.load_cert_chain(args.tls_cert, args.tls_key)
+        server.socket = context.wrap_socket(server.socket, server_side=True)
+        scheme = "https"
+    print("module service listening on %s://%s:%d" % (scheme, args.host, args.port), flush=True)
     server.serve_forever()
 
 

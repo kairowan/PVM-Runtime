@@ -4,12 +4,13 @@ PYTHONPATH_VALUE := $(CURDIR)/server/src
 ANDROID_SDK_PATH ?= $(firstword $(wildcard $(ANDROID_SDK_ROOT) $(ANDROID_HOME) $(HOME)/Library/Android/sdk $(HOME)/Desktop/android/sdk))
 HARMONY_DEVICE_TARGET ?=
 HARMONY_SIGNED_HAP ?=
+PVM_KMP_GRADLE_HOME ?= $(CURDIR)/build/gradle-kmp-home
 FUZZ_CXX := $(firstword $(wildcard /opt/homebrew/opt/llvm/bin/clang++ /usr/local/opt/llvm/bin/clang++))
 ifeq ($(FUZZ_CXX),)
 FUZZ_CXX := clang++
 endif
 
-.PHONY: android-demo-apk android-demo-check android-packages bootstrap build compatibility delivery-matrix docs-check fuzz-check generate-host-idl harmony-demo-run harmony-demo-screenshot harmony-device-run harmony-device-screenshot harmony-packages harmony-sdk-check host-manifest ios-demo-app ios-demo-check ios-demo-run ios-demo-screenshot ios-packages ios-sdk-check publish release-check sanitizer-check serve demo platform-check test verify-contracts
+.PHONY: android-demo-apk android-demo-check android-packages android-production-packages bootstrap build compatibility delivery-matrix docs-check fuzz-check generate-host-idl harmony-demo-run harmony-demo-screenshot harmony-device-run harmony-device-screenshot harmony-packages harmony-production-check harmony-sdk-check host-manifest ios-demo-app ios-demo-check ios-demo-run ios-demo-screenshot ios-device-archive ios-packages ios-sdk-check kmp-check kmp-packages publish release-check sanitizer-check serve demo platform-check test verify-contracts
 
 bootstrap:
 	PYTHONPATH="$(PYTHONPATH_VALUE)" $(PYTHON) -m pvm_server.keys --directory server/var/keys
@@ -46,6 +47,17 @@ android-demo-apk: android-packages
 android-demo-check: build android-packages
 	ANDROID_HOME="$(ANDROID_SDK_PATH)" $(PYTHON) scripts/check_android_artifacts.py
 
+android-production-packages:
+	@test -n "$(ANDROID_SDK_PATH)" || (echo "Android SDK not found; set ANDROID_SDK_PATH" && exit 1)
+	ANDROID_HOME="$(ANDROID_SDK_PATH)" client/platform/android/gradlew \
+		-p client/platform/android --no-daemon \
+		:demo:verifyProductionSigning :demo:assembleRelease :demo:bundleRelease
+	mkdir -p dist/android
+	cp client/platform/android/demo/build/outputs/apk/release/demo-release.apk \
+		dist/android/PVMRuntime-demo-release.apk
+	cp client/platform/android/demo/build/outputs/bundle/release/demo-release.aab \
+		dist/android/PVMRuntime-demo-release.aab
+
 ios-packages:
 	$(PYTHON) scripts/build_ios_artifacts.py
 
@@ -73,6 +85,9 @@ ios-demo-screenshot: ios-demo-check
 	$(PYTHON) scripts/run_ios_demo.py \
 		--reset --seed-screenshot --screenshot docs/assets/ios-demo.png
 
+ios-device-archive:
+	$(PYTHON) scripts/build_ios_device_archive.py
+
 harmony-packages: delivery-matrix
 	$(PYTHON) scripts/build_harmony_artifacts.py
 
@@ -98,6 +113,22 @@ harmony-device-screenshot:
 	HARMONY_HAP="$(HARMONY_SIGNED_HAP)" $(PYTHON) scripts/run_harmony_demo.py \
 		--physical --target "$(HARMONY_DEVICE_TARGET)" \
 		--reset --seed-screenshot --screenshot docs/assets/harmony-demo.png
+
+harmony-production-check:
+	@test -f "$(HARMONY_SIGNED_HAP)" || (echo "Set HARMONY_SIGNED_HAP to a Huawei-signed HAP" && exit 1)
+	HARMONY_HAP="$(HARMONY_SIGNED_HAP)" $(PYTHON) scripts/check_harmony_release.py
+
+kmp-check:
+	GRADLE_USER_HOME="$(PVM_KMP_GRADLE_HOME)" \
+		client/platform/android/gradlew -p client/platform/kmp --no-daemon \
+		compileKotlinMetadata jvmTest compileKotlinIosSimulatorArm64
+
+kmp-packages: kmp-check
+	GRADLE_USER_HOME="$(PVM_KMP_GRADLE_HOME)" \
+		client/platform/android/gradlew -p client/platform/kmp --no-daemon \
+		publishAllPublicationsToBundleRepository
+	mkdir -p dist/kmp/maven
+	cp -R client/platform/kmp/build/repository/. dist/kmp/maven/
 
 host-manifest:
 	PYTHONPATH="$(PYTHONPATH_VALUE)" $(PYTHON) -m pvm_server.host_manifest \
@@ -130,7 +161,7 @@ verify-contracts:
 docs-check:
 	$(PYTHON) scripts/check_docs.py
 
-release-check: test platform-check verify-contracts docs-check delivery-matrix compatibility sanitizer-check fuzz-check
+release-check: test platform-check kmp-check verify-contracts docs-check delivery-matrix compatibility sanitizer-check fuzz-check
 
 publish: bootstrap
 	PYTHONPATH="$(PYTHONPATH_VALUE)" $(PYTHON) -m pvm_server.publish \

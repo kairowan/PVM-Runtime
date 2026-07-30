@@ -160,6 +160,10 @@ application/channel/platform/profile、正整数 release、合法当前 SHA-256�
 | cancel/close 后异步结果迟到 | Host generation/closed guard 丢弃结果，不恢复 VM continuation |
 | 仓库访问策略缺失 | 服务端默认要求激活，失败关闭 |
 
+参考模块服务提供 TLS 1.2+、token 文件、请求超时、liveness/readiness、请求 ID、
+安全响应头和非 root 容器。它仍必须置于生产 API Gateway/CDN、组织身份、集中审计和
+多副本基础设施之后；这些外部控制不能由单进程参考服务替代。
+
 ## 生产验收清单
 
 - [ ] 正式公钥随目标 App 构建并经过双人复核。
