@@ -2,7 +2,6 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     id("com.android.library")
-    id("org.jetbrains.kotlin.android")
     `maven-publish`
 }
 
@@ -22,10 +21,6 @@ android {
         }
     }
 
-    sourceSets.named("main") {
-        java.srcDir("../src/main/kotlin")
-    }
-
     externalNativeBuild {
         cmake {
             path = file("../CMakeLists.txt")
@@ -40,6 +35,12 @@ android {
 
     publishing {
         singleVariant("release")
+    }
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.sources.kotlin?.addStaticSourceDirectory("../src/main/kotlin")
     }
 }
 

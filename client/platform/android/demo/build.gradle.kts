@@ -3,11 +3,12 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
 }
 
 val repositoryRoot = rootProject.layout.projectDirectory.dir("../../..")
 val deliveryRoot = repositoryRoot.dir("build/delivery/client/android/offline_sealed")
+val pvmAssetsDirectory =
+    objects.directoryProperty().convention(layout.buildDirectory.dir("generated/pvmAssets"))
 val releaseStore = providers.environmentVariable("PVM_ANDROID_KEYSTORE").orNull
 val releaseStorePassword = providers.environmentVariable("PVM_ANDROID_STORE_PASSWORD").orNull
 val releaseKeyAlias = providers.environmentVariable("PVM_ANDROID_KEY_ALIAS").orNull
@@ -27,7 +28,7 @@ val syncPvmAssets by tasks.registering(Sync::class) {
     from(deliveryRoot) {
         include("bootstrap.json", "module-public-key.pem", "module.pvm")
     }
-    into(layout.buildDirectory.dir("generated/pvmAssets"))
+    into(pvmAssetsDirectory)
 }
 
 android {
@@ -72,13 +73,17 @@ android {
         }
     }
 
-    sourceSets.named("main") {
-        assets.srcDir(layout.buildDirectory.dir("generated/pvmAssets"))
-    }
-
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+    }
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.sources.assets?.addGeneratedSourceDirectory(syncPvmAssets) {
+            pvmAssetsDirectory
+        }
     }
 }
 
