@@ -4,6 +4,8 @@
 
 # PVM Runtime
 
+[![开源协议：Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+
 > 通用受保护 App Runtime：用私有 DSL 描述业务页面、状态和流程，编译成签名字节码，再由同一套 C++17 VM 在 Android、iOS 与 HarmonyOS 上验证和执行。
 
 `PVM Runtime` 面向需要跨端交付、原生体验和业务逻辑保护的应用。业务不会以 Kotlin、Swift、ArkTS 或 JavaScript 源码进入生产包；VM 只通过受限的 `UIHost` 和版本化 `Capability Host` 使用原生 UI 与系统能力。
@@ -370,3 +372,9 @@ HUAWEI Pura 70（HarmonyOS 6.1、API 23 兼容）完成 debug signed HAP 真机 
 - 应用商店审核、支付沙箱、持续长时 fuzz、红队和性能 SLO。
 
 具体状态以[功能完成度](docs/FUNCTIONAL_STATUS.zh-CN.md)和[交付状态与外部验收](docs/DELIVERY_STATUS.zh-CN.md)为准。
+
+## 开源协议
+
+PVM Runtime 采用 [Apache License 2.0](LICENSE) 开源，允许个人和企业免费商用、
+修改、再分发和私有部署。使用及再分发时须遵守协议条款，包括保留必要的版权与
+许可证声明、标明修改过的文件，并保留适用的 `NOTICE` 归属声明。

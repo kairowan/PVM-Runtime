@@ -4,6 +4,8 @@
 
 # PVM Runtime
 
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+
 > A protected, cross-platform application runtime: describe business screens,
 > state, and flows in a private DSL; compile them into signed bytecode; then
 > verify and execute them with one C++17 VM on Android, iOS, and HarmonyOS.
@@ -322,3 +324,11 @@ adapters, broader device labs, store review, payment sandbox, sustained fuzzing,
 red-team work, and performance SLOs. Treat
 [Functional status](docs/FUNCTIONAL_STATUS.md) and
 [Delivery status](docs/DELIVERY_STATUS.md) as the source of truth.
+
+## License
+
+PVM Runtime is licensed under the [Apache License 2.0](LICENSE). Commercial
+use, modification, redistribution, and private use are permitted under its
+terms. Redistributions must preserve the required copyright and license
+notices, identify modified files, and retain any applicable `NOTICE`
+attributions.
