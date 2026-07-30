@@ -1,5 +1,5 @@
 import Foundation
-import PVMBridge
+internal import PVMBridge
 
 @MainActor
 public final class PVMHost {

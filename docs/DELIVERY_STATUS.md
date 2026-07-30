@@ -23,11 +23,12 @@ An engineering baseline is not a store, security, or production certification.
 | Android | Debug APK/AAB, R8 smoke APK, release AAR, local Maven |
 | Android SDK | `com.protectedvm:pvm-runtime:0.5.0`; API 36; NDK 28; two ABIs |
 | Android device evidence | HONOR BRP-AN00, API 35 interaction and restore |
-| iOS | Swift Package, `@MainActor PVMHost`, Privacy Manifest, XCFramework |
+| iOS | Source Package, `@MainActor PVMHost`, Privacy Manifest, complete binary XCFramework |
 | iOS demo evidence | iPhone 17 Pro Max Simulator, iOS 26.2 |
 | HarmonyOS | DevEco API 24/API 23-compatible HAR and unsigned emulator HAP |
 | HarmonyOS device evidence | HUAWEI Pura 70, HarmonyOS 6.1, debug-signed HAP |
 | KMP | commonMain/JVM/iOS Native; `pvm-runtime-kmp:0.5.0` |
+| SDK release set | AAR/Maven, Binary Swift Package/XCFramework, HAR, SHA-256 inventory |
 | Historical matrix | Five domains × PVBC v1/v2/v3 = 15 cases |
 | Production packages | Produced by target apps with their release accounts |
 
@@ -40,7 +41,7 @@ An engineering baseline is not a store, security, or production certification.
 | State evolution | v4 stable IDs, rename/add migration, type-conflict rejection | migration end-to-end tests | product migration tooling |
 | Delivery service | Addressing, policy, signed manifest, ETag, rollout, audit, TLS, health | HTTP/tamper/rollout/LKG tests | production CDN, identity, DB, HA |
 | Android | Library/demo, JNI/View, Module Store, AAR/Maven, APK/AAB/R8 | `platform-check`, `android-demo-check`, HONOR smoke | Compose, broad lab, capabilities, store signing |
-| iOS | Package, bridge, host, UIKit/SwiftUI, Store, Privacy, XCFramework, demo | `ios-sdk-check`, `ios-demo-check`, simulator | physical device, archive, distribution, review |
+| iOS | Source Package, binary framework, host, UIKit/SwiftUI, Store, Privacy, demo | `ios-sdk-check`, `ios-demo-check`, simulator | physical device, archive, distribution, review |
 | HarmonyOS | DevEco project, Node-API/ArkTS, ArkUI, HAR, offline HAP | `harmony-sdk-check`, Pura 70 smoke | HUKS, online Store, capabilities, commercial signing |
 | KMP | Port, lifecycle/events, JVM and iOS targets, Maven | `kmp-check`, `kmp-packages` | platform actuals, chosen Compose host |
 | Capability | 27 versioned contracts; basic adapters on each platform | `verify-contracts`, `platform-check` | vendor and remaining system adapters |
@@ -69,8 +70,8 @@ production signature or complete OEM/API/lifecycle matrix.
 |---|---|
 | Swift Package | iOS 15 targets for core, bridge, and Swift runtime |
 | Host | `@MainActor PVMHost` with C ABI v3 bindings |
-| XCFramework | device arm64 and simulator arm64/x86_64 static slices |
-| Consumer | Swift 6 complete strict concurrency and a real link probe |
+| XCFramework | complete precompiled Swift/Objective-C++/C++ Runtime; device arm64 and simulator arm64/x86_64 |
+| Consumer | stable Swift interfaces, Swift 6 complete strict concurrency, and a real binary link probe |
 | Artifact scan | headers, private-key suffixes, module suffixes, local paths |
 | Demo | Xcode target with signed offline module and basic capabilities |
 | Simulator | count/input/async storage and screenshot on iOS 26.2 |
@@ -119,6 +120,7 @@ source.
 | iOS | `make ios-sdk-check ios-demo-check` | XCFramework and simulator app |
 | HarmonyOS | `make harmony-sdk-check` | HAR/HAP, ABIs, offline assets |
 | KMP | `make kmp-check` | common/JVM/iOS compile and lifecycle |
+| SDK release | `make sdk-release-assets` | versioned AAR/Maven, Binary Swift Package/XCFramework, HAR, checksums |
 | History | `make compatibility` | 15 historical upgrade cases |
 | Native safety | `make sanitizer-check fuzz-check` | sanitizer and parser fuzz smoke |
 

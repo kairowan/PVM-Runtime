@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Build the native iOS Runtime bridge as a static XCFramework."""
+"""Build the complete precompiled iOS Runtime as a distributable XCFramework."""
 
 import os
+import plistlib
 import shlex
 import shutil
 import subprocess
@@ -10,17 +11,30 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 BUILD = ROOT / "build" / "ios-sdk"
-OUTPUT = ROOT / "dist" / "ios" / "PVMBridge.xcframework"
+OUTPUT = ROOT / "dist" / "ios" / "PVMRuntime.xcframework"
+LEGACY_OUTPUT = ROOT / "dist" / "ios" / "PVMBridge.xcframework"
+VERSION = "0.5.0"
 SOURCES = (
     ("runtime", "client/src/runtime.cpp", False),
     ("c_api", "client/src/c_api.cpp", False),
     ("bridge", "client/platform/ios/PVMRuntimeBridge.mm", True),
 )
 VARIANTS = (
-    ("device", "iphoneos", "arm64-apple-ios15.0"),
-    ("sim-arm64", "iphonesimulator", "arm64-apple-ios15.0-simulator"),
-    ("sim-x86_64", "iphonesimulator", "x86_64-apple-ios15.0-simulator"),
+    ("device", "iphoneos", "arm64-apple-ios15.0", "arm64-apple-ios"),
+    (
+        "sim-arm64",
+        "iphonesimulator",
+        "arm64-apple-ios15.0-simulator",
+        "arm64-apple-ios-simulator",
+    ),
+    (
+        "sim-x86_64",
+        "iphonesimulator",
+        "x86_64-apple-ios15.0-simulator",
+        "x86_64-apple-ios-simulator",
+    ),
 )
+SWIFT_SOURCES = tuple(sorted((ROOT / "client/platform/ios/swift").glob("*.swift")))
 
 
 def run(command, *, capture=False):
@@ -42,7 +56,7 @@ def reset_generated(path):
     path.mkdir(parents=True)
 
 
-def compile_variant(name, sdk_name, target):
+def compile_native_variant(name, sdk_name, target):
     destination = BUILD / name
     destination.mkdir()
     sdk = run(["xcrun", "--sdk", sdk_name, "--show-sdk-path"], capture=True).strip()
@@ -88,49 +102,165 @@ def compile_variant(name, sdk_name, target):
     return archive
 
 
+def write_framework_plist(framework, sdk_name):
+    supported_platform = (
+        "iPhoneOS" if sdk_name == "iphoneos" else "iPhoneSimulator"
+    )
+    with (framework / "Info.plist").open("wb") as stream:
+        plistlib.dump(
+            {
+                "CFBundleDevelopmentRegion": "en",
+                "CFBundleExecutable": "PVMRuntime",
+                "CFBundleIdentifier": "com.protectedvm.PVMRuntime",
+                "CFBundleInfoDictionaryVersion": "6.0",
+                "CFBundleName": "PVMRuntime",
+                "CFBundlePackageType": "FMWK",
+                "CFBundleShortVersionString": VERSION,
+                "CFBundleSupportedPlatforms": [supported_platform],
+                "CFBundleVersion": "1",
+                "MinimumOSVersion": "15.0",
+            },
+            stream,
+            sort_keys=True,
+        )
+
+
+def compile_swift_variant(name, sdk_name, target, module_triple, native):
+    framework = BUILD / "frameworks" / name / "PVMRuntime.framework"
+    modules = framework / "Modules" / "PVMRuntime.swiftmodule"
+    modules.mkdir(parents=True)
+    sdk = run(["xcrun", "--sdk", sdk_name, "--show-sdk-path"], capture=True).strip()
+    run(
+        [
+            "xcrun",
+            "--sdk",
+            sdk_name,
+            "swiftc",
+            "-target",
+            target,
+            "-sdk",
+            sdk,
+            "-swift-version",
+            "6",
+            "-strict-concurrency=complete",
+            "-warnings-as-errors",
+            "-parse-as-library",
+            "-O",
+            "-enable-library-evolution",
+            "-emit-library",
+            "-emit-module",
+            "-module-name",
+            "PVMRuntime",
+            "-emit-module-path",
+            modules / f"{module_triple}.swiftmodule",
+            "-emit-module-interface-path",
+            modules / f"{module_triple}.swiftinterface",
+            "-emit-private-module-interface-path",
+            modules / f"{module_triple}.private.swiftinterface",
+            "-I",
+            BUILD / "headers",
+            "-L",
+            native.parent,
+            "-lPVMBridge",
+            "-Xlinker",
+            "-install_name",
+            "-Xlinker",
+            "@rpath/PVMRuntime.framework/PVMRuntime",
+            "-Xlinker",
+            "-compatibility_version",
+            "-Xlinker",
+            "1.0.0",
+            "-Xlinker",
+            "-current_version",
+            "-Xlinker",
+            VERSION,
+            "-framework",
+            "Foundation",
+            "-framework",
+            "UIKit",
+            "-framework",
+            "SwiftUI",
+            "-framework",
+            "Combine",
+            "-framework",
+            "CryptoKit",
+            *SWIFT_SOURCES,
+            "-o",
+            framework / "PVMRuntime",
+        ]
+    )
+    for source_info in modules.glob("*.swiftsourceinfo"):
+        source_info.unlink()
+    shutil.copy2(
+        ROOT / "client/platform/ios/swift/PrivacyInfo.xcprivacy",
+        framework / "PrivacyInfo.xcprivacy",
+    )
+    write_framework_plist(framework, sdk_name)
+    return framework
+
+
+def merge_simulator_framework(arm64, x86_64):
+    simulator = BUILD / "frameworks" / "simulator" / "PVMRuntime.framework"
+    shutil.copytree(arm64, simulator)
+    run(
+        [
+            "xcrun",
+            "lipo",
+            "-create",
+            arm64 / "PVMRuntime",
+            x86_64 / "PVMRuntime",
+            "-output",
+            simulator / "PVMRuntime",
+        ]
+    )
+    destination = simulator / "Modules/PVMRuntime.swiftmodule"
+    for source in (x86_64 / "Modules/PVMRuntime.swiftmodule").iterdir():
+        shutil.copy2(source, destination / source.name)
+    return simulator
+
+
 def main():
     for _, source, _ in SOURCES:
         if not (ROOT / source).is_file():
             raise SystemExit(f"Missing iOS SDK source: {source}")
     reset_generated(BUILD)
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    if OUTPUT.exists():
-        shutil.rmtree(OUTPUT)
+    for output in (OUTPUT, LEGACY_OUTPUT):
+        if output.exists():
+            shutil.rmtree(output)
 
     archives = {
-        name: compile_variant(name, sdk, target)
-        for name, sdk, target in VARIANTS
+        name: compile_native_variant(name, sdk, target)
+        for name, sdk, target, _ in VARIANTS
     }
-    simulator = BUILD / "simulator" / "libPVMBridge.a"
-    simulator.parent.mkdir()
-    run(
-        [
-            "xcrun",
-            "lipo",
-            "-create",
-            archives["sim-arm64"],
-            archives["sim-x86_64"],
-            "-output",
-            simulator,
-        ]
-    )
 
     headers = BUILD / "headers"
     headers.mkdir()
     for name in ("PVMRuntimeBridge.h", "module.modulemap"):
         shutil.copyfile(ROOT / "client/platform/ios/include" / name, headers / name)
+
+    frameworks = {
+        name: compile_swift_variant(
+            name,
+            sdk,
+            target,
+            module_triple,
+            archives[name],
+        )
+        for name, sdk, target, module_triple in VARIANTS
+    }
+    simulator = merge_simulator_framework(
+        frameworks["sim-arm64"],
+        frameworks["sim-x86_64"],
+    )
     run(
         [
             "xcodebuild",
             "-create-xcframework",
-            "-library",
-            archives["device"],
-            "-headers",
-            headers,
-            "-library",
+            "-framework",
+            frameworks["device"],
+            "-framework",
             simulator,
-            "-headers",
-            headers,
             "-output",
             OUTPUT,
         ]

@@ -111,6 +111,8 @@ adb install -r dist/android/PVMRuntime-demo-minified-smoke.apk
 
 ### Consume from a target app
 
+For local development, use the generated Maven directory:
+
 ```kotlin
 // settings.gradle.kts
 dependencyResolutionManagement {
@@ -118,6 +120,18 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
         maven { url = uri("/absolute/path/to/PVM-Runtime/dist/android/maven") }
+    }
+}
+```
+
+After publishing `v0.5.0`, independent projects use the precompiled package:
+
+```kotlin
+maven {
+    url = uri("https://maven.pkg.github.com/kairowan/PVM-Runtime")
+    credentials {
+        username = providers.gradleProperty("gpr.user").orNull
+        password = providers.gradleProperty("gpr.key").orNull
     }
 }
 ```
@@ -150,13 +164,13 @@ forbidden.
 - CryptoKit Ed25519 Module Store actor.
 - UIKit and SwiftUI renderers.
 - capability registry and basic adapters.
-- Privacy Manifest, Swift Package, static XCFramework, and Xcode demo.
+- Privacy Manifest, source Swift Package, complete binary XCFramework, and Xcode demo.
 
 ### Recommended profile
 
 Use `offline_sealed` by default. Embed the iOS-bound signed module, public key,
-and bootstrap in the reviewed app package. Runtime and bridge are statically
-linked and are never downloaded as a Framework.
+and bootstrap in the reviewed app package. The precompiled framework is embedded
+and signed with the target application; it is never downloaded at runtime.
 
 Online delivery requires product-specific Apple 2.5.2 review, a built-in
 fallback UI, and the same manifest/module/LKG controls.
@@ -197,12 +211,28 @@ make ios-sdk-check
 Output:
 
 ```text
-dist/ios/PVMBridge.xcframework
+dist/ios/PVMRuntime.xcframework
 ```
 
 The gate checks device/simulator slices, iOS 15, public symbols and headers,
-Swift 6 strict concurrency, a real linked consumer, and sensitive-path/key
-leaks. It is SDK evidence, not an IPA or App Store decision.
+stable Swift interfaces, Swift 6 strict concurrency, a real binary consumer,
+and sensitive-path/key leaks. It is SDK evidence, not an IPA or App Store
+decision.
+
+### Consume the precompiled iOS SDK
+
+Download and expand `PVMRuntimeBinaryPackage-0.5.0.zip`, then use
+**File → Add Package Dependencies → Add Local** and select the extracted
+`PVMRuntimeBinaryPackage` directory. The product is `PVMRuntime`:
+
+```swift
+import PVMRuntime
+```
+
+Alternatively, add `PVMRuntime.xcframework` directly to the target's
+**Frameworks, Libraries, and Embedded Content** and select **Embed & Sign**.
+Both paths link precompiled Swift/Objective-C++/C++ code; the consumer does not
+compile PVM Runtime source.
 
 ## HarmonyOS
 
@@ -219,6 +249,22 @@ Build:
 
 ```bash
 make harmony-sdk-check
+```
+
+To consume the precompiled HAR, copy it to `entry/libs/` and declare:
+
+```json5
+{
+  "dependencies": {
+    "@pvm/runtime": "file:./libs/pvm-runtime-0.5.0.har"
+  }
+}
+```
+
+Run `ohpm install`, then import the package:
+
+```typescript
+import { PvmRuntimeSession, PvmRuntimeTree } from '@pvm/runtime'
 ```
 
 The repository output `dist/harmony/PVMRuntime-demo-unsigned.hap` is for

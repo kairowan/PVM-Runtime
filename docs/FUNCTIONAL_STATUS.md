@@ -24,6 +24,7 @@ device acceptance.
 | iOS Package/Host/Privacy/XCFramework/demo | Implemented | iOS SDK and demo gates |
 | HarmonyOS HAR/unsigned HAP/two ABIs | Implemented | `make harmony-sdk-check` |
 | KMP common/JVM/iOS/Maven | Implemented | KMP gates |
+| Precompiled three-platform SDK release set | Implemented | `make sdk-release-assets` |
 | Release-signed APK/AAB, IPA, HAP | Target app | organization credentials required |
 
 ## Android product baseline

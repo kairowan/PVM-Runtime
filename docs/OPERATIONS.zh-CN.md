@@ -46,7 +46,7 @@ make release-check
 | `make docs-check` | 中英文 Markdown 配对、本地链接与视觉资源 |
 | `make delivery-matrix` | Android/iOS/HarmonyOS × 四 Profile |
 | `make android-demo-check` | Android Demo APK/AAB、Runtime AAR/Maven、R8 smoke 与安装包安全属性 |
-| `make ios-sdk-check` | iOS 15 静态 XCFramework、Swift 6 consumer 与产物安全属性 |
+| `make ios-sdk-check` | iOS 15 完整二进制 XCFramework、Swift 6 consumer 与产物安全属性 |
 | `make ios-demo-check` | iOS Simulator App、签名离线模块、Privacy Manifest 与 Package 接入 |
 | `make harmony-sdk-check` | DevEco API 24 Runtime HAR、兼容 API 23 的 unsigned HAP、双 ABI 与离线资源 |
 | `make kmp-check` | commonMain/JVM/iOS Simulator ARM64 编译与共享生命周期测试 |
@@ -59,6 +59,29 @@ make release-check
 `android-demo-check`、`ios-sdk-check`、`ios-demo-check` 和
 `harmony-sdk-check` 是需要各自平台 SDK 的独立自动门禁，不并入可跨平台运行的
 `release-check` 聚合命令。
+
+## 发布预编译 SDK
+
+在同时安装 Android SDK、Xcode 和 DevEco 的发布 Mac 上执行：
+
+```bash
+make sdk-release-assets
+```
+
+该命令会构建并校验 AAR/Maven、完整二进制 iOS XCFramework/本地 Binary Swift
+Package 和 HAR，然后把带版本文件与 `SHA256SUMS` 写入 `dist/release/`。
+审核文件清单后执行：
+
+```bash
+git tag -a v0.5.0 -m "PVM Runtime 0.5.0"
+git push origin v0.5.0
+gh release create v0.5.0 dist/release/* --verify-tag --generate-notes
+```
+
+GitHub Release 发布后会触发 `Publish Android SDK`，把
+`com.protectedvm:pvm-runtime:0.5.0` 发布到 GitHub Packages。
+`Attach Production Android Assets` 工作流只负责把显式正式签名的 APK/AAB
+追加到已经存在的 Release。
 
 Android 门禁使用 API 36、NDK `28.0.13004108` 构建并验证：
 
@@ -92,8 +115,9 @@ make android-production-packages
 ```
 
 产物为 `dist/android/PVMRuntime-demo-release.{apk,aab}`。GitHub
-`.github/workflows/release.yml` 从仓库 Secrets 恢复临时 keystore，发布完成后由
-GitHub Runner 回收；keystore 不进入仓库和 Actions artifact。
+`Attach Production Android Assets` 工作流从仓库 Secrets 恢复临时 keystore，
+把包追加到现有 Release 后由 GitHub Runner 回收；keystore 不进入仓库和 Actions
+artifact。
 
 交付矩阵产物仍是宿主工程输入。Android bootstrap 声明
 `packageFormats: ["apk", "aab"]`；仓库生成的 Demo 包只证明示例集成链路，正式业务
@@ -105,9 +129,10 @@ App 必须使用自身签名策略构建。
 make ios-sdk-check
 ```
 
-该门禁生成 `dist/ios/PVMBridge.xcframework`，检查 arm64 iPhoneOS 与
-arm64/x86_64 Simulator slice、iOS 15 deployment target、C ABI v3/Objective-C 符号、
-公开头文件、Swift 6 strict-concurrency、实际链接 consumer，以及私钥/本机路径泄漏。
+该门禁生成 `dist/ios/PVMRuntime.xcframework`，检查 arm64 iPhoneOS 与
+arm64/x86_64 Simulator slice、iOS 15 deployment target、稳定 Swift Interface、
+完整 Swift Host/C++ Runtime、Swift 6 strict-concurrency、实际二进制 consumer，
+以及私钥/本机路径泄漏。
 它不会生成 `.xcarchive` 或 IPA，也不能代替 codesign、真机、entitlement、隐私问卷和
 App Store 审核。
 

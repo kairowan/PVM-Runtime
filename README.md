@@ -68,6 +68,23 @@ The compiler turns channel policy into build constraints. For example, Android
 profiles reject delivered `.dex`, `.jar`, and `.so`, while iOS profiles reject
 native dynamic downloads.
 
+## Precompiled SDK distribution
+
+Consumer applications do not need to compile the PVM Runtime source. A versioned
+SDK release contains:
+
+| Platform | Precompiled dependency | Consumer entry |
+|---|---|---|
+| Android | `pvm-runtime-android-0.5.0.aar` or Maven | `com.protectedvm:pvm-runtime:0.5.0` |
+| iOS | `PVMRuntimeBinaryPackage-0.5.0.zip` or `PVMRuntime-0.5.0.xcframework.zip` | `import PVMRuntime` |
+| HarmonyOS | `pvm-runtime-harmony-0.5.0.har` | `import ... from '@pvm/runtime'` |
+
+Maintainers with all three SDK toolchains run `make sdk-release-assets`; the
+command builds, validates, and writes immutable upload inputs plus
+`dist/release/SHA256SUMS`. Publishing a GitHub Release automatically publishes
+the Android Maven coordinate to GitHub Packages. Target applications still own
+their App ID, embedded business module, permissions, signing, and store package.
+
 ## Current capabilities
 
 ### Compiler and module format
@@ -186,11 +203,11 @@ make ios-demo-run
 make ios-demo-screenshot
 ```
 
-`Package.swift` assembles the C++17 core, Objective-C++ bridge, and Swift host.
-The gate builds `dist/ios/PVMBridge.xcframework`, validates device and simulator
-slices, iOS 15 deployment targets, exported C/Objective-C symbols, Swift 6
-strict-concurrency type checking, a real Swift consumer, and the absence of
-private keys or local absolute paths.
+`Package.swift` remains available for source development. The release gate builds
+`dist/ios/PVMRuntime.xcframework`, which contains the Swift Host, UIKit/SwiftUI
+renderers, CryptoKit verifier, Objective-C++ bridge, and C++17 VM. It validates
+device and simulator slices, stable Swift interfaces, iOS 15 deployment targets,
+a real binary Swift consumer, and the absence of private keys or local paths.
 
 The repository includes
 [`PVMRuntimeDemo.xcodeproj`](client/platform/ios/demo/PVMRuntimeDemo.xcodeproj).

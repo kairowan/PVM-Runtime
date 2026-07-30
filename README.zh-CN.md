@@ -52,6 +52,21 @@
 
 编译器会把渠道政策变成构建约束，例如拒绝 Android Profile 外部下发 `.dex/.jar/.so`，以及拒绝 iOS Profile 声明 native 动态下载。
 
+## 预编译 SDK 分发
+
+使用方 App 不需要编译 PVM Runtime 源码。每个版本提供：
+
+| 平台 | 预编译依赖 | 使用方入口 |
+|---|---|---|
+| Android | `pvm-runtime-android-0.5.0.aar` 或 Maven | `com.protectedvm:pvm-runtime:0.5.0` |
+| iOS | `PVMRuntimeBinaryPackage-0.5.0.zip` 或 `PVMRuntime-0.5.0.xcframework.zip` | `import PVMRuntime` |
+| HarmonyOS | `pvm-runtime-harmony-0.5.0.har` | `import ... from '@pvm/runtime'` |
+
+维护者在具备三端 SDK 的机器上执行 `make sdk-release-assets`，即可构建、校验并生成
+可上传文件及 `dist/release/SHA256SUMS`。发布 GitHub Release 后，Android Maven
+坐标会自动发布到 GitHub Packages。目标 App 仍负责自己的 App ID、业务模块、权限、
+正式签名和商店安装包。
+
 ## 当前能力
 
 ### 编译与模块格式
@@ -166,12 +181,14 @@ ADY-AL10（HarmonyOS 6.1、API 23 兼容）的物理设备证据。HarmonyOS 自
 make ios-sdk-check
 ```
 
-该门禁通过 [`Package.swift`](Package.swift) 组织 C++17 Core、Objective-C++ Bridge 和
-Swift Host，构建 `dist/ios/PVMBridge.xcframework`，并验证：
+源码开发仍可通过 [`Package.swift`](Package.swift) 组织 C++17 Core、Objective-C++
+Bridge 和 Swift Host；发布门禁生成包含完整 Swift Host、UIKit/SwiftUI Renderer、
+CryptoKit、Objective-C++ Bridge 与 C++17 VM 的
+`dist/ios/PVMRuntime.xcframework`，并验证：
 
-- arm64 iPhoneOS 与 arm64/x86_64 Simulator 静态 slice、iOS 15 deployment target。
-- C ABI v3 和 Objective-C Bridge 符号、公开头文件、Swift 6 严格并发 typecheck。
-- 一个实际链接 XCFramework 的 Swift consumer，以及产物不存在私钥或本机绝对路径泄漏。
+- arm64 iPhoneOS 与 arm64/x86_64 Simulator slice、iOS 15 deployment target。
+- 稳定 Swift Interface、C ABI v3、Swift 6 严格并发和完整 Runtime 符号。
+- 一个实际链接二进制 XCFramework 的 Swift consumer，以及产物不存在私钥或本机绝对路径泄漏。
 
 Swift 层提供 `@MainActor PVMHost`、UIKit/SwiftUI Renderer、Module Store、Capability
 Registry 与 `PrivacyInfo.xcprivacy`。
@@ -340,7 +357,7 @@ PVM Runtime 提高静态分析、篡改和错误交付的成本，但不承诺�
 
 仓库内的编译、签名、发布、缓存、VM、三端桥接和自动化门禁已经形成闭环；Android
 已经具备可分发 AAR/Maven、可安装 APK/AAB 和单台物理设备证据；iOS 已具备 Swift
-Package、统一 Host、Privacy Manifest、可重复生成的静态 XCFramework，以及可运行
+Package、统一 Host、Privacy Manifest、可重复生成的完整二进制 XCFramework，以及可运行
 Simulator Demo；HarmonyOS 已具备 DevEco API 24 工程、兼容 API 23 的 HAR 和
 unsigned Emulator HAP，以及 arm64-v8a/x86_64 C++17 Node-API/ArkUI 构建证据，并在
 HUAWEI Pura 70（HarmonyOS 6.1、API 23 兼容）完成 debug signed HAP 真机 smoke。

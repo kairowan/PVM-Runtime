@@ -56,6 +56,29 @@ make harmony-sdk-check
 make kmp-check
 ```
 
+## Publish precompiled SDKs
+
+On the release Mac with Android SDK, Xcode, and DevEco installed:
+
+```bash
+make sdk-release-assets
+```
+
+The command builds and verifies AAR/Maven, the complete binary iOS
+XCFramework/local Binary Swift Package, and HAR, then writes versioned files
+and `SHA256SUMS` under `dist/release/`. After reviewing the inventory:
+
+```bash
+git tag -a v0.5.0 -m "PVM Runtime 0.5.0"
+git push origin v0.5.0
+gh release create v0.5.0 dist/release/* --verify-tag --generate-notes
+```
+
+Publishing the GitHub Release triggers `Publish Android SDK`, which publishes
+`com.protectedvm:pvm-runtime:0.5.0` to GitHub Packages. The separate
+`Attach Production Android Assets` workflow only appends explicitly signed
+APK/AAB files to that existing release.
+
 Android production artifacts require target-app signing secrets:
 
 ```bash

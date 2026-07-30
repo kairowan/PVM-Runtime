@@ -63,12 +63,41 @@ publishing {
             afterEvaluate {
                 from(components["release"])
             }
+            pom {
+                name.set("PVM Runtime for Android")
+                description.set("Precompiled Android host for the PVM C++17 runtime")
+                url.set("https://github.com/kairowan/PVM-Runtime")
+                licenses {
+                    license {
+                        name.set("Apache License, Version 2.0")
+                        url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
+                    }
+                }
+                scm {
+                    url.set("https://github.com/kairowan/PVM-Runtime")
+                    connection.set("scm:git:https://github.com/kairowan/PVM-Runtime.git")
+                }
+            }
         }
     }
     repositories {
         maven {
             name = "bundle"
             url = uri(layout.buildDirectory.dir("repository"))
+        }
+        val githubRepository = providers.environmentVariable("GITHUB_REPOSITORY")
+        val githubToken = providers.environmentVariable("GITHUB_TOKEN")
+        if (githubRepository.isPresent && githubToken.isPresent) {
+            maven {
+                name = "GitHubPackages"
+                url = uri("https://maven.pkg.github.com/${githubRepository.get()}")
+                credentials {
+                    username =
+                        providers.environmentVariable("GITHUB_ACTOR").orNull
+                            ?: "github-actions"
+                    password = githubToken.get()
+                }
+            }
         }
     }
 }

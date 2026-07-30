@@ -28,13 +28,14 @@
 | Android SDK 坐标 | `com.protectedvm:pvm-runtime:0.5.0` |
 | Android 工具链 | compile/target API 36、NDK 28、双 ABI、16 KiB 对齐 |
 | Android 真机 | HONOR BRP-AN00、API 35 交互与状态恢复通过 |
-| iOS SDK 交付 | Swift Package、`@MainActor PVMHost`、Privacy Manifest、静态 XCFramework 门禁 |
-| iOS XCFramework | `make ios-sdk-check` 生成 `dist/ios/PVMBridge.xcframework` |
+| iOS SDK 交付 | Swift Package、`@MainActor PVMHost`、Privacy Manifest、完整二进制 XCFramework 门禁 |
+| iOS XCFramework | `make ios-sdk-check` 生成 `dist/ios/PVMRuntime.xcframework` |
 | iOS Demo | Xcode App target；iPhone 17 Pro Max Simulator（iOS 26.2）交互与截图通过 |
 | HarmonyOS SDK 交付 | DevEco API 24 工程（兼容 API 23）、Runtime HAR、unsigned Emulator HAP |
 | HarmonyOS Native ABI | arm64-v8a、x86_64 C++17 Node-API Runtime |
 | HarmonyOS 运行证据 | HUAWEI Pura 70、HarmonyOS 6.1（API 23 兼容）；Huawei debug signed HAP 交互、恢复与截图通过 |
 | KMP SDK | commonMain/JVM/iOS Kotlin/Native；`com.protectedvm:pvm-runtime-kmp:0.5.0` |
+| SDK Release 集合 | AAR/Maven、Binary Swift Package/XCFramework、HAR、SHA-256 清单 |
 | 自动化 | GitHub Actions 核心、Android、Apple、KMP、容器与显式生产签名发布工作流 |
 | 生产包 | 正式签名 APK/AAB、IPA、HAP 仍由目标工程与发布账号生成 |
 | 历史兼容矩阵 | 5 业务域 × PVBC v1/v2/v3 = 15 |
@@ -48,7 +49,7 @@
 | 状态演进 | v4 稳定 ID、改名/新增迁移、类型冲突拒绝 | 状态迁移端到端测试 | 大版本业务迁移工具链 |
 | 发布服务 | 内容寻址、访问策略、签名 Manifest、ETag、灰度、审计、TLS、健康检查、请求 ID、容器 | HTTP/篡改/灰度/LKG/服务边界测试 | 生产 CDN、数据库、身份系统与多副本 HA |
 | Android | Gradle Library/Demo、Kotlin/JNI/View、严格绑定的 Module Store、双 ABI `.so`、AAR/Maven、Debug APK/AAB、R8 smoke | `make platform-check android-demo-check`；HONOR API 35 人工真机验收 | Compose/CMP、更多设备/性能、业务 Capability、正式签名与商店 |
-| iOS | Swift Package、Objective-C++/Swift、`PVMHost`、UIKit/SwiftUI、严格绑定的 CryptoKit Store、Privacy Manifest、静态 XCFramework、Xcode Demo | `make platform-check ios-sdk-check ios-demo-check`；iOS 26.2 Simulator 交互/截图 | 真机、archive/Apple Distribution codesign、完整 NativeSurface、审核 |
+| iOS | Swift Package、Objective-C++/Swift、`PVMHost`、UIKit/SwiftUI、严格绑定的 CryptoKit Store、Privacy Manifest、完整二进制 XCFramework、Xcode Demo | `make platform-check ios-sdk-check ios-demo-check`；iOS 26.2 Simulator 交互/截图 | 真机、archive/Apple Distribution codesign、完整 NativeSurface、审核 |
 | HarmonyOS | DevEco API 24/兼容 API 23 工程、C++17 Node-API/ArkTS Host、ArkUI Renderer、Runtime HAR、Offline Sealed unsigned Demo HAP | `make harmony-sdk-check`；HAR/HAP 与双 ABI 已真实构建；Pura 70 debug signed HAP 真机 smoke | commercial/release/AppGallery 签名、HUKS、线上 Module Store、完整 Capability 与更多物理设备实验室 |
 | KMP | commonMain Runtime Port、生命周期/事件模型、JVM 与三种 iOS target、Maven publication | `make kmp-check kmp-packages` | 目标 Compose 版本、平台 actual Host 与 UI 真机验证 |
 | Capability | 27 项版本化合同；Android 5 项、iOS 4 项、HarmonyOS 2 项基础 Adapter | `make verify-contracts platform-check` | HarmonyOS 其余 25 项及其他供应商/系统能力 |
@@ -81,9 +82,9 @@ Debug APK/AAB 与 R8 smoke APK 都是开发/测试构建；其中 APK 使用测�
 | Swift Package | 根目录 `Package.swift` | iOS 15；C++ Core、Objective-C++ Bridge、Swift Runtime 三层 target |
 | 统一 Host | `@MainActor PVMHost` | C ABI v3 绑定、Renderer/Capability、状态与关闭入口 |
 | Privacy Manifest | `PrivacyInfo.xcprivacy` | Swift Runtime target 资源基线；目标 App 仍需按实际数据用途合并审核声明 |
-| XCFramework | `dist/ios/PVMBridge.xcframework` | `make ios-sdk-check` 可重复生成，不等同 IPA |
-| slice | arm64 iPhoneOS；arm64/x86_64 Simulator | iOS 15 静态库，完整链接 C++17 Runtime 与 Bridge |
-| consumer | Swift 6 complete strict-concurrency + 实际链接 probe | warnings-as-errors，并检查无未解析 PVM 符号 |
+| XCFramework | `dist/ios/PVMRuntime.xcframework` | `make ios-sdk-check` 可重复生成，不等同 IPA |
+| slice | arm64 iPhoneOS；arm64/x86_64 Simulator | iOS 15 完整预编译 Swift/Objective-C++/C++ Runtime |
+| consumer | 稳定 Swift Interface + Swift 6 complete strict-concurrency + 二进制链接 probe | warnings-as-errors，并验证目标只链接预编译 Framework |
 | 产物安全 | 自动扫描公开头、私钥/模块后缀和本机绝对路径 | 不替代独立安全审计 |
 | Xcode Demo | `client/platform/ios/demo/PVMRuntimeDemo.xcodeproj` | 本地 Package、真实签名模块、基础 Capability 与状态恢复 |
 | Simulator | iPhone 17 Pro Max、iOS 26.2 | `count=2 / Status=Not set / Alice` 交互及原始截图 |
@@ -142,6 +143,7 @@ Store、完整 Capability 和更多物理设备结果仍不在本轮证据内。
 | `ios-demo-artifact` | `make ios-demo-check` | iOS Simulator App、签名离线模块与 Package 集成 |
 | `harmony-sdk-artifacts` | `make harmony-sdk-check` | HarmonyOS HAR、unsigned Emulator HAP、双 ABI 与离线资源 |
 | `kmp-sdk-artifacts` | `make kmp-check` | commonMain、JVM 和 iOS Simulator ARM64 编译与生命周期测试 |
+| `sdk-release-assets` | `make sdk-release-assets` | 带版本的 AAR/Maven、Binary Swift Package/XCFramework、HAR 与校验清单 |
 | `historical-bytecode` | `make compatibility` | 15 项历史模块升级 |
 | `sanitizers` | `make sanitizer-check` | Linux ASan+UBSan / macOS UBSan |
 | `package-fuzz-smoke` | `make fuzz-check` | 包解析覆盖引导 smoke |
@@ -152,7 +154,7 @@ Store、完整 Capability 和更多物理设备结果仍不在本轮证据内。
 |---|---|
 | `make android-packages` | 构建 lint、Debug APK/AAB、R8 smoke APK、Release AAR 与本地 Maven |
 | `make android-demo-check` | 在上述构建后检查 APK/AAB 签名、SDK、ABI、16 KiB、离线资源、Maven/AAR 一致性、POM 和模块篡改拒绝 |
-| `make ios-sdk-check` | 生成并检查静态 XCFramework slice/架构/iOS 15、公开符号、Swift 6 consumer 与敏感内容 |
+| `make ios-sdk-check` | 生成并检查完整二进制 XCFramework slice/架构/iOS 15、公开符号、Swift 6 consumer 与敏感内容 |
 | `make ios-demo-check` | 构建并检查 Xcode Simulator Demo、ad-hoc 签名、Privacy Manifest 与 Offline Sealed 资源 |
 | `make ios-demo-run` | 安装并启动到唯一已 Boot 的 iOS Simulator |
 | `make harmony-packages` | 使用 DevEco API 24 构建 Runtime HAR 与兼容 API 23 的 unsigned Demo HAP |
@@ -219,7 +221,7 @@ macOS 26 的 Apple ASan runtime 当前会在 dyld 初始化阶段自旋，因此
 共享边界加固已经完成：C ABI v3、Runtime 生命周期状态机、三端 LKG state 强绑定与
 严格历史校验、cancel/close 后迟到回调丢弃，以及 `appear` absent→present 语义均已
 落地。iOS SDK 基线也已完成：Swift Package、`PVMHost`、Privacy Manifest、完整
-Runtime 静态 XCFramework 和 `make ios-sdk-check` 已提供；Xcode Demo 与 Simulator
+Runtime 完整二进制 XCFramework 和 `make ios-sdk-check` 已提供；Xcode Demo 与 Simulator
 交互/截图也已完成。真机、Archive、Apple Distribution 签名和审核仍属于生产验收，
 不应写成已完成。
 

@@ -85,9 +85,9 @@ client/platform/android/
 
 | 项目 | 版本或范围 |
 |---|---|
-| Android Gradle Plugin | 8.11.1 |
-| Gradle | 8.13 |
-| Kotlin | 2.2.21 |
+| Android Gradle Plugin | 9.3.1 |
+| Gradle | 9.6.1 |
+| Kotlin | 2.4.10（AGP 内置） |
 | JDK / Kotlin JVM target | 17 |
 | compileSdk / Demo targetSdk | 36 |
 | Runtime minSdk / Demo minSdk | 24 / 33 |
@@ -176,7 +176,7 @@ adb install -r dist/android/PVMRuntime-demo-minified-smoke.apk
 
 ### 在目标 App 中接入 Runtime
 
-推荐使用生成的 Maven 仓库，因为 POM 会传递 Tink 等外部依赖：
+本地开发推荐使用生成的 Maven 仓库，因为 POM 会传递 Tink 等外部依赖：
 
 ```kotlin
 // settings.gradle.kts
@@ -187,6 +187,18 @@ dependencyResolutionManagement {
         maven {
             url = uri("/absolute/path/to/PVM-Runtime/dist/android/maven")
         }
+    }
+}
+```
+
+发布 `v0.5.0` 后，独立项目通过 GitHub Packages 引入预编译 AAR：
+
+```kotlin
+maven {
+    url = uri("https://maven.pkg.github.com/kairowan/PVM-Runtime")
+    credentials {
+        username = providers.gradleProperty("gpr.user").orNull
+        password = providers.gradleProperty("gpr.key").orNull
     }
 }
 ```
@@ -337,28 +349,43 @@ make ios-sdk-check
 该命令生成：
 
 ```text
-dist/ios/PVMBridge.xcframework
+dist/ios/PVMRuntime.xcframework
 ```
 
-XCFramework 是包含完整 C++17 Runtime 与 Objective-C++ Bridge 的静态库，含 arm64
-iPhoneOS slice 和 arm64/x86_64 Simulator slice，最低 iOS 15。门禁检查：
+XCFramework 包含 Swift Host、UIKit/SwiftUI Renderer、CryptoKit、Objective-C++
+Bridge 与完整 C++17 Runtime，含 arm64 iPhoneOS slice 和 arm64/x86_64 Simulator
+slice，最低 iOS 15。门禁检查：
 
-1. slice、架构、deployment target、公开头文件和 C ABI v3/Objective-C 符号。
+1. slice、架构、deployment target、稳定 Swift Interface 和完整 Runtime 符号。
 2. 产物不包含私钥、模块或开发机绝对路径。
-3. 全部 Swift 源在 Swift 6 complete strict-concurrency 下以 warning-as-error typecheck。
-4. 一个 Swift consumer 实际链接 Simulator XCFramework，且没有未解析 PVM 符号。
+3. 全部 Swift 源在 Swift 6 complete strict-concurrency 下以 warning-as-error 构建。
+4. 一个 Swift consumer 实际链接二进制 Simulator XCFramework。
 
 这是 SDK 构建门禁，本身不生成 `.xcarchive` 或 IPA。示例 App 由独立
 `make ios-demo-check` 构建并进行 Simulator ad-hoc codesign；两项门禁都不能替代
 物理设备生命周期、Apple Distribution codesign、entitlement、隐私问卷或 App Store
 审核。
 
+### 在目标 App 中引入预编译 iOS SDK
+
+下载并解压 `PVMRuntimeBinaryPackage-0.5.0.zip`，在 Xcode 中选择
+**File → Add Package Dependencies → Add Local**，选择解压后的
+`PVMRuntimeBinaryPackage` 目录。产品名为 `PVMRuntime`：
+
+```swift
+import PVMRuntime
+```
+
+也可以直接把 `PVMRuntime.xcframework` 加入目标的
+**Frameworks, Libraries, and Embedded Content** 并选择 **Embed & Sign**。
+两种方式都只链接预编译 Swift/Objective-C++/C++ 代码，不编译 PVM Runtime 源码。
+
 ### 文件和打包
 
 - 模块使用 `completeUntilFirstUserAuthentication`。
 - 状态文件使用完整文件保护和原子写。
-- `make ios-sdk-check` 生成静态 XCFramework；目标 App 负责选择本地 Swift Package
-  源码接入或封装该二进制，并完成 archive/codesign。
+- `make ios-sdk-check` 生成完整二进制 XCFramework；目标 App 负责嵌入、签名并完成
+  archive/codesign。
 - Demo 展示源码 Package 接入；它使用开发模块和 Simulator ad-hoc 签名，不是生产模板
   中的证书、Bundle ID 或发布身份。
 - CryptoKit 验证内置 X.509 SubjectPublicKeyInfo Ed25519 公钥。
@@ -382,6 +409,22 @@ iPhoneOS slice 和 arm64/x86_64 Simulator slice，最低 iOS 15。门禁检查�
 
 ```bash
 make harmony-sdk-check
+```
+
+目标 App 把预编译 HAR 复制到 `entry/libs/`，并在 `entry/oh-package.json5` 声明：
+
+```json5
+{
+  "dependencies": {
+    "@pvm/runtime": "file:./libs/pvm-runtime-0.5.0.har"
+  }
+}
+```
+
+执行 `ohpm install` 后直接引入：
+
+```typescript
+import { PvmRuntimeSession, PvmRuntimeTree } from '@pvm/runtime'
 ```
 
 会构建并检查 `dist/harmony/pvm-runtime-0.5.0.har` 和

@@ -75,9 +75,10 @@ how to integrate it correctly, and what evidence counts as complete.
 
 ## Current runnable delivery
 
-The repository can build and inspect Android APK/AAB/AAR/Maven, iOS static
-XCFramework and Simulator demo, HarmonyOS HAR and unsigned emulator HAP, KMP
-Maven variants, the delivery matrix, and the desktop module-service loop.
+The repository can build and inspect Android APK/AAB/AAR/Maven, the complete
+binary iOS XCFramework and Simulator demo, HarmonyOS HAR and unsigned emulator
+HAP, KMP Maven variants, the delivery matrix, and the desktop module-service
+loop. `make sdk-release-assets` assembles the three precompiled consumer SDKs.
 Physical-device smoke exists for one Android and one HarmonyOS device; iOS
 evidence currently uses Simulator. See [Delivery status](DELIVERY_STATUS.md)
 before making a production claim.

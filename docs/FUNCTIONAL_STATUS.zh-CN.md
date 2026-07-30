@@ -27,12 +27,13 @@ Sealed 模块交互、状态恢复和截图；这仍不是商业发布签名或�
 | Android Debug APK/AAB | 已生成 | `dist/android/PVMRuntime-demo-debug.{apk,aab}` |
 | Android Release AAR/本地 Maven | 已生成 | `com.protectedvm:pvm-runtime:0.5.0` |
 | iOS Swift Package、统一 Host、Privacy Manifest | 已实现 | `make ios-sdk-check` |
-| iOS 静态 XCFramework | 可重复生成 | `dist/ios/PVMBridge.xcframework` |
+| iOS 完整二进制 XCFramework | 可重复生成 | `dist/ios/PVMRuntime.xcframework` |
 | iOS Xcode Demo | 已实现 | `make ios-demo-check` 与 iOS 26.2 Simulator 截图 |
 | HarmonyOS DevEco Runtime SDK | 已实现 | `make harmony-sdk-check` 构建 HAR、unsigned HAP 与双 ABI |
 | HarmonyOS 真机 Demo 交互 | 已验证 | Pura 70 上验证 count 0→1→2、异步存储、Alice 输入、Home/force-stop 重启恢复与截图 |
 | KMP 公共 SDK | 已实现 | `make kmp-check` 编译 commonMain/JVM/iOS Simulator ARM64 并运行生命周期测试 |
 | KMP Maven 制品 | 可重复生成 | `make kmp-packages`，坐标 `com.protectedvm:pvm-runtime-kmp:0.5.0` |
+| 三端预编译 SDK Release 集合 | 已实现 | `make sdk-release-assets` 生成 AAR/Maven、Binary Swift Package/XCFramework、HAR 与校验清单 |
 | 生产签名 APK/AAB、IPA、HAP | 目标工程负责 | 仍需正式身份、证书和商店配置 |
 
 ## Android 产品化基线
@@ -92,7 +93,7 @@ Native Component `camera.preview`、`host.screen`、`map.view` 和 `player.view`
 - **共享边界**：C ABI v3 强绑定、Runtime 生命周期状态机、三端严格 LKG state、
   cancel/close 迟到回调丢弃、Renderer `appear` absent→present 与负向回归已落地。
 - **iOS SDK 基线**：Swift Package、`@MainActor PVMHost`、Privacy Manifest、完整 C++17
-  Runtime 静态 XCFramework、Xcode Demo、`make ios-sdk-check` 和 `make ios-demo-check`
+  Runtime 完整二进制 XCFramework、Xcode Demo、`make ios-sdk-check` 和 `make ios-demo-check`
   已落地。尚未完成的是物理设备生命周期、archive/Apple Distribution codesign、
   entitlement 和审核证据；这些进入生产验收阶段。
 

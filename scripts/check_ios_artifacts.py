@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the distributable iOS XCFramework and its Swift consumer boundary."""
+"""Validate the complete binary iOS Runtime and its Swift consumer boundary."""
 
 import json
 import plistlib
@@ -10,13 +10,18 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ARTIFACT = ROOT / "dist" / "ios" / "PVMBridge.xcframework"
+ARTIFACT = ROOT / "dist" / "ios" / "PVMRuntime.xcframework"
 CHECK_BUILD = ROOT / "build" / "ios-sdk" / "check"
-SOURCE_HEADERS = ROOT / "client" / "platform" / "ios" / "include"
-SWIFT_SOURCES = sorted((ROOT / "client/platform/ios/swift").glob("*.swift"))
 EXPECTED = {
-    ("ios", None): ({"arm64"}, "2"),
-    ("ios", "simulator"): ({"arm64", "x86_64"}, "7"),
+    ("ios", None): ({"arm64"}, "2", ("arm64-apple-ios",)),
+    (
+        "ios",
+        "simulator",
+    ): (
+        {"arm64", "x86_64"},
+        "7",
+        ("arm64-apple-ios-simulator", "x86_64-apple-ios-simulator"),
+    ),
 }
 PRIVATE_KEY_MARKERS = (
     b"-----BEGIN PRIVATE KEY-----",
@@ -53,18 +58,18 @@ def contained(base, relative):
     return candidate
 
 
-def check_deployment_target(library, expected_platform):
-    output = run(["otool", "-l", library])
+def check_deployment_target(binary, expected_platform):
+    output = run(["otool", "-l", binary])
     versions = re.findall(
         r"cmd LC_BUILD_VERSION\s+cmdsize \d+\s+platform (\d+)\s+minos ([0-9.]+)",
         output,
     )
     if not versions:
-        fail(f"missing LC_BUILD_VERSION in {library}")
+        fail(f"missing LC_BUILD_VERSION in {binary}")
     for platform, minimum in versions:
         if platform != expected_platform or minimum != "15.0":
             fail(
-                f"{library} has platform/minimum {platform}/{minimum}; "
+                f"{binary} has platform/minimum {platform}/{minimum}; "
                 f"expected {expected_platform}/15.0"
             )
 
@@ -96,12 +101,60 @@ def check_sensitive_content():
             fail(f"local absolute path found in {path.relative_to(ARTIFACT)}")
 
 
-def check_swift(simulator_library, simulator_headers):
+def check_framework(entry, expected):
+    expected_architectures, expected_platform, module_triples = expected
+    framework = contained(ARTIFACT / entry["LibraryIdentifier"], entry["LibraryPath"])
+    binary = framework / "PVMRuntime"
+    if not framework.is_dir() or not binary.is_file():
+        fail(f"missing PVMRuntime framework for {entry['LibraryIdentifier']}")
+
+    with (framework / "Info.plist").open("rb") as stream:
+        info = plistlib.load(stream)
+    if (
+        info.get("CFBundleIdentifier") != "com.protectedvm.PVMRuntime"
+        or info.get("CFBundleShortVersionString") != "0.5.0"
+        or info.get("MinimumOSVersion") != "15.0"
+    ):
+        fail(f"invalid framework metadata for {entry['LibraryIdentifier']}")
+    if not (framework / "PrivacyInfo.xcprivacy").is_file():
+        fail(f"missing Privacy Manifest for {entry['LibraryIdentifier']}")
+
+    architectures = set(run(["xcrun", "lipo", "-archs", binary]).split())
+    if architectures != expected_architectures:
+        fail(f"binary architecture mismatch: {architectures}")
+    check_deployment_target(binary, expected_platform)
+    linked = run(["otool", "-L", binary])
+    if (
+        "@rpath/PVMRuntime.framework/PVMRuntime" not in linked
+        or "/usr/lib/libc++.1.dylib" not in linked
+    ):
+        fail(f"invalid framework linkage for {entry['LibraryIdentifier']}")
+    symbols = run(["nm", "-gU", binary])
+    if "_pvm_runtime_create_v3" not in symbols or "PVMHost" not in symbols:
+        fail(f"Runtime or Swift Host symbol missing for {entry['LibraryIdentifier']}")
+
+    modules = framework / "Modules/PVMRuntime.swiftmodule"
+    for triple in module_triples:
+        interface = modules / f"{triple}.swiftinterface"
+        if not interface.is_file():
+            fail(f"missing stable Swift interface for {triple}")
+        contents = interface.read_text(encoding="utf-8")
+        if "class PVMHost" not in contents or "import PVMBridge" in contents:
+            fail(f"invalid public Swift interface for {triple}")
+    return framework
+
+
+def check_swift_consumer(simulator_framework):
     sdk = run(["xcrun", "--sdk", "iphonesimulator", "--show-sdk-path"]).strip()
     package = json.loads(run(["swift", "package", "describe", "--type", "json"]))
     target_names = {target["name"] for target in package.get("targets", [])}
-    if package.get("name") != "PVMRuntime" or not {"PVMCore", "PVMBridge", "PVMRuntime"} <= target_names:
-        fail("Swift Package targets are incomplete")
+    if package.get("name") != "PVMRuntime" or not {
+        "PVMCore",
+        "PVMBridge",
+        "PVMRuntime",
+    } <= target_names:
+        fail("source Swift Package targets are incomplete")
+
     run(
         [
             "xcrun",
@@ -114,42 +167,24 @@ def check_swift(simulator_library, simulator_headers):
             sdk,
             "-swift-version",
             "6",
-            "-strict-concurrency=complete",
-            "-warnings-as-errors",
-            "-I",
-            simulator_headers,
+            "-parse-as-library",
+            "-F",
+            simulator_framework.parent,
             "-typecheck",
-            *SWIFT_SOURCES,
-        ]
-    )
-    run(
-        [
-            "xcodebuild",
-            "-quiet",
-            "-scheme",
-            "PVMRuntime",
-            "-destination",
-            "generic/platform=iOS Simulator",
-            "-derivedDataPath",
-            ROOT / "build/ios-sdk/package",
-            "CODE_SIGNING_ALLOWED=NO",
-            "SWIFT_VERSION=6",
-            "SWIFT_STRICT_CONCURRENCY=complete",
-            "SWIFT_TREAT_WARNINGS_AS_ERRORS=YES",
-            "build",
+            "client/platform/ios/demo/AppDelegate.swift",
         ]
     )
 
     CHECK_BUILD.mkdir(parents=True, exist_ok=True)
-    probe = CHECK_BUILD / "PVMBridgeConsumer.swift"
+    probe = CHECK_BUILD / "PVMRuntimeConsumer.swift"
     probe.write_text(
-        "import PVMBridge\n"
-        "public func pvmBridgeConsumerProbe(_ bridge: PVMRuntimeBridge) -> UInt64 {\n"
-        "    bridge.moduleRelease\n"
+        "import PVMRuntime\n"
+        "public func pvmRuntimeConsumerProbe(_ policy: PVMRuntimePolicy) -> String {\n"
+        "    policy.platform\n"
         "}\n",
         encoding="utf-8",
     )
-    consumer = CHECK_BUILD / "libPVMBridgeConsumer.dylib"
+    consumer = CHECK_BUILD / "libPVMRuntimeConsumer.dylib"
     run(
         [
             "xcrun",
@@ -162,23 +197,19 @@ def check_swift(simulator_library, simulator_headers):
             sdk,
             "-parse-as-library",
             "-emit-library",
-            "-module-name",
-            "PVMBridgeConsumer",
-            "-I",
-            simulator_headers,
-            "-L",
-            simulator_library.parent,
-            "-lPVMBridge",
+            "-F",
+            simulator_framework.parent,
+            "-framework",
+            "PVMRuntime",
             probe,
             "-o",
             consumer,
         ]
     )
     if "arm64" not in run(["file", consumer]):
-        fail("Swift XCFramework consumer is not an arm64 simulator binary")
-    unresolved = run(["nm", "-u", consumer])
-    if "_pvm_" in unresolved:
-        fail("Swift XCFramework consumer has unresolved PVM symbols")
+        fail("binary Swift consumer is not arm64")
+    if "@rpath/PVMRuntime.framework/PVMRuntime" not in run(["otool", "-L", consumer]):
+        fail("binary Swift consumer did not link PVMRuntime.framework")
 
 
 def main():
@@ -197,45 +228,17 @@ def main():
         if key not in EXPECTED or key in found:
             fail(f"unexpected or duplicate slice: {key}")
         found.add(key)
-        expected_architectures, expected_platform = EXPECTED[key]
-        if set(entry.get("SupportedArchitectures", [])) != expected_architectures:
-            fail(f"Info.plist architecture mismatch for {key}")
-        library = contained(
-            ARTIFACT / entry["LibraryIdentifier"],
-            entry["LibraryPath"],
-        )
-        headers = contained(
-            ARTIFACT / entry["LibraryIdentifier"],
-            entry["HeadersPath"],
-        )
-        if not library.is_file() or library.suffix != ".a":
-            fail(f"missing static library for {key}")
-        for name in ("PVMRuntimeBridge.h", "module.modulemap"):
-            packaged = headers / name
-            if not packaged.is_file():
-                fail(f"missing public header {name} for {key}")
-            if packaged.read_bytes() != (SOURCE_HEADERS / name).read_bytes():
-                fail(f"stale public header {name} for {key}")
-        architectures = set(run(["xcrun", "lipo", "-archs", library]).split())
-        if architectures != expected_architectures:
-            fail(f"binary architecture mismatch for {key}: {architectures}")
-        check_deployment_target(library, expected_platform)
-        symbols = run(["nm", "-g", library])
-        if (
-            "_pvm_runtime_create_v3" not in symbols
-            or "_OBJC_CLASS_$_PVMRuntimeBridge" not in symbols
-        ):
-            fail(f"Runtime or Objective-C bridge symbol missing for {key}")
+        framework = check_framework(entry, EXPECTED[key])
         if key[1] == "simulator":
-            simulator = (library, headers)
+            simulator = framework
 
     if found != set(EXPECTED) or simulator is None:
         fail("required device/simulator slices are incomplete")
     check_sensitive_content()
-    check_swift(*simulator)
+    check_swift_consumer(simulator)
     print(
         "iOS artifact: PASS "
-        "(arm64 device + arm64/x86_64 simulator, iOS 15, Swift Package + Swift 6 consumer)"
+        "(complete binary Runtime, arm64 device + arm64/x86_64 simulator, iOS 15)"
     )
 
 

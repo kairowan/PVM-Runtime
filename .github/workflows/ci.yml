@@ -85,7 +85,7 @@ jobs:
         with:
           name: pvm-ios-development
           path: |
-            dist/ios/PVMBridge.xcframework
+            dist/ios/PVMRuntime.xcframework
             build/ios-demo/DerivedData/Build/Products/Debug-iphonesimulator/PVMRuntimeDemo.app
 
   container:

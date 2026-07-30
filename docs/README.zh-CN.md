@@ -81,10 +81,11 @@
 |---|---|
 | `make demo` | 桌面端签名、发布、下载、执行与状态恢复闭环 |
 | `make android-demo-check` | Debug APK/AAB、R8 smoke APK、Release AAR/Maven 与包安全检查 |
-| `make ios-sdk-check` | iOS 15 静态 XCFramework、Swift 6 consumer 与产物安全检查 |
+| `make ios-sdk-check` | iOS 15 完整二进制 XCFramework、Swift 6 consumer 与产物安全检查 |
 | `make ios-demo-check` | Xcode Simulator App、签名离线模块、Privacy Manifest 与 Package 接入 |
 | `make harmony-sdk-check` | DevEco API 24 Runtime HAR、unsigned Emulator HAP、双 ABI 与离线资源检查 |
 | `make kmp-check` | commonMain/JVM/iOS Kotlin/Native 编译与生命周期测试 |
+| `make sdk-release-assets` | 三端预编译 AAR/Maven、Binary Swift Package/XCFramework、HAR 与 SHA-256 清单 |
 | `make release-check` | 核心、三端可编译部分、兼容、模糊测试、文档与交付矩阵 |
 
 Android Demo 已在 HONOR BRP-AN00（API 35）验证；这是一台设备的 smoke 结果。iOS
