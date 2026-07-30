@@ -94,7 +94,9 @@ The output directory contains:
 ```text
 build/migration/checkout/
 ├── module.pvm.json          compiler-validated DSL scaffold
-├── capabilities.json       unapproved Host Capability suggestions
+├── capabilities.json       Capability decisions and adapter/test evidence
+├── migration-approvals.json review decisions for every scanner finding
+├── migration-cases.json     behavior cases anchored to legacy tests
 ├── migration-report.json   machine-readable inventory and review findings
 └── migration-report.md     bilingual human review checklist
 ```
@@ -119,6 +121,98 @@ Capabilities are suggestions only. They are not automatically granted to the
 module. Review `capabilities.json`, approve the minimum set, then implement
 each approved capability with the existing application's services.
 
+## Verification gates
+
+Structural verification can run immediately after conversion:
+
+```bash
+PYTHONPATH=server/src python3 -m pvm_server.migrate verify \
+  build/migration/checkout \
+  --source /path/to/legacy-project
+```
+
+It rescans the exact original selection and compares each selected source
+file's SHA-256. It also requires canonical DSL JSON, compiles it with the real
+PVM compiler, and lints it against the versioned Host IDL. A successful
+structural check writes `verification.json` with
+`"result": "structurally_valid"`; this is not production approval.
+
+Before strict verification, resolve every item in
+`migration-approvals.json`. Valid final statuses are `resolved` and `accepted`,
+and each item requires a non-empty note:
+
+```json
+{
+  "id": "generated-stable-id",
+  "status": "resolved",
+  "note": "Included CheckoutRepository and matched its existing unit tests."
+}
+```
+
+Every entry in `capabilities.json` must be decided:
+
+- `approved` requires a non-empty `adapter` and at least one test identifier;
+- `excluded` requires a non-empty explanation;
+- `pending` blocks strict verification.
+
+The capabilities declared in `module.pvm.json` must exactly equal the approved
+Capability decisions. This prevents a scanner hint from silently granting a
+permission or an edited DSL from adding an unreviewed host call.
+
+Add behavior cases to `migration-cases.json`:
+
+```json
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "name": "initial checkout state",
+      "legacyEvidence": "CheckoutViewModelTest#initialState",
+      "steps": [
+        {
+          "expectedOutput": [
+            "text=\"CheckoutViewModel\"",
+            "text=\"total: 0\""
+          ],
+          "forbiddenOutput": ["error:"]
+        }
+      ]
+    }
+  ]
+}
+```
+
+`legacyEvidence` must point to a test or captured assertion from the old
+implementation. Each case has an isolated state file; later steps may add
+`"tapIndex": 0`, and state persists between steps in the same case.
+
+Build the desktop verifier and create development keys, then run the strict
+gate:
+
+```bash
+make bootstrap build
+
+PYTHONPATH=server/src python3 -m pvm_server.migrate verify \
+  build/migration/checkout \
+  --source /path/to/legacy-project \
+  --strict \
+  --runtime build/client/pvm_cli \
+  --private-key server/var/keys/dev-private.pem \
+  --public-key server/var/keys/dev-public.pem
+```
+
+Strict verification signs the generated module with the supplied development
+key, loads it through the C++17 VM, executes every behavior step, and checks
+required and forbidden output. It returns a non-zero exit code for source
+drift, invalid DSL, pending review, inconsistent Capability decisions, missing
+legacy evidence, runtime failure, or output mismatch. Only a report with
+`"result": "verified"` passes this gate.
+
+The behavior runner does not execute an arbitrary legacy build command. The
+old project's referenced tests must still run in the same CI workflow. Native
+layout, lifecycle, accessibility, screenshots, and device-only capabilities
+remain platform integration tests rather than console behavior cases.
+
 ## Required review
 
 Before routing production traffic to a migrated page:
@@ -130,6 +224,7 @@ Before routing production traffic to a migrated page:
 4. Approve only the required capabilities and declare their permissions.
 5. Compare the legacy and PVM implementations with the same behavior tests.
 6. Compile and sign a separate module for every target platform/profile.
+7. Require `verification.json` to contain `"result": "verified"` in CI.
 
 Run the selector and generation regression check with:
 

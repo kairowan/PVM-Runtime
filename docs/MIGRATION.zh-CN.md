@@ -91,7 +91,9 @@ Application ID、平台、交付 Profile 和 Release。
 ```text
 build/migration/checkout/
 ├── module.pvm.json          已通过真实编译器校验的 DSL 骨架
-├── capabilities.json       尚未批准的 Host Capability 建议
+├── capabilities.json       Capability 决策及 Adapter/测试证据
+├── migration-approvals.json 每一项扫描发现的复核决定
+├── migration-cases.json     与老项目测试绑定的行为用例
 ├── migration-report.json   机器可读的选择范围和复核结果
 └── migration-report.md     中英文人工复核清单
 ```
@@ -112,6 +114,89 @@ build/migration/checkout/
 Capability 只会写入建议清单，不会自动授予模块。应先审核 `capabilities.json`，
 只批准最小集合，再用老项目现有的登录、网络、支付、存储等 Service 实现对应能力。
 
+## 验证门禁
+
+转换完成后可以立即运行结构验证：
+
+```bash
+PYTHONPATH=server/src python3 -m pvm_server.migrate verify \
+  build/migration/checkout \
+  --source /path/to/legacy-project
+```
+
+工具会按原来的选择范围重新扫描，并逐个比较已选源码文件的 SHA-256；同时要求 DSL
+使用规范 JSON 格式，通过真实 PVM 编译器和版本化 Host IDL lint。结构验证成功会写入
+`verification.json`，结果为 `"structurally_valid"`，但这还不是生产验收。
+
+严格验证前，需要处理 `migration-approvals.json` 中的每一项。最终状态只能是
+`resolved` 或 `accepted`，并且必须填写说明：
+
+```json
+{
+  "id": "generated-stable-id",
+  "status": "resolved",
+  "note": "已经加入 CheckoutRepository，并复用了原有单元测试。"
+}
+```
+
+`capabilities.json` 中的每项能力也必须作出决定：
+
+- `approved` 必须填写 Adapter，并至少关联一个测试标识；
+- `excluded` 必须填写排除原因；
+- `pending` 会直接阻断严格验证。
+
+`module.pvm.json` 声明的 Capability 必须与批准项完全一致，防止扫描提示被自动当成
+权限，也防止人工编辑 DSL 时加入未经审核的 Host 调用。
+
+在 `migration-cases.json` 中增加行为用例：
+
+```json
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "name": "结算页初始状态",
+      "legacyEvidence": "CheckoutViewModelTest#initialState",
+      "steps": [
+        {
+          "expectedOutput": [
+            "text=\"CheckoutViewModel\"",
+            "text=\"total: 0\""
+          ],
+          "forbiddenOutput": ["error:"]
+        }
+      ]
+    }
+  ]
+}
+```
+
+`legacyEvidence` 必须指向老实现已有的测试或断言证据。每个 Case 使用独立状态文件；
+后续步骤可以增加 `"tapIndex": 0`，同一个 Case 内会保留前一步状态。
+
+构建桌面验证器并生成开发密钥后执行严格门禁：
+
+```bash
+make bootstrap build
+
+PYTHONPATH=server/src python3 -m pvm_server.migrate verify \
+  build/migration/checkout \
+  --source /path/to/legacy-project \
+  --strict \
+  --runtime build/client/pvm_cli \
+  --private-key server/var/keys/dev-private.pem \
+  --public-key server/var/keys/dev-public.pem
+```
+
+严格验证会使用指定开发密钥签名模块，通过 C++17 VM 加载并执行全部行为步骤，再检查
+必须出现和禁止出现的输出。源码漂移、DSL 错误、未完成复核、Capability 决策不一致、
+缺少老代码证据、Runtime 失败或行为不一致都会返回非零退出码。只有
+`verification.json` 中 `"result": "verified"` 才算通过。
+
+行为验证器不会执行 JSON 中携带的任意老项目命令；老项目所引用的测试仍应在同一条
+CI 中独立运行。原生布局、生命周期、无障碍、截图和真机 Capability 继续由三端集成
+测试负责，不能用控制台行为用例替代。
+
 ## 上线前必须复核
 
 1. 根据 UI 提示恢复正确的页面层级。
@@ -120,6 +205,7 @@ Capability 只会写入建议清单，不会自动授予模块。应先审核 `c
 4. 只批准需要的 Capability，并补齐权限和隐私声明。
 5. 使用同一组行为测试对比老页面与 PVM 页面。
 6. 为每个平台和 Profile 分别编译、签名模块。
+7. 在 CI 中强制检查 `verification.json` 的结果为 `"verified"`。
 
 选择器和生成逻辑的快速回归命令：
 

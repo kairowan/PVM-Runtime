@@ -12,7 +12,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "server" / "src"))
 
 from pvm_server.compiler import Compiler  # noqa: E402
-from pvm_server.migrate import scan_project, write_conversion  # noqa: E402
+from pvm_server.migrate import (  # noqa: E402
+    scan_project,
+    verify_conversion,
+    write_conversion,
+)
 
 
 class SelectiveMigrationTest(unittest.TestCase):
@@ -127,6 +131,8 @@ struct SettingsPage {
             )
             self.assertEqual(set(artifacts), {
                 "capabilities.json",
+                "migration-approvals.json",
+                "migration-cases.json",
                 "migration-report.json",
                 "migration-report.md",
                 "module.pvm.json",
@@ -140,9 +146,57 @@ struct SettingsPage {
             )
             self.assertIn(
                 "payment.purchase",
-                {item["id"] for item in capabilities["suggested"]},
+                {item["id"] for item in capabilities["decisions"]},
             )
+            pending = verify_conversion(root, output, strict=True)
+            self.assertEqual(pending["result"], "failed")
+            self.assertEqual(pending["gates"]["reviews"]["status"], "fail")
+            self.assertEqual(pending["gates"]["capabilities"]["status"], "fail")
+            approvals = json.loads(
+                (output / "migration-approvals.json").read_text(encoding="utf-8")
+            )
+            for item in approvals["items"]:
+                item.update(status="resolved", note="Covered by the legacy regression test.")
+            (output / "migration-approvals.json").write_text(
+                json.dumps(approvals, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+            for decision in capabilities["decisions"]:
+                decision.update(
+                    status="approved",
+                    adapter="ExistingHostAdapter",
+                    tests=["LegacyCheckoutTest#capability"],
+                )
+            (output / "capabilities.json").write_text(
+                json.dumps(capabilities, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+            dsl["module"]["capabilities"] = sorted(
+                decision["id"] for decision in capabilities["decisions"]
+            )
+            dsl["module"]["network_domains"] = ["api.example.com"]
+            (output / "module.pvm.json").write_text(
+                json.dumps(dsl, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+            reviewed = verify_conversion(root, output, strict=True)
+            self.assertEqual(reviewed["gates"]["reviews"]["status"], "pass")
+            self.assertEqual(
+                reviewed["gates"]["capabilities"]["status"],
+                "pass",
+                reviewed["gates"]["capabilities"],
+            )
+            self.assertEqual(reviewed["gates"]["behavior"]["status"], "fail")
+            verification = verify_conversion(root, output)
+            self.assertEqual(verification["result"], "structurally_valid")
             self.assertIn("must-not-migrate", (checkout / "Checkout.kt").read_text())
+            (checkout / "Checkout.kt").write_text(
+                (checkout / "Checkout.kt").read_text(encoding="utf-8") + "\n",
+                encoding="utf-8",
+            )
+            drifted = verify_conversion(root, output)
+            self.assertEqual(drifted["result"], "failed")
+            self.assertEqual(drifted["gates"]["source"]["status"], "fail")
 
 
 if __name__ == "__main__":

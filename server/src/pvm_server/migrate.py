@@ -2,15 +2,21 @@
 """Scan selected legacy code and generate a reviewable PVM migration scaffold."""
 
 import argparse
+import hashlib
 import json
 import os
 import re
+import subprocess
+import tempfile
 from collections import Counter, deque
 from pathlib import Path
 
-from .compiler import CompileError, Compiler, PLATFORMS, PROFILES
+from .compiler import CompileError, Compiler, PLATFORMS, PROFILES, compile_file
+from .host_idl import load as load_host_idl
+from .tooling import lint
 
 
+ROOT = Path(__file__).resolve().parents[3]
 SOURCE_LANGUAGES = {
     ".java": "java",
     ".kt": "kotlin",
@@ -32,9 +38,12 @@ SKIPPED_DIRECTORIES = {
 MAX_SOURCE_BYTES = 2 * 1024 * 1024
 GENERATED_FILES = {
     "capabilities.json",
+    "migration-approvals.json",
+    "migration-cases.json",
     "migration-report.json",
     "migration-report.md",
     "module.pvm.json",
+    "verification.json",
 }
 
 DECLARATIONS = {
@@ -209,6 +218,7 @@ def _units_for_file(path, root):
     language = SOURCE_LANGUAGES[path.suffix]
     relative = path.relative_to(root).as_posix()
     source = path.read_text(encoding="utf-8")
+    source_sha256 = hashlib.sha256(source.encode("utf-8")).hexdigest()
     masked = _masked(source)
     package_match = PACKAGE_PATTERNS.get(language)
     package = ""
@@ -244,6 +254,7 @@ def _units_for_file(path, root):
                 "startLine": line,
                 "endLine": _line_number(source, end),
                 "imports": imports,
+                "sourceSha256": source_sha256,
                 "_body": source[start:end],
                 "_masked": masked[start:end],
             }
@@ -260,6 +271,7 @@ def _units_for_file(path, root):
                 "startLine": 1,
                 "endLine": source.count("\n") + 1,
                 "imports": imports,
+                "sourceSha256": source_sha256,
                 "_body": source,
                 "_masked": masked,
             }
@@ -455,12 +467,14 @@ def scan_project(source_root, classes=(), modules=(), include_dependencies=False
         len(unit["uiHints"])
         + len(unit["capabilityHints"])
         + len(unit["manualReview"])
+        + sum(1 for state in unit["states"] if state["initialRedacted"])
         + len(unit["unselectedLocalDependencies"])
         + len(unit["ambiguousLocalDependencies"])
         for unit in analyzed
     )
     return {
         "schemaVersion": 1,
+        "scannerVersion": 1,
         "sourceRoot": root.name,
         "selection": {
             "classes": list(classes),
@@ -596,11 +610,109 @@ def _capability_report(report):
             )
     return {
         "schemaVersion": 1,
-        "approved": [],
-        "suggested": [
-            {"id": identifier, "requiresApproval": True, "evidence": evidence}
+        "decisions": [
+            {
+                "id": identifier,
+                "status": "pending",
+                "adapter": "",
+                "tests": [],
+                "note": "",
+                "evidence": evidence,
+            }
             for identifier, evidence in sorted(usages.items())
         ],
+    }
+
+
+def _approval_id(unit, kind, detail, line=None):
+    material = json.dumps(
+        [unit["id"], kind, detail, line],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(material).hexdigest()[:16]
+
+
+def _required_review_items(report):
+    items = []
+    for unit in report["units"]:
+        for state in unit["states"]:
+            if state["initialRedacted"]:
+                items.append(
+                    {
+                        "id": _approval_id(
+                            unit, "redacted_state", state["name"], state["line"]
+                        ),
+                        "kind": "redacted_state",
+                        "unit": unit["id"],
+                        "detail": state["name"],
+                        "line": state["line"],
+                    }
+                )
+        for hint in unit["uiHints"]:
+            items.append(
+                {
+                    "id": _approval_id(unit, "ui_hint", hint["id"], hint["line"]),
+                    "kind": "ui_hint",
+                    "unit": unit["id"],
+                    "detail": hint["id"],
+                    "line": hint["line"],
+                }
+            )
+        for finding in unit["manualReview"]:
+            items.append(
+                {
+                    "id": _approval_id(
+                        unit,
+                        "manual_review",
+                        f"{finding['id']}:{finding['token']}",
+                        finding["line"],
+                    ),
+                    "kind": "manual_review",
+                    "unit": unit["id"],
+                    "detail": f"{finding['id']}:{finding['token']}",
+                    "line": finding["line"],
+                }
+            )
+        for dependency in unit["unselectedLocalDependencies"]:
+            items.append(
+                {
+                    "id": _approval_id(unit, "unselected_dependency", dependency),
+                    "kind": "unselected_dependency",
+                    "unit": unit["id"],
+                    "detail": dependency,
+                    "line": None,
+                }
+            )
+        for dependency in unit["ambiguousLocalDependencies"]:
+            items.append(
+                {
+                    "id": _approval_id(
+                        unit, "ambiguous_dependency", dependency["name"]
+                    ),
+                    "kind": "ambiguous_dependency",
+                    "unit": unit["id"],
+                    "detail": dependency["name"],
+                    "line": None,
+                }
+            )
+    return sorted(items, key=lambda item: item["id"])
+
+
+def _approval_template(report):
+    return {
+        "schemaVersion": 1,
+        "items": [
+            {**item, "status": "pending", "note": ""}
+            for item in _required_review_items(report)
+        ],
+    }
+
+
+def _cases_template():
+    return {
+        "schemaVersion": 1,
+        "cases": [],
     }
 
 
@@ -684,9 +796,23 @@ def _write(path, content, force):
     if path.exists() and not force:
         raise MigrationError(f"output exists; pass --force to replace generated file: {path}")
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(path.name + ".tmp")
-    temporary.write_text(content, encoding="utf-8")
-    os.replace(temporary, path)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=path.name + ".",
+            suffix=".tmp",
+            delete=False,
+        ) as handle:
+            temporary = Path(handle.name)
+            handle.write(content)
+        os.replace(temporary, path)
+    except BaseException:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+        raise
 
 
 def _require_output_outside_source(output, source):
@@ -737,11 +863,401 @@ def write_conversion(
             _capability_report(report), indent=2, sort_keys=True
         )
         + "\n",
+        "migration-approvals.json": json.dumps(
+            _approval_template(report), indent=2, sort_keys=True
+        )
+        + "\n",
+        "migration-cases.json": json.dumps(
+            _cases_template(), indent=2, sort_keys=True
+        )
+        + "\n",
         "module.pvm.json": json.dumps(dsl, indent=2, sort_keys=True) + "\n",
     }
     for name, content in artifacts.items():
         _write(output / name, content, force)
     return {name: output / name for name in artifacts}
+
+
+def _read_json(path):
+    path = Path(path)
+    if path.is_symlink():
+        raise MigrationError(f"verification input must not be a symlink: {path.name}")
+    if not path.is_file():
+        raise MigrationError(f"missing verification input: {path.name}")
+    if path.stat().st_size > 10 * 1024 * 1024:
+        raise MigrationError(f"verification input exceeds 10 MiB: {path.name}")
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise MigrationError(f"invalid JSON in {path.name}: {error}") from error
+    if not isinstance(value, dict):
+        raise MigrationError(f"JSON root must be an object: {path.name}")
+    return value
+
+
+def _verify_source(source, recorded):
+    selection = recorded.get("selection")
+    if (
+        recorded.get("schemaVersion") != 1
+        or recorded.get("scannerVersion") != 1
+        or not isinstance(selection, dict)
+    ):
+        raise MigrationError("migration-report.json has an unsupported schema")
+    classes = selection.get("classes")
+    modules = selection.get("modules")
+    include_dependencies = selection.get("includeDependencies")
+    if (
+        not isinstance(classes, list)
+        or not all(isinstance(value, str) for value in classes)
+        or not isinstance(modules, list)
+        or not all(isinstance(value, str) for value in modules)
+        or not isinstance(include_dependencies, bool)
+    ):
+        raise MigrationError("migration-report.json has an invalid selection")
+    current = scan_project(
+        source,
+        classes=classes,
+        modules=modules,
+        include_dependencies=include_dependencies,
+    )
+    if current != recorded:
+        recorded_units = {
+            unit["id"]: unit.get("sourceSha256")
+            for unit in recorded.get("units", [])
+            if isinstance(unit, dict) and isinstance(unit.get("id"), str)
+        }
+        current_units = {
+            unit["id"]: unit.get("sourceSha256") for unit in current.get("units", [])
+        }
+        changed = sorted(
+            identifier
+            for identifier in set(recorded_units) | set(current_units)
+            if recorded_units.get(identifier) != current_units.get(identifier)
+        )
+        raise MigrationError(
+            "legacy selection changed after conversion"
+            + (": " + ", ".join(changed) if changed else "")
+        )
+    return {"selectedUnits": len(current["units"])}
+
+
+def _verify_dsl(output):
+    path = output / "module.pvm.json"
+    source = _read_json(path)
+    canonical = json.dumps(source, indent=2, sort_keys=True) + "\n"
+    if path.read_text(encoding="utf-8") != canonical:
+        raise MigrationError(
+            "module.pvm.json is not canonical; run pvm_server.tooling format"
+        )
+    Compiler(source).build()
+    lint(source, load_host_idl(ROOT / "spec/host_idl.json"))
+    return source, {
+        "moduleId": source["module"]["id"],
+        "applicationId": source["module"]["application_id"],
+        "platform": source["delivery"]["platform"],
+        "profile": source["delivery"]["profile"],
+        "release": source["module"]["release"],
+    }
+
+
+def _verify_approvals(recorded, approvals):
+    required = {item["id"]: item for item in _required_review_items(recorded)}
+    provided_items = approvals.get("items")
+    if approvals.get("schemaVersion") != 1 or not isinstance(provided_items, list):
+        raise MigrationError("migration-approvals.json has an unsupported schema")
+    provided = {}
+    for item in provided_items:
+        if not isinstance(item, dict):
+            raise MigrationError("migration approval entries must be objects")
+        identifier = item.get("id")
+        if not isinstance(identifier, str) or identifier in provided:
+            raise MigrationError("migration approval IDs must be unique strings")
+        provided[identifier] = item
+    if set(provided) != set(required):
+        missing = sorted(set(required) - set(provided))
+        extra = sorted(set(provided) - set(required))
+        raise MigrationError(
+            "migration approvals do not match current review items"
+            f" (missing={len(missing)}, extra={len(extra)})"
+        )
+    pending = []
+    for identifier, item in provided.items():
+        if item.get("status") not in ("accepted", "resolved"):
+            pending.append(identifier)
+        elif not isinstance(item.get("note"), str) or not item["note"].strip():
+            pending.append(identifier)
+    if pending:
+        raise MigrationError(f"{len(pending)} migration review items remain pending")
+    return {"reviewItems": len(required)}
+
+
+def _verify_capabilities(recorded, source, capabilities):
+    decisions = capabilities.get("decisions")
+    if capabilities.get("schemaVersion") != 1 or not isinstance(decisions, list):
+        raise MigrationError("capabilities.json has an unsupported schema")
+    by_id = {}
+    for decision in decisions:
+        if not isinstance(decision, dict):
+            raise MigrationError("capability decisions must be objects")
+        identifier = decision.get("id")
+        if not isinstance(identifier, str) or identifier in by_id:
+            raise MigrationError("capability decision IDs must be unique strings")
+        by_id[identifier] = decision
+    suggested = {
+        hint["id"] for unit in recorded["units"] for hint in unit["capabilityHints"]
+    }
+    declared = set(source["module"].get("capabilities", []))
+    if set(by_id) != suggested | declared:
+        raise MigrationError(
+            "capability decisions must cover exactly the suggested and declared capabilities"
+        )
+    approved = set()
+    pending = []
+    for identifier, decision in by_id.items():
+        status = decision.get("status")
+        if status == "approved":
+            adapter = decision.get("adapter")
+            tests = decision.get("tests")
+            if (
+                not isinstance(adapter, str)
+                or not adapter.strip()
+                or not isinstance(tests, list)
+                or not tests
+                or not all(isinstance(test, str) and test.strip() for test in tests)
+            ):
+                pending.append(identifier)
+            else:
+                approved.add(identifier)
+        elif status == "excluded":
+            if not isinstance(decision.get("note"), str) or not decision["note"].strip():
+                pending.append(identifier)
+        else:
+            pending.append(identifier)
+    if pending:
+        raise MigrationError(f"{len(pending)} capability decisions remain pending")
+    if declared != approved:
+        raise MigrationError(
+            "declared capabilities must exactly match approved capability decisions"
+        )
+    return {"approved": sorted(approved), "excluded": sorted(suggested - approved)}
+
+
+def _validate_cases(cases):
+    values = cases.get("cases")
+    if cases.get("schemaVersion") != 1 or not isinstance(values, list):
+        raise MigrationError("migration-cases.json has an unsupported schema")
+    if not values:
+        raise MigrationError("strict verification requires at least one behavior case")
+    names = set()
+    for case in values:
+        if not isinstance(case, dict):
+            raise MigrationError("behavior cases must be objects")
+        name = case.get("name")
+        if not isinstance(name, str) or not name.strip() or name in names:
+            raise MigrationError("behavior case names must be unique non-empty strings")
+        names.add(name)
+        if (
+            not isinstance(case.get("legacyEvidence"), str)
+            or not case["legacyEvidence"].strip()
+        ):
+            raise MigrationError(f"behavior case {name} requires legacyEvidence")
+        steps = case.get("steps")
+        if not isinstance(steps, list) or not steps:
+            raise MigrationError(f"behavior case {name} requires at least one step")
+        for index, step in enumerate(steps):
+            if not isinstance(step, dict):
+                raise MigrationError(f"behavior case {name} steps must be objects")
+            tap = step.get("tapIndex")
+            expected = step.get("expectedOutput")
+            forbidden = step.get("forbiddenOutput", [])
+            if tap is not None and (
+                not isinstance(tap, int) or isinstance(tap, bool) or tap < 0
+            ):
+                raise MigrationError(f"behavior case {name} step {index} has invalid tapIndex")
+            if (
+                not isinstance(expected, list)
+                or not expected
+                or not all(isinstance(value, str) and value for value in expected)
+            ):
+                raise MigrationError(
+                    f"behavior case {name} step {index} requires expectedOutput"
+                )
+            if not isinstance(forbidden, list) or not all(
+                isinstance(value, str) and value for value in forbidden
+            ):
+                raise MigrationError(
+                    f"behavior case {name} step {index} has invalid forbiddenOutput"
+                )
+    return values
+
+
+def _verify_behavior(output, source, cases, runtime, private_key, public_key):
+    values = _validate_cases(cases)
+    runtime = Path(runtime) if runtime else None
+    private_key = Path(private_key) if private_key else None
+    public_key = Path(public_key) if public_key else None
+    if runtime is None or not runtime.is_file():
+        raise MigrationError("strict verification requires --runtime")
+    if private_key is None or not private_key.is_file():
+        raise MigrationError("strict verification requires --private-key")
+    if public_key is None or not public_key.is_file():
+        raise MigrationError("strict verification requires --public-key")
+    passed_steps = 0
+    with tempfile.TemporaryDirectory(prefix="pvm-migration-verify-") as name:
+        temporary = Path(name)
+        module = temporary / "module.pvm"
+        compile_file(output / "module.pvm.json", private_key, module)
+        for case_index, case in enumerate(values):
+            state = temporary / f"case-{case_index}.state"
+            for step_index, step in enumerate(case["steps"]):
+                command = [
+                    str(runtime),
+                    "--module",
+                    str(module),
+                    "--public-key",
+                    str(public_key),
+                    "--app-id",
+                    source["module"]["application_id"],
+                    "--channel",
+                    source["module"]["channel"],
+                    "--platform",
+                    source["delivery"]["platform"],
+                    "--profile",
+                    source["delivery"]["profile"],
+                    "--min-release",
+                    str(source["module"]["release"]),
+                    "--state-file",
+                    str(state),
+                ]
+                if step.get("tapIndex") is not None:
+                    command.extend(["--tap-index", str(step["tapIndex"])])
+                try:
+                    completed = subprocess.run(
+                        command,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                        timeout=20,
+                    )
+                except subprocess.TimeoutExpired as error:
+                    raise MigrationError(
+                        f"behavior case {case['name']} step {step_index} timed out"
+                    ) from error
+                if completed.returncode:
+                    raise MigrationError(
+                        f"behavior case {case['name']} step {step_index} "
+                        f"returned {completed.returncode}"
+                    )
+                missing = [
+                    index
+                    for index, value in enumerate(step["expectedOutput"])
+                    if value not in completed.stdout
+                ]
+                present = [
+                    index
+                    for index, value in enumerate(step.get("forbiddenOutput", []))
+                    if value in completed.stdout
+                ]
+                if missing or present:
+                    raise MigrationError(
+                        f"behavior case {case['name']} step {step_index} output mismatch "
+                        f"(missing={missing}, forbidden={present})"
+                    )
+                passed_steps += 1
+    return {"cases": len(values), "steps": passed_steps}
+
+
+def _gate(action):
+    try:
+        details = action()
+        return {"status": "pass", "details": details}
+    except (MigrationError, CompileError, KeyError, OSError, TypeError) as error:
+        return {"status": "fail", "error": str(error)}
+
+
+def verify_conversion(
+    source,
+    output,
+    *,
+    strict=False,
+    runtime=None,
+    private_key=None,
+    public_key=None,
+):
+    output = Path(output).resolve()
+    if not output.is_dir():
+        raise MigrationError(f"migration output is not a directory: {output}")
+    recorded = _read_json(output / "migration-report.json")
+    gates = {
+        "source": _gate(lambda: _verify_source(source, recorded)),
+    }
+    dsl_holder = {}
+
+    def verify_dsl():
+        dsl, details = _verify_dsl(output)
+        dsl_holder["source"] = dsl
+        return details
+
+    gates["dsl"] = _gate(verify_dsl)
+    if strict:
+        source_ok = gates["source"]["status"] == "pass"
+        if source_ok:
+            gates["reviews"] = _gate(
+                lambda: _verify_approvals(
+                    recorded,
+                    _read_json(output / "migration-approvals.json"),
+                )
+            )
+        else:
+            gates["reviews"] = {
+                "status": "fail",
+                "error": "source verification failed first",
+            }
+        if source_ok and "source" in dsl_holder:
+            gates["capabilities"] = _gate(
+                lambda: _verify_capabilities(
+                    recorded,
+                    dsl_holder["source"],
+                    _read_json(output / "capabilities.json"),
+                )
+            )
+            gates["behavior"] = _gate(
+                lambda: _verify_behavior(
+                    output,
+                    dsl_holder["source"],
+                    _read_json(output / "migration-cases.json"),
+                    runtime,
+                    private_key,
+                    public_key,
+                )
+            )
+        else:
+            gates["capabilities"] = {
+                "status": "fail",
+                "error": "source or DSL verification failed first",
+            }
+            gates["behavior"] = {
+                "status": "fail",
+                "error": "source or DSL verification failed first",
+            }
+    else:
+        gates["reviews"] = {"status": "skipped"}
+        gates["capabilities"] = {"status": "skipped"}
+        gates["behavior"] = {"status": "skipped"}
+    failed = any(gate["status"] == "fail" for gate in gates.values())
+    result = "failed" if failed else ("verified" if strict else "structurally_valid")
+    verification = {
+        "schemaVersion": 1,
+        "strict": bool(strict),
+        "result": result,
+        "gates": gates,
+    }
+    _write(
+        output / "verification.json",
+        json.dumps(verification, indent=2, sort_keys=True) + "\n",
+        True,
+    )
+    return verification
 
 
 def _selection_arguments(parser):
@@ -790,8 +1306,32 @@ def main():
     convert_parser.add_argument("--release", type=int, default=1)
     convert_parser.add_argument("--force", action="store_true")
 
+    verify_parser = subparsers.add_parser(
+        "verify", help="verify source drift, review decisions, DSL, and behavior"
+    )
+    verify_parser.add_argument("output", type=Path)
+    verify_parser.add_argument("--source", required=True, type=Path)
+    verify_parser.add_argument("--strict", action="store_true")
+    verify_parser.add_argument("--runtime", type=Path)
+    verify_parser.add_argument("--private-key", type=Path)
+    verify_parser.add_argument("--public-key", type=Path)
+
     args = parser.parse_args()
     try:
+        if args.action == "verify":
+            _require_output_outside_source(args.output, args.source)
+            verification = verify_conversion(
+                args.source,
+                args.output,
+                strict=args.strict,
+                runtime=args.runtime,
+                private_key=args.private_key,
+                public_key=args.public_key,
+            )
+            print(args.output / "verification.json")
+            if verification["result"] == "failed":
+                raise MigrationError("migration verification failed")
+            return
         if args.action == "convert" and not args.classes and not args.modules:
             raise MigrationError("convert requires at least one --class or --module selector")
         report = scan_project(

@@ -35,7 +35,9 @@ a stable runtime and four explicit delivery profiles:
   Compose/CMP and Kuikly renderers remain product-specific ports.
 - The local migration scanner can select one class, multiple classes, or one
   or more existing modules and generate a reviewable DSL scaffold without
-  modifying the legacy project.
+  modifying the legacy project. Strict verification blocks source drift,
+  unresolved review items, unapproved capabilities, invalid DSL, and behavior
+  mismatches before signing.
 - Payments, maps, camera, media, push, and other privileged features remain in
   the host and are called through versioned capability IDs.
 - Offline and network delivery are separate build outputs, not runtime flags

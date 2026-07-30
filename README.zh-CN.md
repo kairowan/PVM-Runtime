@@ -23,7 +23,8 @@
   DevEco API 24 编译的 ArkUI。KMP 公共生命周期/事件 API 已形成 JVM 与 Kotlin/Native
   制品；Compose/CMP Renderer 和 Kuikly 仍需按产品选型接入。
 - 本地迁移工具支持按单个类、多个类或一个/多个现有模块选择范围，在不修改老项目
-  源码的前提下生成可复核的 DSL 迁移骨架。
+  源码的前提下生成可复核的 DSL 迁移骨架；严格验证会在签名前阻断源码漂移、未完成
+  复核、未批准 Capability、无效 DSL 和行为不一致。
 - 支付、地图、相机、音视频、推送等重能力留在宿主，通过版本化 Capability IDL 调用。
 - `Offline Sealed` 与联网交付不是互相冒充的模式，而是明确分离的构建产物。
 

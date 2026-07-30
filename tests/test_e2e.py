@@ -33,6 +33,11 @@ from pvm_server.serve import ModuleServer  # noqa: E402
 from pvm_server.host_manifest import generate as generate_host_manifest  # noqa: E402
 from pvm_server.host_idl import check_outputs, load as load_host_idl  # noqa: E402
 from pvm_server.manifest import decode_envelope, encode_payload, payload_from_control  # noqa: E402
+from pvm_server.migrate import (  # noqa: E402
+    scan_project,
+    verify_conversion,
+    write_conversion,
+)
 from pvm_server.release import set_rollout  # noqa: E402
 from pvm_server.security_check import scan_strings  # noqa: E402
 from pvm_server.tooling import lint as lint_source  # noqa: E402
@@ -152,6 +157,64 @@ class ProtectedRuntimeTest(unittest.TestCase):
         )
         self.assertNotEqual(incompatible_run.returncode, 0)
         self.assertIn("type mismatch", incompatible_run.stderr)
+
+    def test_strict_selective_migration_verification(self):
+        source_root = self.directory / "legacy-source"
+        source_root.mkdir()
+        (source_root / "CounterState.kt").write_text(
+            """
+package com.example.legacy
+class CounterState {
+    var count: Int = 0
+}
+""",
+            encoding="utf-8",
+        )
+        report = scan_project(source_root, classes=["CounterState"])
+        output = self.directory / "verified-migration"
+        write_conversion(
+            report,
+            output,
+            application_id="com.example.legacy",
+            platform="android",
+            module_id="legacy.counter",
+        )
+        (output / "migration-cases.json").write_text(
+            json.dumps(
+                {
+                    "schemaVersion": 1,
+                    "cases": [
+                        {
+                            "name": "initial state",
+                            "legacyEvidence": "LegacyCounterTest#initialState",
+                            "steps": [
+                                {
+                                    "expectedOutput": [
+                                        'text="CounterState"',
+                                        'text="count: 0"',
+                                    ],
+                                    "forbiddenOutput": ["error:"],
+                                }
+                            ],
+                        }
+                    ],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        verification = verify_conversion(
+            source_root,
+            output,
+            strict=True,
+            runtime=self.runtime,
+            private_key=self.private_key,
+            public_key=self.public_key,
+        )
+        self.assertEqual(verification["result"], "verified")
+        self.assertEqual(verification["gates"]["behavior"]["status"], "pass")
 
     def test_remote_signer_protocol_matches_local_signing(self):
         remote = self.directory / "remote-signed.pvm"
