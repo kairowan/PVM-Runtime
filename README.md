@@ -56,6 +56,24 @@ a stable runtime and four explicit delivery profiles:
 See [Architecture and data flow](docs/ARCHITECTURE.md) and
 [Security model](docs/SECURITY_MODEL.md).
 
+## PVM Migration Studio
+
+![PVM Migration Studio](docs/assets/migration-studio.png)
+
+The C++17/Qt desktop application turns selective migration into a guided
+Scan → Convert → Review → Verify workflow. It supports one class, multiple
+classes, one module, multiple modules, or a combined selection, while using the
+same migration engine and verification gates as the CLI and CI.
+
+```bash
+make migration-studio-package
+make migration-studio-run
+```
+
+Qt, tool caches, builds, packages, and migration outputs remain inside this
+repository. See [Migration Studio](docs/MIGRATION_STUDIO.md) for the workflow,
+package contents, verification boundary, and directory map.
+
 ## Delivery profiles
 
 ![PVM Runtime delivery profiles](docs/assets/delivery-profiles.svg)
@@ -287,6 +305,7 @@ under ignored `server/var/keys/`; production must use an isolated signer or HSM.
 ├── server/                  DSL compiler, signing, publication, module service
 ├── spec/                    Host IDL, renderer, and release-gate contracts
 ├── generated/               Generated C++/Kotlin/Swift/ArkTS host interfaces
+├── tools/                   C++17/Qt Migration Studio
 ├── docs/                    Architecture, security, platform, DSL, operations
 └── tests/                   End-to-end and security regression tests
 ```
@@ -313,6 +332,7 @@ See [Security model](docs/SECURITY_MODEL.md) and [Security policy](SECURITY.md).
 | [Security model](docs/SECURITY_MODEL.md) | Threats, keys, controls, non-goals |
 | [DSL and bytecode](docs/DSL_V1.md) | DSL semantics and PVBC v1–v5 |
 | [Selective migration](docs/MIGRATION.md) | Migrate selected classes or modules from an existing app |
+| [Migration Studio](docs/MIGRATION_STUDIO.md) | Guided C++17/Qt migration, review, logs, and verification |
 | [Platform integration](docs/PLATFORM_INTEGRATION.md) | Android, iOS, HarmonyOS, KMP |
 | [Operations](docs/OPERATIONS.md) | Build, publish, rollout, rollback, audit |
 | [Delivery status](docs/DELIVERY_STATUS.md) | Automated and external evidence |

@@ -42,6 +42,22 @@
 
 完整设计见[架构与数据流](docs/ARCHITECTURE.zh-CN.md)和[安全模型](docs/SECURITY_MODEL.zh-CN.md)。
 
+## PVM Migration Studio
+
+![PVM Migration Studio](docs/assets/migration-studio.png)
+
+C++17/Qt 桌面应用把选择性迁移变成“扫描 → 转换 → 复核 → 验证”的引导流程。
+它支持单个类、多个类、单个模块、多个模块或组合选择，并与命令行和 CI 共用同一套
+迁移引擎及验证门禁。
+
+```bash
+make migration-studio-package
+make migration-studio-run
+```
+
+Qt、工具缓存、构建目录、应用包和迁移结果都留在当前仓库内。完整流程、随包内容、
+验证边界和目录说明见 [Migration Studio](docs/MIGRATION_STUDIO.zh-CN.md)。
+
 ## 四种交付 Profile
 
 ![PVM Runtime delivery profiles](docs/assets/delivery-profiles.svg)
@@ -327,6 +343,7 @@ PVM_ACTIVATION_TOKEN='replace-me' make serve
 │   └── tools/               signer 等运维工具
 ├── spec/                    Host IDL、Renderer 与发布门禁合同
 ├── generated/               由 IDL 生成的四端接口
+├── tools/                   C++17/Qt Migration Studio
 ├── docs/                    架构、安全、平台、DSL 与运维文档
 └── tests/                   端到端和安全回归测试
 ```
@@ -351,6 +368,7 @@ PVM Runtime 提高静态分析、篡改和错误交付的成本，但不承诺�
 | [安全模型](docs/SECURITY_MODEL.zh-CN.md) | 威胁模型、密钥、控制项、非目标与响应 |
 | [DSL 与字节码](docs/DSL_V1.zh-CN.md) | DSL 语义、PVBC v1–v5、输入事件与状态迁移 |
 | [选择性迁移](docs/MIGRATION.zh-CN.md) | 从现有大型项目按类或模块渐进迁移 |
+| [Migration Studio](docs/MIGRATION_STUDIO.zh-CN.md) | C++17/Qt 引导迁移、复核、日志与验证 |
 | [三端集成](docs/PLATFORM_INTEGRATION.zh-CN.md) | Android、iOS、HarmonyOS 与 C ABI 生命周期 |
 | [发布与运维](docs/OPERATIONS.zh-CN.md) | 构建、发布、灰度、回滚、审计和故障处理 |
 | [交付状态](docs/DELIVERY_STATUS.zh-CN.md) | 自动化证据、外部验收与剩余边界 |

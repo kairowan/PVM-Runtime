@@ -155,6 +155,23 @@ class MigrationError(ValueError):
     pass
 
 
+def _emit_event(enabled, action, stage, status, progress, message, details=None):
+    if not enabled:
+        return
+    event = {
+        "schemaVersion": 1,
+        "type": "migration.event",
+        "action": action,
+        "stage": stage,
+        "status": status,
+        "progress": progress,
+        "message": message,
+    }
+    if details is not None:
+        event["details"] = details
+    print(json.dumps(event, sort_keys=True), flush=True)
+
+
 def _line_number(source, offset):
     return source.count("\n", 0, offset) + 1
 
@@ -1183,6 +1200,7 @@ def verify_conversion(
     runtime=None,
     private_key=None,
     public_key=None,
+    event=None,
 ):
     output = Path(output).resolve()
     if not output.is_dir():
@@ -1191,6 +1209,14 @@ def verify_conversion(
     gates = {
         "source": _gate(lambda: _verify_source(source, recorded)),
     }
+    if event:
+        event(
+            "source",
+            gates["source"]["status"],
+            20,
+            "Checked the selected legacy source fingerprints",
+            gates["source"],
+        )
     dsl_holder = {}
 
     def verify_dsl():
@@ -1199,6 +1225,14 @@ def verify_conversion(
         return details
 
     gates["dsl"] = _gate(verify_dsl)
+    if event:
+        event(
+            "dsl",
+            gates["dsl"]["status"],
+            40,
+            "Compiled and linted the generated DSL",
+            gates["dsl"],
+        )
     if strict:
         source_ok = gates["source"]["status"] == "pass"
         if source_ok:
@@ -1213,6 +1247,14 @@ def verify_conversion(
                 "status": "fail",
                 "error": "source verification failed first",
             }
+        if event:
+            event(
+                "reviews",
+                gates["reviews"]["status"],
+                58,
+                "Checked migration review decisions",
+                gates["reviews"],
+            )
         if source_ok and "source" in dsl_holder:
             gates["capabilities"] = _gate(
                 lambda: _verify_capabilities(
@@ -1240,6 +1282,21 @@ def verify_conversion(
                 "status": "fail",
                 "error": "source or DSL verification failed first",
             }
+        if event:
+            event(
+                "capabilities",
+                gates["capabilities"]["status"],
+                72,
+                "Checked Capability decisions and declarations",
+                gates["capabilities"],
+            )
+            event(
+                "behavior",
+                gates["behavior"]["status"],
+                95,
+                "Executed migration behavior cases with the C++17 VM",
+                gates["behavior"],
+            )
     else:
         gates["reviews"] = {"status": "skipped"}
         gates["capabilities"] = {"status": "skipped"}
@@ -1278,6 +1335,14 @@ def _selection_arguments(parser):
     parser.add_argument("--include-dependencies", action="store_true")
 
 
+def _event_argument(parser):
+    parser.add_argument(
+        "--events-jsonl",
+        action="store_true",
+        help="write machine-readable progress events to stdout",
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="action", required=True)
@@ -1287,6 +1352,7 @@ def main():
     _selection_arguments(scan_parser)
     scan_parser.add_argument("--output", type=Path)
     scan_parser.add_argument("--force", action="store_true")
+    _event_argument(scan_parser)
 
     convert_parser = subparsers.add_parser(
         "convert", help="generate a reviewable DSL migration scaffold"
@@ -1305,6 +1371,7 @@ def main():
     convert_parser.add_argument("--channel", default="enterprise")
     convert_parser.add_argument("--release", type=int, default=1)
     convert_parser.add_argument("--force", action="store_true")
+    _event_argument(convert_parser)
 
     verify_parser = subparsers.add_parser(
         "verify", help="verify source drift, review decisions, DSL, and behavior"
@@ -1315,9 +1382,20 @@ def main():
     verify_parser.add_argument("--runtime", type=Path)
     verify_parser.add_argument("--private-key", type=Path)
     verify_parser.add_argument("--public-key", type=Path)
+    _event_argument(verify_parser)
 
     args = parser.parse_args()
+    emit = lambda stage, status, progress, message, details=None: _emit_event(
+        args.events_jsonl,
+        args.action,
+        stage,
+        status,
+        progress,
+        message,
+        details,
+    )
     try:
+        emit("prepare", "running", 2, "Validated migration command arguments")
         if args.action == "verify":
             _require_output_outside_source(args.output, args.source)
             verification = verify_conversion(
@@ -1327,29 +1405,62 @@ def main():
                 runtime=args.runtime,
                 private_key=args.private_key,
                 public_key=args.public_key,
+                event=emit,
             )
-            print(args.output / "verification.json")
+            if args.events_jsonl:
+                emit(
+                    "complete",
+                    "pass" if verification["result"] != "failed" else "fail",
+                    100,
+                    "Migration verification completed",
+                    {
+                        "result": verification["result"],
+                        "verification": str(args.output / "verification.json"),
+                    },
+                )
+            else:
+                print(args.output / "verification.json")
             if verification["result"] == "failed":
                 raise MigrationError("migration verification failed")
             return
+        if args.action == "scan" and args.events_jsonl and args.output is None:
+            raise MigrationError("scan with --events-jsonl requires --output")
         if args.action == "convert" and not args.classes and not args.modules:
             raise MigrationError("convert requires at least one --class or --module selector")
+        emit("scan", "running", 10, "Scanning selected legacy sources")
         report = scan_project(
             args.source,
             classes=args.classes,
             modules=args.modules,
             include_dependencies=args.include_dependencies,
         )
+        emit(
+            "scan",
+            "pass",
+            38 if args.action == "convert" else 90,
+            "Selected legacy source scan completed",
+            report["summary"],
+        )
         if args.action == "scan":
             encoded = json.dumps(report, indent=2, sort_keys=True) + "\n"
             if args.output:
                 _require_output_outside_source(args.output, args.source)
                 _write(args.output, encoded, args.force)
-                print(args.output)
+                if args.events_jsonl:
+                    emit(
+                        "complete",
+                        "pass",
+                        100,
+                        "Migration scan completed",
+                        {"report": str(args.output)},
+                    )
+                else:
+                    print(args.output)
             else:
                 print(encoded, end="")
             return
         _require_output_outside_source(args.output, args.source)
+        emit("generate", "running", 55, "Generating the migration scaffold")
         artifacts = write_conversion(
             report,
             args.output,
@@ -1361,8 +1472,22 @@ def main():
             release=args.release,
             force=args.force,
         )
-        print("\n".join(str(path) for path in artifacts.values()))
+        if args.events_jsonl:
+            emit(
+                "complete",
+                "pass",
+                100,
+                "Migration scaffold generated",
+                {
+                    "artifacts": {
+                        name: str(path) for name, path in artifacts.items()
+                    }
+                },
+            )
+        else:
+            print("\n".join(str(path) for path in artifacts.values()))
     except (MigrationError, CompileError, OSError) as error:
+        emit("failed", "fail", 100, str(error))
         parser.error(str(error))
 
 

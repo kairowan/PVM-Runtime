@@ -6,6 +6,9 @@ PVM 迁移分为“本地只读扫描”和“生成后人工复核”两个步�
 迁移可以选择单个类、多个类、一个模块目录、多个模块目录，也可以把类与模块选择器
 组合使用。
 
+需要带进度、复核页和日志的 C++17/Qt 图形界面时，请使用
+[PVM Migration Studio](MIGRATION_STUDIO.zh-CN.md)。
+
 ## 支持的源码
 
 当前无额外依赖的扫描器可以识别 Kotlin、Java、Swift 和 ArkTS，也就是 `.kt`、

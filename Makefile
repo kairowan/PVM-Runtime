@@ -10,7 +10,7 @@ ifeq ($(FUZZ_CXX),)
 FUZZ_CXX := clang++
 endif
 
-.PHONY: android-demo-apk android-demo-check android-packages android-production-packages bootstrap build compatibility delivery-matrix docs-check fuzz-check generate-host-idl harmony-demo-run harmony-demo-screenshot harmony-device-run harmony-device-screenshot harmony-packages harmony-production-check harmony-sdk-check host-manifest ios-demo-app ios-demo-check ios-demo-run ios-demo-screenshot ios-device-archive ios-packages ios-sdk-check kmp-check kmp-packages migration-check publish release-check sanitizer-check sdk-release-assets serve demo platform-check test verify-contracts
+.PHONY: android-demo-apk android-demo-check android-packages android-production-packages bootstrap build compatibility delivery-matrix docs-check fuzz-check generate-host-idl harmony-demo-run harmony-demo-screenshot harmony-device-run harmony-device-screenshot harmony-packages harmony-production-check harmony-sdk-check host-manifest ios-demo-app ios-demo-check ios-demo-run ios-demo-screenshot ios-device-archive ios-packages ios-sdk-check kmp-check kmp-packages migration-check migration-studio migration-studio-check migration-studio-package migration-studio-run publish release-check sanitizer-check sdk-release-assets serve demo platform-check test verify-contracts
 
 bootstrap:
 	PYTHONPATH="$(PYTHONPATH_VALUE)" $(PYTHON) -m pvm_server.keys --directory server/var/keys
@@ -189,6 +189,41 @@ test: build migration-check
 
 migration-check:
 	PYTHONPATH="$(PYTHONPATH_VALUE)" $(PYTHON) tests/test_migrate.py
+
+migration-studio: bootstrap build
+	$(PYTHON) scripts/setup_migration_studio_qt.py
+	cmake -S tools/migration-studio -B build/migration-studio \
+		-DCMAKE_BUILD_TYPE=Release \
+		-DCMAKE_PREFIX_PATH="$$(cat build/migration-studio-tools/qt-prefix.txt)"
+	cmake --build build/migration-studio -j
+
+migration-studio-check: migration-studio
+	ctest --test-dir build/migration-studio --output-on-failure
+
+migration-studio-package: migration-studio-check
+	rm -rf "$(CURDIR)/dist/desktop/PVMMigrationStudio.app"
+	cmake --install build/migration-studio --prefix dist/desktop
+	@if test "$$(uname -s)" = Darwin; then \
+		APP="$(CURDIR)/dist/desktop/PVMMigrationStudio.app"; \
+		test -x "$$APP/Contents/MacOS/PVMMigrationStudio"; \
+		test -x "$$APP/Contents/Resources/bin/pvm_cli"; \
+		test -f "$$APP/Contents/Resources/python/pvm_server/migrate.py"; \
+		test -f "$$APP/Contents/spec/host_idl.json"; \
+		test -f "$$APP/Contents/Resources/licenses/qt/LGPL-3.0-only.txt"; \
+		test -z "$$(find "$$APP" -type d -name __pycache__ -print -quit)"; \
+		codesign --verify --deep --strict "$$APP"; \
+		"$$APP/Contents/MacOS/PVMMigrationStudio" --self-test; \
+		PYTHONDONTWRITEBYTECODE=1 \
+			PYTHONPATH="$$APP/Contents/Resources/python" \
+			$(PYTHON) -m pvm_server.migrate --help >/dev/null; \
+	fi
+
+migration-studio-run: migration-studio
+	@if test "$$(uname -s)" = Darwin; then \
+		open build/migration-studio/PVMMigrationStudio.app; \
+	else \
+		build/migration-studio/PVMMigrationStudio; \
+	fi
 
 sanitizer-check:
 	cmake -S client -B build/sanitized -DCMAKE_BUILD_TYPE=RelWithDebInfo \

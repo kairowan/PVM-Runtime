@@ -2,6 +2,7 @@ build/
 .build/
 .swiftpm/
 dist/
+third_party/qt/
 .gradle/
 .cxx/
 .externalNativeBuild/

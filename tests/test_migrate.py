@@ -2,6 +2,8 @@
 """Small self-check for selective legacy migration."""
 
 import json
+import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -20,6 +22,47 @@ from pvm_server.migrate import (  # noqa: E402
 
 
 class SelectiveMigrationTest(unittest.TestCase):
+    def test_json_line_progress_events(self):
+        with tempfile.TemporaryDirectory(prefix="pvm-migrate-events-") as name:
+            root = Path(name) / "legacy"
+            root.mkdir()
+            (root / "Counter.kt").write_text(
+                "class Counter { var count: Int = 0 }\n",
+                encoding="utf-8",
+            )
+            report = Path(name) / "scan.json"
+            environment = os.environ.copy()
+            environment["PYTHONPATH"] = str(ROOT / "server" / "src")
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "pvm_server.migrate",
+                    "scan",
+                    str(root),
+                    "--class",
+                    "Counter",
+                    "--output",
+                    str(report),
+                    "--events-jsonl",
+                ],
+                cwd=ROOT,
+                env=environment,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=True,
+            )
+            events = [
+                json.loads(line) for line in completed.stdout.splitlines() if line
+            ]
+            self.assertTrue(report.is_file())
+            self.assertTrue(
+                all(event["type"] == "migration.event" for event in events)
+            )
+            self.assertEqual([event["progress"] for event in events], [2, 10, 90, 100])
+            self.assertEqual(events[-1]["status"], "pass")
+
     def test_single_multiple_module_and_dependency_selection(self):
         with tempfile.TemporaryDirectory(prefix="pvm-migrate-test-") as name:
             root = Path(name) / "legacy"

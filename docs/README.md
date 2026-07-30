@@ -19,8 +19,9 @@ how to integrate it correctly, and what evidence counts as complete.
 
 1. [DSL and bytecode](DSL_V1.md)
 2. [Selective legacy migration](MIGRATION.md)
-3. [Security model](SECURITY_MODEL.md)
-4. [`server/sample/counter.pvm.json`](../server/sample/counter.pvm.json)
+3. [Migration Studio](MIGRATION_STUDIO.md)
+4. [Security model](SECURITY_MODEL.md)
+5. [`server/sample/counter.pvm.json`](../server/sample/counter.pvm.json)
 
 ### Integrating a mobile app
 
@@ -43,6 +44,7 @@ how to integrate it correctly, and what evidence counts as complete.
 | [Architecture](ARCHITECTURE.md) | Which component owns each trust decision and data transition? |
 | [DSL and bytecode](DSL_V1.md) | What can a module express and how does the VM validate it? |
 | [Selective migration](MIGRATION.md) | How are individual classes or existing modules converted safely? |
+| [Migration Studio](MIGRATION_STUDIO.md) | How does the desktop workflow scan, review, and verify a selection? |
 | [Security model](SECURITY_MODEL.md) | What is protected, from whom, and what is explicitly out of scope? |
 | [Platform integration](PLATFORM_INTEGRATION.md) | How do Android, iOS, HarmonyOS, and KMP connect? |
 | [Operations](OPERATIONS.md) | How are modules built, signed, rolled out, stopped, and audited? |
@@ -77,13 +79,13 @@ how to integrate it correctly, and what evidence counts as complete.
 
 ## Current runnable delivery
 
-The repository can build and inspect Android APK/AAB/AAR/Maven, the complete
-binary iOS XCFramework and Simulator demo, HarmonyOS HAR and unsigned emulator
-HAP, KMP Maven variants, the delivery matrix, and the desktop module-service
-loop. `make sdk-release-assets` assembles the three precompiled consumer SDKs.
-Physical-device smoke exists for one Android and one HarmonyOS device; iOS
-evidence currently uses Simulator. See [Delivery status](DELIVERY_STATUS.md)
-before making a production claim.
+The repository can build and inspect the C++17/Qt Migration Studio, Android
+APK/AAB/AAR/Maven, the complete binary iOS XCFramework and Simulator demo,
+HarmonyOS HAR and unsigned emulator HAP, KMP Maven variants, the delivery
+matrix, and the desktop module-service loop. `make sdk-release-assets`
+assembles the three precompiled consumer SDKs. Physical-device smoke exists for
+one Android and one HarmonyOS device; iOS evidence currently uses Simulator.
+See [Delivery status](DELIVERY_STATUS.md) before making a production claim.
 
 ## Documentation maintenance
 

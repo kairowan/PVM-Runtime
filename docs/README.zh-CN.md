@@ -18,9 +18,10 @@
 
 1. [DSL 与字节码](DSL_V1.zh-CN.md)
 2. [选择性迁移](MIGRATION.zh-CN.md)
-3. [示例模块](../server/sample/counter.pvm.json)
-4. [Host IDL](../spec/host_idl.json)
-5. `make verify-contracts`
+3. [Migration Studio](MIGRATION_STUDIO.zh-CN.md)
+4. [示例模块](../server/sample/counter.pvm.json)
+5. [Host IDL](../spec/host_idl.json)
+6. `make verify-contracts`
 
 ### 接入移动端 App
 
@@ -48,6 +49,7 @@
 | [SECURITY_MODEL.zh-CN.md](SECURITY_MODEL.zh-CN.md) | 安全、发布、平台开发 | 防什么、不防什么、密钥和失败策略是什么 |
 | [DSL_V1.zh-CN.md](DSL_V1.zh-CN.md) | DSL/业务开发 | 能表达什么、如何编译、怎样兼容升级 |
 | [MIGRATION.zh-CN.md](MIGRATION.zh-CN.md) | 老项目负责人、业务开发 | 怎样按类或模块选择性迁移并复核结果 |
+| [MIGRATION_STUDIO.zh-CN.md](MIGRATION_STUDIO.zh-CN.md) | 老项目负责人、业务开发 | 怎样用桌面流程完成扫描、复核和验证 |
 | [PLATFORM_INTEGRATION.zh-CN.md](PLATFORM_INTEGRATION.zh-CN.md) | Android/iOS/HarmonyOS 开发 | 怎样连接 VM、渲染器、验签和模块缓存 |
 | [OPERATIONS.zh-CN.md](OPERATIONS.zh-CN.md) | CI/CD、SRE、发布负责人 | 怎样签名、发布、灰度、止血和审计 |
 | [DELIVERY_STATUS.zh-CN.md](DELIVERY_STATUS.zh-CN.md) | 项目负责人、验收人员 | 哪些由仓库证明，哪些必须取得外部证据 |
@@ -81,7 +83,8 @@
 
 | 入口 | 输出或证明 |
 |---|---|
-| `make demo` | 桌面端签名、发布、下载、执行与状态恢复闭环 |
+| `make demo` | 命令行签名、发布、下载、执行与状态恢复闭环 |
+| `make migration-studio-package` | C++17/Qt 桌面迁移应用及自检 |
 | `make android-demo-check` | Debug APK/AAB、R8 smoke APK、Release AAR/Maven 与包安全检查 |
 | `make ios-sdk-check` | iOS 15 完整二进制 XCFramework、Swift 6 consumer 与产物安全检查 |
 | `make ios-demo-check` | Xcode Simulator App、签名离线模块、Privacy Manifest 与 Package 接入 |

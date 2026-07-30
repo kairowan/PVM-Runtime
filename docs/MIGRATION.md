@@ -7,6 +7,9 @@ It does not rewrite the source project. A migration selection can contain one
 class, multiple classes, one module directory, multiple module directories, or
 the union of class and module selectors.
 
+For the guided C++17/Qt interface, see
+[PVM Migration Studio](MIGRATION_STUDIO.md).
+
 ## Supported source
 
 The dependency-free scanner currently recognizes declarations in Kotlin,

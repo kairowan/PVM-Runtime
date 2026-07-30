@@ -79,14 +79,15 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
-      - name: Build iOS SDK and Simulator application
-        run: make ios-sdk-check ios-demo-check
+      - name: Build iOS SDK, Simulator application, and Migration Studio
+        run: make ios-sdk-check ios-demo-check migration-studio-package
       - uses: actions/upload-artifact@v7
         with:
-          name: pvm-ios-development
+          name: pvm-apple-development
           path: |
             dist/ios/PVMRuntime.xcframework
             build/ios-demo/DerivedData/Build/Products/Debug-iphonesimulator/PVMRuntimeDemo.app
+            dist/desktop/PVMMigrationStudio.app
 
   container:
     runs-on: ubuntu-latest

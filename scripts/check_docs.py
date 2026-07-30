@@ -12,7 +12,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 MARKDOWN_LINK = re.compile(r"!?\[[^\]]*]\(([^)\s]+)(?:\s+['\"][^)]*['\"])?\)")
 HTML_SOURCE = re.compile(r"\bsrc=['\"]([^'\"]+)['\"]")
-EXCLUDED_PARTS = {".git", ".gradle", ".idea", "build", "dist"}
+EXCLUDED_PARTS = {
+    ".git",
+    ".gradle",
+    ".idea",
+    "build",
+    "dist",
+    "third_party",
+}
 
 
 def markdown_documents():
