@@ -13,7 +13,7 @@ HarmonyOS 和 KMP 之间维护同一份字节码合同，因此一个很小的�
 4. 从最新 `main` 创建单一目的的分支。
 5. 添加能够在回归时失败的最小可运行检查。
 6. 创建 PR，并在描述中填写 `Closes #<Issue 编号>`。
-7. 处理策略审核、依赖审核、CodeQL 和各平台 CI 的结果。
+7. 处理自动策略审核、CODEOWNERS 审核请求和各平台 CI 的结果。
 8. 最后由 CODEOWNER 完成人工审核并合并。
 
 Dependabot 等自动依赖 PR 不要求关联 Issue。

@@ -15,7 +15,7 @@ change can affect more than one delivery path.
 4. Create a focused branch from the latest `main`.
 5. Add the smallest runnable check that would fail if the change regresses.
 6. Open a PR and include `Closes #<issue-number>` in its description.
-7. Address the automated policy, dependency, CodeQL, and platform CI reviews.
+7. Address the automated policy review, CODEOWNERS review request, and platform CI.
 8. A CODEOWNER performs the final human review and merges the PR.
 
 Automated dependency PRs are exempt from the linked-Issue requirement.
