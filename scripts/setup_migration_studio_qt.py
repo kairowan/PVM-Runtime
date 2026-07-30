@@ -19,13 +19,14 @@ QT_LICENSES = QT_ROOT / "licenses"
 PREFIX_FILE = TOOLS / "qt-prefix.txt"
 AQT_VERSION = "3.3.0"
 DEFAULT_QT_VERSION = "6.12.0"
+QT_LICENSE_REF = "617242bba272518b57f7c201d63af299abcb877b"
 LICENSE_URLS = {
     "GPL-3.0-only.txt": (
-        "https://raw.githubusercontent.com/qt/qtbase/v6.12.0/"
+        f"https://raw.githubusercontent.com/qt/qtbase/{QT_LICENSE_REF}/"
         "LICENSES/GPL-3.0-only.txt"
     ),
     "LGPL-3.0-only.txt": (
-        "https://raw.githubusercontent.com/qt/qtbase/v6.12.0/"
+        f"https://raw.githubusercontent.com/qt/qtbase/{QT_LICENSE_REF}/"
         "LICENSES/LGPL-3.0-only.txt"
     ),
 }
@@ -125,6 +126,9 @@ def ensure_licenses():
                     "--location",
                     "--retry",
                     "3",
+                    "--retry-all-errors",
+                    "--retry-delay",
+                    "1",
                     "--connect-timeout",
                     "10",
                     "--max-time",
