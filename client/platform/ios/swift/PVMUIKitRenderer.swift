@@ -90,7 +90,11 @@ public final class PVMUIKitRenderer {
         let view: UIView
         switch node.type {
         case "Text":
-            view = UILabel()
+            let label = UILabel()
+            label.font = .preferredFont(forTextStyle: .title3)
+            label.adjustsFontForContentSizeCategory = true
+            label.numberOfLines = 0
+            view = label
         case "Image":
             view = UIImageView()
         case "Row":
@@ -137,9 +141,16 @@ public final class PVMUIKitRenderer {
             ])
             view = scroll
         case "Button":
-            view = UIButton(type: .system)
+            let button = UIButton(type: .system)
+            button.configuration = .gray()
+            button.heightAnchor.constraint(greaterThanOrEqualToConstant: 50).isActive = true
+            view = button
         case "Input":
-            view = UITextField()
+            let input = UITextField()
+            input.borderStyle = .roundedRect
+            input.clearButtonMode = .whileEditing
+            input.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+            view = input
         case "Switch":
             view = UISwitch()
         case "NativeSurface":
@@ -178,6 +189,7 @@ public final class PVMUIKitRenderer {
         )
         view.axis = axis
         view.alignment = .fill
+        view.spacing = 12
         return view
     }
 

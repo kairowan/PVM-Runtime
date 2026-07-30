@@ -45,14 +45,15 @@ make release-check
 | `make delivery-matrix` | Android/iOS/HarmonyOS × 四 Profile |
 | `make android-demo-check` | Android Demo APK/AAB、Runtime AAR/Maven、R8 smoke 与安装包安全属性 |
 | `make ios-sdk-check` | iOS 15 静态 XCFramework、Swift 6 consumer 与产物安全属性 |
+| `make ios-demo-check` | iOS Simulator App、签名离线模块、Privacy Manifest 与 Package 接入 |
 | `make compatibility` | 五业务域 × PVBC v1/v2/v3 |
 | `make sanitizer-check` | Linux ASan+UBSan；macOS 26 使用 UBSan |
 | `make fuzz-check` | Clang libFuzzer 包解析 smoke |
 
 这些门禁不能替代 `externalRequired` 中的 HSM、商店、真机、支付沙箱和红队证据。
 
-`android-demo-check` 和 `ios-sdk-check` 是需要各自平台 SDK 的独立自动门禁，不并入
-可跨平台运行的 `release-check` 聚合命令。
+`android-demo-check`、`ios-sdk-check` 和 `ios-demo-check` 是需要各自平台 SDK 的
+独立自动门禁，不并入可跨平台运行的 `release-check` 聚合命令。
 
 Android 门禁使用 API 36、NDK `28.0.13004108` 构建并验证：
 
@@ -90,6 +91,18 @@ arm64/x86_64 Simulator slice、iOS 15 deployment target、C ABI v3/Objective-C �
 公开头文件、Swift 6 strict-concurrency、实际链接 consumer，以及私钥/本机路径泄漏。
 它不会生成 `.xcarchive` 或 IPA，也不能代替 codesign、真机、entitlement、隐私问卷和
 App Store 审核。
+
+Simulator 示例接入还必须执行：
+
+```bash
+make ios-demo-check
+make ios-demo-run
+```
+
+前者构建并校验 `PVMRuntimeDemo.app`；后者要求唯一已启动的 Simulator，安装并运行
+该 App。需要复现 README 截图时使用 `make ios-demo-screenshot`，它只重置
+`com.example.protected` Demo 的 Simulator 沙盒。该证据不能替代物理 iPhone、
+`.xcarchive`、Apple Distribution codesign 或 IPA。
 
 iOS 默认发布建议为 `offline_sealed`。任何在线字节码交付都必须针对实际模块能够改变
 的功能评估

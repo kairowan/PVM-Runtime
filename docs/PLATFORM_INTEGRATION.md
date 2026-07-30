@@ -239,6 +239,8 @@ AAR 已携带 JNI/R8 consumer rules。目标 App 仍需根据实际 Capability �
 - [`Package.swift`](../Package.swift)：iOS 15 的 C++ Core、Objective-C++ Bridge 和 Swift
   Runtime 源码包。
 - `PrivacyInfo.xcprivacy`：随 Swift Package Runtime target 打包的隐私清单基线。
+- `demo/PVMRuntimeDemo.xcodeproj`：使用本地 Package 的 UIKit 示例 App，构建时嵌入
+  iOS `offline_sealed` 签名模块、公钥和 bootstrap。
 
 ### 推荐交付 Profile
 
@@ -296,6 +298,32 @@ Store 拒绝重定向，按流式大小上限读取响应，并在任何切换�
   generation/closed guard 丢弃。
 - `appear` 只在节点 absent→present 时发送；整树重绘中仍存在的同 ID 节点不会重复发送。
 
+### 构建和运行 iOS Demo
+
+[`client/platform/ios/demo/PVMRuntimeDemo.xcodeproj`](../client/platform/ios/demo/PVMRuntimeDemo.xcodeproj)
+可以直接由 Xcode 打开。命令行入口为：
+
+```bash
+make ios-demo-check
+make ios-demo-run
+```
+
+`ios-demo-check` 使用本地 `PVMRuntime` Swift Package 构建 arm64 Simulator App，检查
+ad-hoc 签名、iOS 15 deployment target、Privacy Manifest，以及 App 内
+`bootstrap.json`、公钥和 `.pvm` 与交付矩阵完全一致。`ios-demo-run` 要求恰好有一个
+已启动 Simulator；它安装并运行 `com.example.protected`，不会生成 IPA。
+
+需要复现项目首页的验证状态和截图时执行：
+
+```bash
+make ios-demo-screenshot
+```
+
+该命令只卸载/重装这个 Demo，随后通过真实 UIKit 事件把 Counter 推进到
+`count=2 / Status=Not set / Alice`，并将 Simulator 原始截图写入
+`docs/assets/ios-demo.png`。当前证据来自 iPhone 17 Pro Max Simulator（iOS 26.2），
+不应描述成 iPhone 真机、Archive 或 App Store 结果。
+
 ### 构建和验证 iOS SDK
 
 在安装完整 Xcode 的 macOS 上，从仓库根目录执行：
@@ -318,8 +346,10 @@ iPhoneOS slice 和 arm64/x86_64 Simulator slice，最低 iOS 15。门禁检查�
 3. 全部 Swift 源在 Swift 6 complete strict-concurrency 下以 warning-as-error typecheck。
 4. 一个 Swift consumer 实际链接 Simulator XCFramework，且没有未解析 PVM 符号。
 
-这是 SDK 构建门禁，不生成示例 App、`.xcarchive` 或 IPA，也不执行 codesign、真机
-生命周期、entitlement、隐私问卷或 App Store 审核。
+这是 SDK 构建门禁，本身不生成 `.xcarchive` 或 IPA。示例 App 由独立
+`make ios-demo-check` 构建并进行 Simulator ad-hoc codesign；两项门禁都不能替代
+物理设备生命周期、Apple Distribution codesign、entitlement、隐私问卷或 App Store
+审核。
 
 ### 文件和打包
 
@@ -327,6 +357,8 @@ iPhoneOS slice 和 arm64/x86_64 Simulator slice，最低 iOS 15。门禁检查�
 - 状态文件使用完整文件保护和原子写。
 - `make ios-sdk-check` 生成静态 XCFramework；目标 App 负责选择本地 Swift Package
   源码接入或封装该二进制，并完成 archive/codesign。
+- Demo 展示源码 Package 接入；它使用开发模块和 Simulator ad-hoc 签名，不是生产模板
+  中的证书、Bundle ID 或发布身份。
 - CryptoKit 验证内置 X.509 SubjectPublicKeyInfo Ed25519 公钥。
 - Capability 生成的 Usage Description/entitlement 必须进入 App 审核产物。
 

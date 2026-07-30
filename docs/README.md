@@ -26,7 +26,7 @@
 3. 对应平台的 `client/platform/<platform>/`
 4. `make platform-check delivery-matrix`
 5. Android 额外运行 `make android-demo-check`
-6. iOS 额外运行 `make ios-sdk-check`
+6. iOS 额外运行 `make ios-sdk-check ios-demo-check`
 
 ### 负责发布与值班
 
@@ -78,11 +78,12 @@
 | `make demo` | 桌面端签名、发布、下载、执行与状态恢复闭环 |
 | `make android-demo-check` | Debug APK/AAB、R8 smoke APK、Release AAR/Maven 与包安全检查 |
 | `make ios-sdk-check` | iOS 15 静态 XCFramework、Swift 6 consumer 与产物安全检查 |
+| `make ios-demo-check` | Xcode Simulator App、签名离线模块、Privacy Manifest 与 Package 接入 |
 | `make release-check` | 核心、三端可编译部分、兼容、模糊测试、文档与交付矩阵 |
 
 Android Demo 已在 HONOR BRP-AN00（API 35）验证；这是一台设备的 smoke 结果。iOS
-已提供 Swift Package、`PVMHost`、Privacy Manifest 与 XCFramework 门禁，但示例 App、
-真机和正式签名仍待完成。HarmonyOS 目前只有可移植 Node-API/ArkTS 合同，没有经
+已提供 Swift Package、`PVMHost`、Privacy Manifest、XCFramework 与 Xcode Demo，并
+在 iOS 26.2 Simulator 完成交互/截图；真机和正式发布签名仍待完成。HarmonyOS 目前只有可移植 Node-API/ArkTS 合同，没有经
 DevEco 生成的 HAR/HAP；KMP/CMP 和 Kuikly 也仍是未进入产品构建的原型。剩余工作按
 [功能完成度](FUNCTIONAL_STATUS.md)中的三个核心阶段推进。
 

@@ -7,7 +7,7 @@ ifeq ($(FUZZ_CXX),)
 FUZZ_CXX := clang++
 endif
 
-.PHONY: android-demo-apk android-demo-check android-packages bootstrap build compatibility delivery-matrix docs-check fuzz-check generate-host-idl host-manifest ios-packages ios-sdk-check publish release-check sanitizer-check serve demo platform-check test verify-contracts
+.PHONY: android-demo-apk android-demo-check android-packages bootstrap build compatibility delivery-matrix docs-check fuzz-check generate-host-idl host-manifest ios-demo-app ios-demo-check ios-demo-run ios-demo-screenshot ios-packages ios-sdk-check publish release-check sanitizer-check serve demo platform-check test verify-contracts
 
 bootstrap:
 	PYTHONPATH="$(PYTHONPATH_VALUE)" $(PYTHON) -m pvm_server.keys --directory server/var/keys
@@ -49,6 +49,27 @@ ios-packages:
 
 ios-sdk-check: ios-packages
 	$(PYTHON) scripts/check_ios_artifacts.py
+
+ios-demo-app:
+	xcodebuild -quiet \
+		-project client/platform/ios/demo/PVMRuntimeDemo.xcodeproj \
+		-scheme PVMRuntimeDemo \
+		-configuration Debug \
+		-sdk iphonesimulator \
+		-destination 'generic/platform=iOS Simulator' \
+		-derivedDataPath build/ios-demo/DerivedData \
+		SWIFT_VERSION=6 SWIFT_STRICT_CONCURRENCY=complete \
+		build
+
+ios-demo-check: build ios-demo-app
+	$(PYTHON) scripts/check_ios_demo.py
+
+ios-demo-run: ios-demo-check
+	$(PYTHON) scripts/run_ios_demo.py
+
+ios-demo-screenshot: ios-demo-check
+	$(PYTHON) scripts/run_ios_demo.py \
+		--reset --seed-screenshot --screenshot docs/assets/ios-demo.png
 
 host-manifest:
 	PYTHONPATH="$(PYTHONPATH_VALUE)" $(PYTHON) -m pvm_server.host_manifest \

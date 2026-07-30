@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Validate local Markdown links and repository SVG assets without extra dependencies."""
+"""Validate local documentation links and visual assets without extra dependencies."""
 
 import re
+import struct
 import sys
 import urllib.parse
 import xml.etree.ElementTree as ET
@@ -10,6 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MARKDOWN_LINK = re.compile(r"!?\[[^\]]*]\(([^)\s]+)(?:\s+['\"][^)]*['\"])?\)")
+HTML_SOURCE = re.compile(r"\bsrc=['\"]([^'\"]+)['\"]")
 
 
 def main():
@@ -17,7 +19,7 @@ def main():
     errors = []
     for document in documents:
         source = document.read_text(encoding="utf-8")
-        for target in MARKDOWN_LINK.findall(source):
+        for target in [*MARKDOWN_LINK.findall(source), *HTML_SOURCE.findall(source)]:
             if target.startswith(("http://", "https://", "mailto:", "#")):
                 continue
             path_text = urllib.parse.unquote(target.split("#", 1)[0])
@@ -28,11 +30,19 @@ def main():
             ET.parse(asset)
         except ET.ParseError as error:
             errors.append("%s: invalid SVG: %s" % (asset.relative_to(ROOT), error))
+    for asset in sorted((ROOT / "docs" / "assets").glob("*.png")):
+        encoded = asset.read_bytes()
+        if len(encoded) < 24 or encoded[:8] != b"\x89PNG\r\n\x1a\n":
+            errors.append("%s: invalid PNG header" % asset.relative_to(ROOT))
+            continue
+        width, height = struct.unpack(">II", encoded[16:24])
+        if width == 0 or height == 0:
+            errors.append("%s: invalid PNG dimensions" % asset.relative_to(ROOT))
     if errors:
         print("\n".join(errors), file=sys.stderr)
         return 1
-    print("Documentation: PASS (%d Markdown files, %d SVG assets)" % (
-        len(documents), len(list((ROOT / "docs" / "assets").glob("*.svg")))
+    print("Documentation: PASS (%d Markdown files, %d visual assets)" % (
+        len(documents), len(list((ROOT / "docs" / "assets").glob("*.*")))
     ))
     return 0
 

@@ -28,6 +28,7 @@
 | Android 真机 | HONOR BRP-AN00、API 35 交互与状态恢复通过 |
 | iOS SDK 交付 | Swift Package、`@MainActor PVMHost`、Privacy Manifest、静态 XCFramework 门禁 |
 | iOS XCFramework | `make ios-sdk-check` 生成 `dist/ios/PVMBridge.xcframework` |
+| iOS Demo | Xcode App target；iPhone 17 Pro Max Simulator（iOS 26.2）交互与截图通过 |
 | HarmonyOS 边界 | 仅可移植 Node-API/ArkTS 合同；本机无 DevEco，无 HAR/HAP |
 | 生产包 | 正式签名 APK/AAB、IPA、HAP 仍由目标工程与发布账号生成 |
 | 历史兼容矩阵 | 5 业务域 × PVBC v1/v2/v3 = 15 |
@@ -41,10 +42,10 @@
 | 状态演进 | v4 稳定 ID、改名/新增迁移、类型冲突拒绝 | 状态迁移端到端测试 | 大版本业务迁移工具链 |
 | 发布服务 | 内容寻址、访问策略、签名 Manifest、ETag、灰度、审计 | HTTP/篡改/灰度/LKG 测试 | 生产 CDN、数据库、鉴权 HA |
 | Android | Gradle Library/Demo、Kotlin/JNI/View、严格绑定的 Module Store、双 ABI `.so`、AAR/Maven、Debug APK/AAB、R8 smoke | `make platform-check android-demo-check`；HONOR API 35 人工真机验收 | Compose/CMP、更多设备/性能、业务 Capability、正式签名与商店 |
-| iOS | Swift Package、Objective-C++/Swift、`PVMHost`、UIKit/SwiftUI、严格绑定的 CryptoKit Store、Privacy Manifest、静态 XCFramework | `make platform-check ios-sdk-check` | 示例 App、真机、archive/codesign、完整 NativeSurface、审核 |
+| iOS | Swift Package、Objective-C++/Swift、`PVMHost`、UIKit/SwiftUI、严格绑定的 CryptoKit Store、Privacy Manifest、静态 XCFramework、Xcode Demo | `make platform-check ios-sdk-check ios-demo-check`；iOS 26.2 Simulator 交互/截图 | 真机、archive/Apple Distribution codesign、完整 NativeSurface、审核 |
 | HarmonyOS | 可移植 Node-API/ArkTS/ArkUI 合同与严格绑定的 Module Store | 可移植 C++/合同检查 | DevEco HAR/HSP/HAP、HUKS Adapter、真机 |
 | Capability | 27 项版本化合同；Android 5 项、iOS 4 项基础 Adapter | `make verify-contracts platform-check` | Harmony 具体 Adapter；其余供应商/系统能力 |
-| Delivery | 四 Profile 与 12 套宿主嵌入输入；Android 有 Demo APK/AAB 和 SDK AAR/Maven；iOS 有 XCFramework 构建门禁 | `make delivery-matrix android-demo-check ios-sdk-check` | 正式签名三端安装包、各商店/MDM 上传和审批 |
+| Delivery | 四 Profile 与 12 套宿主嵌入输入；Android 有 Demo APK/AAB 和 SDK AAR/Maven；iOS 有 XCFramework 与 Simulator Demo | `make delivery-matrix android-demo-check ios-sdk-check ios-demo-check` | 正式签名三端安装包、各商店/MDM 上传和审批 |
 | 兼容性 | v1–v5 Runtime 读取、五域历史矩阵 | `make compatibility test` | 真实流量、长期升级数据 |
 
 ## Android 本轮交付证据
@@ -77,10 +78,13 @@ Debug APK/AAB 与 R8 smoke APK 都是开发/测试构建；其中 APK 使用测�
 | slice | arm64 iPhoneOS；arm64/x86_64 Simulator | iOS 15 静态库，完整链接 C++17 Runtime 与 Bridge |
 | consumer | Swift 6 complete strict-concurrency + 实际链接 probe | warnings-as-errors，并检查无未解析 PVM 符号 |
 | 产物安全 | 自动扫描公开头、私钥/模块后缀和本机绝对路径 | 不替代独立安全审计 |
+| Xcode Demo | `client/platform/ios/demo/PVMRuntimeDemo.xcodeproj` | 本地 Package、真实签名模块、基础 Capability 与状态恢复 |
+| Simulator | iPhone 17 Pro Max、iOS 26.2 | `count=2 / Status=Not set / Alice` 交互及原始截图 |
+| Demo 门禁 | `make ios-demo-check` | arm64 App、ad-hoc codesign、iOS 15、资源/绑定/Privacy Manifest |
 
-当前 iOS 门禁不生成示例 App、`.xcarchive` 或 IPA，不执行 codesign、真机生命周期、
-entitlement、隐私问卷或 App Store 审核。默认建议 `offline_sealed`；在线字节码交付
-必须按实际产品评估
+当前 iOS Demo 只生成 Simulator `.app` 并进行本地 ad-hoc codesign，不生成
+`.xcarchive` 或 IPA，也不代表真机生命周期、Apple Distribution 签名、entitlement、
+隐私问卷或 App Store 审核。默认建议 `offline_sealed`；在线字节码交付必须按实际产品评估
 [Apple App Review Guidelines 2.5.2](https://developer.apple.com/app-store/review/guidelines/)，
 不能因为模块有签名或 VM 受限就宣称天然合规。
 
@@ -90,7 +94,7 @@ entitlement、隐私问卷或 App Store 审核。默认建议 `offline_sealed`�
 
 | 时间段 | 仓库内交付 | 可执行验收 | 仍需外部证据 |
 |---|---|---|---|
-| 4–9 个月 | 三端 Host、平台验签、Native Renderer、LKG、四 Profile；Android Gradle SDK/Demo；iOS SDK/XCFramework 基线 | `make platform-check delivery-matrix android-demo-check ios-sdk-check`；HONOR API 35 | iOS 示例/真机/签名、HarmonyOS DevEco 工程与真机、Android 扩展设备矩阵、推送账号 |
+| 4–9 个月 | 三端 Host、平台验签、Native Renderer、LKG、四 Profile；Android Gradle SDK/Demo；iOS SDK/XCFramework/Xcode Demo | `make platform-check delivery-matrix android-demo-check ios-sdk-check ios-demo-check`；HONOR API 35；iOS 26.2 Simulator | iOS 真机/发布签名、HarmonyOS DevEco 工程与真机、Android 扩展设备矩阵、推送账号 |
 | 10–18 个月 | Host/组件 IDL、六类 Renderer 接口、重能力合同 | `make verify-contracts` | 各 SDK Adapter 与沙箱凭证 |
 | 19–27 个月 | 远程 signer、签名 Manifest、防回滚、灰度、审计和门禁 | `make test sanitizer-check fuzz-check` | 正式 KMS/HSM、商店审核、红队 |
 | 28–36 个月 | 五业务域历史兼容矩阵与交付治理 | `make compatibility release-check` | 真实业务流量、性能 SLO、升级演练 |
@@ -108,6 +112,7 @@ entitlement、隐私问卷或 App Store 审核。默认建议 `offline_sealed`�
 | `delivery-profiles` | `make delivery-matrix` | 12 套 Profile 产物 |
 | `android-demo-artifacts` | `make android-demo-check` | Android APK/AAB/AAR/Maven 与包安全属性 |
 | `ios-sdk-artifacts` | `make ios-sdk-check` | iOS XCFramework、Swift consumer 与产物安全属性 |
+| `ios-demo-artifact` | `make ios-demo-check` | iOS Simulator App、签名离线模块与 Package 集成 |
 | `historical-bytecode` | `make compatibility` | 15 项历史模块升级 |
 | `sanitizers` | `make sanitizer-check` | Linux ASan+UBSan / macOS UBSan |
 | `package-fuzz-smoke` | `make fuzz-check` | 包解析覆盖引导 smoke |
@@ -119,10 +124,12 @@ Android 与 iOS 另有 SDK 专项门禁：
 | `make android-packages` | 构建 lint、Debug APK/AAB、R8 smoke APK、Release AAR 与本地 Maven |
 | `make android-demo-check` | 在上述构建后检查 APK/AAB 签名、SDK、ABI、16 KiB、离线资源、Maven/AAR 一致性、POM 和模块篡改拒绝 |
 | `make ios-sdk-check` | 生成并检查静态 XCFramework slice/架构/iOS 15、公开符号、Swift 6 consumer 与敏感内容 |
+| `make ios-demo-check` | 构建并检查 Xcode Simulator Demo、ad-hoc 签名、Privacy Manifest 与 Offline Sealed 资源 |
+| `make ios-demo-run` | 安装并启动到唯一已 Boot 的 iOS Simulator |
 
-两个门禁都已登记在 `spec/release_gates.json`；前者要求 Android SDK，后者要求完整
-Xcode，所以不并入可跨平台运行的 `release-check` 聚合命令。对应平台的 CI/发布任务
-必须单独执行。
+三个平台专项门禁都已登记在 `spec/release_gates.json`；Android 门禁要求 Android
+SDK，两个 iOS 门禁要求完整 Xcode，所以不并入可跨平台运行的 `release-check` 聚合
+命令。对应平台的 CI/发布任务必须单独执行。
 
 统一入口：
 
@@ -174,8 +181,9 @@ macOS 26 的 Apple ASan runtime 当前会在 dyld 初始化阶段自旋，因此
 共享边界加固已经完成：C ABI v3、Runtime 生命周期状态机、三端 LKG state 强绑定与
 严格历史校验、cancel/close 后迟到回调丢弃，以及 `appear` absent→present 语义均已
 落地。iOS SDK 基线也已完成：Swift Package、`PVMHost`、Privacy Manifest、完整
-Runtime 静态 XCFramework 和 `make ios-sdk-check` 已提供；示例 App、真机、签名和审核
-属于生产验收，不应写成已完成。
+Runtime 静态 XCFramework 和 `make ios-sdk-check` 已提供；Xcode Demo 与 Simulator
+交互/截图也已完成。真机、Archive、Apple Distribution 签名和审核仍属于生产验收，
+不应写成已完成。
 
 剩余核心阶段为：
 
@@ -183,7 +191,7 @@ Runtime 静态 XCFramework 和 `make ios-sdk-check` 已提供；示例 App、真
    基础 Capability、示例 HAP 与真机。当前仅有可移植合同。
 2. **KMP/CMP 产品化（Kuikly 按需）**：KMP source set、Android/iOS actual Runtime、
    Compose Host 和 Maven 分发；只有产品采用 Kuikly 时才锁定版本并实现 Adapter。
-3. **生产验收与运营**：iOS 示例/真机/archive/codesign，正式 signer/HSM、公钥轮换、
+3. **生产验收与运营**：iOS 真机/archive/Apple Distribution codesign，正式 signer/HSM、公钥轮换、
    三端正式签名包、全量设备矩阵、业务 Capability、性能 SLO、审计告警、红队、商店
    与支付沙箱。
 

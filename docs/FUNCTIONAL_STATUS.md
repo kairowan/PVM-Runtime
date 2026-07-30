@@ -2,7 +2,8 @@
 
 这份清单按“能够在当前仓库运行”统计，不把类型声明、接口占位或目标 App 需要实现的
 Adapter 算作完成。平台编译只能证明源码与当前 SDK/头文件相容，不能替代真机验收；
-Android 已额外完成一台 HONOR API 35 设备的交互与状态恢复验收。
+Android 已额外完成一台 HONOR API 35 设备的交互与状态恢复验收；iOS 已完成 iOS 26.2
+Simulator 的等价业务交互与截图，但这不是物理设备证据。
 
 ## 核心链路
 
@@ -22,6 +23,7 @@ Android 已额外完成一台 HONOR API 35 设备的交互与状态恢复验收�
 | Android Release AAR/本地 Maven | 已生成 | `com.protectedvm:pvm-runtime:0.5.0` |
 | iOS Swift Package、统一 Host、Privacy Manifest | 已实现 | `make ios-sdk-check` |
 | iOS 静态 XCFramework | 可重复生成 | `dist/ios/PVMBridge.xcframework` |
+| iOS Xcode Demo | 已实现 | `make ios-demo-check` 与 iOS 26.2 Simulator 截图 |
 | 生产签名 APK/AAB、IPA、HAP | 目标工程负责 | 仍需正式身份、证书和商店配置 |
 
 ## Android 产品化基线
@@ -44,7 +46,7 @@ Android 已额外完成一台 HONOR API 35 设备的交互与状态恢复验收�
 |---|---|---|
 | Android View | 11 类节点、属性、四类事件、输入值、NativeSurface 工厂和 appear absent→present；HONOR API 35 已验收交互/状态恢复 | 图片加载策略、更多 API/厂商设备、样式与性能 |
 | Android Compose/CMP | 未进入 Gradle 构建的递归树/输入值原型 | 建立真实 KMP/CMP 模块、依赖、事件语义和测试 |
-| UIKit | 11 类节点、Stack 约束、属性、四类事件、输入值、NativeSurface 工厂和 appear absent→present | 图片加载、复杂布局/复用与真机校准 |
+| UIKit | 11 类节点、Stack 约束、属性、四类事件、输入值、NativeSurface 工厂和 appear absent→present；Simulator Counter 已验收 | 图片加载、复杂布局/复用与真机校准 |
 | SwiftUI | 递归树、输入绑定、Switch、四类事件、enabled/无障碍和 appear absent→present | NativeSurface 仍是占位；图片与复杂列表策略 |
 | ArkUI | 可移植的中立树、事件值和 appear absent→present 工厂合同 | 需要 DevEco SDK、真实工程和业务 `ArkUiNodeFactory` |
 | Kuikly | 未进入构建、未锁定 SDK 版本的 Port 原型 | 仅在产品需要时选定版本并实现/编译/真机验证 |
@@ -81,8 +83,9 @@ Native Component `camera.preview`、`host.screen`、`map.view` 和 `player.view`
 - **共享边界**：C ABI v3 强绑定、Runtime 生命周期状态机、三端严格 LKG state、
   cancel/close 迟到回调丢弃、Renderer `appear` absent→present 与负向回归已落地。
 - **iOS SDK 基线**：Swift Package、`@MainActor PVMHost`、Privacy Manifest、完整 C++17
-  Runtime 静态 XCFramework 和 `make ios-sdk-check` 已落地。尚未完成的是目标示例 App、
-  真机生命周期、archive/codesign、entitlement 和审核证据；这些进入生产验收阶段。
+  Runtime 静态 XCFramework、Xcode Demo、`make ios-sdk-check` 和 `make ios-demo-check`
+  已落地。尚未完成的是物理设备生命周期、archive/Apple Distribution codesign、
+  entitlement 和审核证据；这些进入生产验收阶段。
 
 剩余工作按依赖关系收束为三个核心阶段：
 
@@ -93,7 +96,7 @@ Native Component `camera.preview`、`host.screen`、`map.view` 和 `player.view`
    actual Runtime、Compose Host 和 Maven 分发；只有业务明确采用 Kuikly 时才锁定版本
    并实现独立 Adapter。Android/iOS target 复用现有平台模块，不新增虚构的 `kmp`
    字节码平台。
-3. **生产验收与运营**：完成 iOS 示例/真机/签名，为三端生成正式签名 APK/AAB、IPA、
+3. **生产验收与运营**：完成 iOS 真机/发布签名，为三端生成正式签名 APK/AAB、IPA、
    HAP，补齐完整设备矩阵、业务 Capability、HSM/KMS、生产鉴权、审计、告警、性能、
    商店与支付沙箱证据。iOS 在线字节码交付还必须按具体产品评估 Apple 2.5.2，不能
    将本 SDK 描述为天然合规。

@@ -130,15 +130,26 @@ Maven/独立 AAR 一致性、APK ZIP alignment，以及 AAR 内 ELF `PT_LOAD` �
 已在 HONOR BRP-AN00（API 35）完成启动、点击、异步 Capability、连续文本输入和状态
 恢复验证。
 
-<p align="center">
-  <img src="docs/assets/android-demo.png" width="320" alt="PVM Runtime Android demo running signed bytecode on a physical device">
-</p>
+<table>
+  <tr>
+    <th>Android · HONOR 真机</th>
+    <th>iOS · iPhone 17 Pro Max Simulator</th>
+  </tr>
+  <tr>
+    <td><img src="docs/assets/android-demo.png" width="300" alt="PVM Runtime Android demo running signed bytecode on a physical device"></td>
+    <td><img src="docs/assets/ios-demo.png" width="300" alt="PVM Runtime iOS demo running signed bytecode in the iOS Simulator"></td>
+  </tr>
+</table>
+
+两端运行的是同一份 Counter DSL 的平台绑定模块；图中的计数、异步存储状态与输入值都
+经过原生控件事件 → Host → C++17 VM → 原生重绘链路，不是静态 Mock。Android 是一台
+HONOR 物理设备的 smoke 证据，iOS 是 Simulator 证据，两者都不替代完整设备矩阵。
 
 这些 APK/AAB 使用 Android Debug/测试签名，只是可安装的工程与 CI 证据，不是生产
 商店包。正式业务 App 应依赖 Runtime Maven/AAR，嵌入自己平台/Profile 对应的模块，
 并使用自己的 application ID、公钥、release floor 和正式签名。
 
-### 构建 iOS Runtime SDK
+### 构建 iOS Runtime SDK 与 Demo
 
 在安装完整 Xcode 的 macOS 上执行：
 
@@ -154,8 +165,23 @@ Swift Host，构建 `dist/ios/PVMBridge.xcframework`，并验证：
 - 一个实际链接 XCFramework 的 Swift consumer，以及产物不存在私钥或本机绝对路径泄漏。
 
 Swift 层提供 `@MainActor PVMHost`、UIKit/SwiftUI Renderer、Module Store、Capability
-Registry 与 `PrivacyInfo.xcprivacy`。这是一套 SDK 构建基线，不是 IPA：目标 App 仍需
-完成示例接入、真机生命周期验证、archive/codesign、entitlement 和商店审核。
+Registry 与 `PrivacyInfo.xcprivacy`。
+
+仓库也提供可直接在 Xcode 打开的
+[`PVMRuntimeDemo.xcodeproj`](client/platform/ios/demo/PVMRuntimeDemo.xcodeproj)。
+启动一个 iOS Simulator 后执行：
+
+```bash
+make ios-demo-check       # 构建并检查签名 Offline Sealed Demo
+make ios-demo-run         # 安装并启动到唯一已 Boot 的 Simulator
+make ios-demo-screenshot  # 重置 Demo 状态并复现 README 中的 iOS 截图
+```
+
+Demo 通过本地 Swift Package 接入完整 Runtime，构建阶段只嵌入 iOS
+`offline_sealed` 的 `module.pvm`、公钥和 bootstrap。当前已在 iPhone 17 Pro Max
+Simulator（iOS 26.2）完成启动、按钮、异步 Capability 和文本输入验证。它仍不是 IPA
+或真机发布证据：目标 App 还需完成物理设备生命周期、archive/codesign、entitlement
+和商店审核。
 
 iOS 产品默认建议使用 `offline_sealed`，由目标 App 在审核包内携带签名业务模块。
 如果产品选择在线字节码交付，必须针对实际功能和更新行为逐项评估
@@ -205,7 +231,7 @@ PVM_ACTIVATION_TOKEN='replace-me' make serve
 ├── client/                  C++17 VM、C ABI、三端 Host 与模块仓库
 │   ├── include/pvm/         公共 C/C++ 接口
 │   ├── src/                 验证器、解释器、桌面 Host
-│   ├── platform/            Android（Library/Demo）、iOS、HarmonyOS、Kuikly
+│   ├── platform/            Android（Library/Demo）、iOS（SDK/Demo）、HarmonyOS、Kuikly
 │   ├── tests/               C ABI 与 libFuzzer 入口
 │   └── tools/               桌面 Provisioner
 ├── server/                  DSL 编译、签名、发布与模块服务
@@ -246,11 +272,12 @@ PVM Runtime 提高静态分析、篡改和错误交付的成本，但不承诺�
 
 仓库内的编译、签名、发布、缓存、VM、三端桥接和自动化门禁已经形成闭环；Android
 已经具备可分发 AAR/Maven、可安装 APK/AAB 和单台物理设备证据；iOS 已具备 Swift
-Package、统一 Host、Privacy Manifest 和可重复生成的静态 XCFramework 基线。进入
-真实产品前仍需要使用目标 App、账号和 SDK 完成：
+Package、统一 Host、Privacy Manifest、可重复生成的静态 XCFramework，以及可运行
+Simulator Demo。进入真实产品前仍需要使用目标 App、账号和 SDK 完成：
 
 - 正式 KMS/HSM、密钥轮换和审计接入。
-- iOS 示例 App、真机、archive/codesign 与审核证据；HarmonyOS DevEco HAR/HAP 和真机。
+- iOS 真机、archive/Apple Distribution codesign 与审核证据；HarmonyOS DevEco
+  HAR/HAP 和真机。
 - KMP/CMP 的真实构建模块与发布产物；Kuikly 仅在产品确有需要时锁定版本并实现 Adapter。
 - 支付、地图、相机、媒体、推送等实际 Capability Adapter。
 - 应用商店审核、支付沙箱、持续长时 fuzz、红队和性能 SLO。
