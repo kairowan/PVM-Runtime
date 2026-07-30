@@ -11,6 +11,7 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFontDatabase>
+#include <QFrame>
 #include <QGroupBox>
 #include <QHash>
 #include <QHBoxLayout>
@@ -174,8 +175,8 @@ MigrationStudioWindow::MigrationStudioWindow(QWidget *parent)
     : QMainWindow(parent), repoRoot_(discoverRepoRoot()) {
   buildUi();
   setWindowTitle(QStringLiteral("PVM Migration Studio"));
-  resize(1380, 760);
-  setMinimumSize(1100, 680);
+  resize(1360, 820);
+  setMinimumSize(1080, 720);
 }
 
 MigrationStudioWindow::~MigrationStudioWindow() {
@@ -188,61 +189,90 @@ MigrationStudioWindow::~MigrationStudioWindow() {
 void MigrationStudioWindow::buildUi() {
   auto *central = new QWidget(this);
   auto *layout = new QVBoxLayout(central);
-  layout->setContentsMargins(20, 18, 20, 18);
-  layout->setSpacing(14);
+  layout->setContentsMargins(24, 20, 24, 20);
+  layout->setSpacing(12);
 
-  auto *title = new QLabel(QStringLiteral("PVM Migration Studio"), central);
+  auto *header = new QFrame(central);
+  header->setObjectName(QStringLiteral("headerCard"));
+  auto *headerLayout = new QHBoxLayout(header);
+  headerLayout->setContentsMargins(18, 14, 18, 14);
+  headerLayout->setSpacing(14);
+  auto *badge = new QLabel(QStringLiteral("PVM"), header);
+  badge->setObjectName(QStringLiteral("brandBadge"));
+  auto *heading = new QVBoxLayout;
+  heading->setSpacing(2);
+  auto *title = new QLabel(QStringLiteral("Migration Studio"), header);
   title->setObjectName(QStringLiteral("title"));
   auto *subtitle = new QLabel(
-      QStringLiteral("选择性迁移、审批与 C++17 VM 严格验证 / Selective migration, "
-                     "review and strict verification"),
-      central);
+      QStringLiteral("选择性迁移 · 审批 · C++17 VM 严格验证"), header);
   subtitle->setObjectName(QStringLiteral("subtitle"));
-  layout->addWidget(title);
-  layout->addWidget(subtitle);
+  heading->addWidget(title);
+  heading->addWidget(subtitle);
+  auto *version = new QLabel(QStringLiteral("RUNTIME 5  ·  PVBC V5"), header);
+  version->setObjectName(QStringLiteral("versionBadge"));
+  headerLayout->addWidget(badge);
+  headerLayout->addLayout(heading, 1);
+  headerLayout->addWidget(version);
+  layout->addWidget(header);
 
   tabs_ = new QTabWidget(central);
-  tabs_->addTab(buildMigrationTab(), QStringLiteral("迁移 / Migrate"));
-  tabs_->addTab(buildReviewTab(), QStringLiteral("复核 / Review"));
-  tabs_->addTab(buildLogTab(), QStringLiteral("日志 / Logs"));
+  tabs_->setDocumentMode(false);
+  tabs_->addTab(buildMigrationTab(), QStringLiteral("迁移"));
+  tabs_->addTab(buildReviewTab(), QStringLiteral("复核"));
+  tabs_->addTab(buildLogTab(), QStringLiteral("日志"));
   layout->addWidget(tabs_, 1);
   setCentralWidget(central);
 
   setStyleSheet(QStringLiteral(R"(
-    QMainWindow, QWidget { background: #ffffff; color: #111827; }
-    QLabel#title { font-size: 26px; font-weight: 700; color: #101828; }
-    QLabel#subtitle { color: #475467; margin-bottom: 4px; }
-    QLabel#fieldLabel { color: #344054; font-weight: 600; }
-    QTabWidget::pane { border: 1px solid #d0d5dd; border-radius: 10px; background: #ffffff; }
-    QTabBar::tab { background: #f8fafc; color: #475467; padding: 10px 18px;
-                   border: 1px solid transparent; }
-    QTabBar::tab:selected { background: #ffffff; color: #101828;
-                            border-bottom: 2px solid #168c9b; }
-    QGroupBox { background: #ffffff; border: 1px solid #d0d5dd; border-radius: 8px;
-                margin-top: 12px; padding-top: 12px; font-weight: 600; }
-    QGroupBox::title { subcontrol-origin: margin; left: 12px; padding: 0 6px;
-                       color: #344054; background: #ffffff; }
+    QMainWindow, QWidget { background: #f5f7fa; color: #101828; }
+    QLabel, QCheckBox { background: transparent; }
+    QFrame#headerCard { background: #ffffff; border: 1px solid #eaecf0;
+                        border-radius: 14px; }
+    QLabel#brandBadge { background: #101828; color: #ffffff; border-radius: 9px;
+                        padding: 9px 11px; font-size: 14px; font-weight: 800; }
+    QLabel#title { font-size: 23px; font-weight: 750; color: #101828; }
+    QLabel#subtitle { color: #667085; }
+    QLabel#versionBadge { background: #ecfdf3; color: #067647; border-radius: 10px;
+                          padding: 6px 10px; font-size: 11px; font-weight: 700; }
+    QLabel#fieldLabel { color: #344054; font-size: 12px; font-weight: 650; }
+    QLabel#statusLabel { color: #475467; font-weight: 600; }
+    QTabWidget::pane { border: 0; background: transparent; top: 2px; }
+    QTabBar { background: #ffffff; border: 1px solid #eaecf0;
+              border-radius: 10px; }
+    QTabBar::tab { background: transparent; color: #667085; padding: 9px 22px;
+                   margin: 0 2px; border-radius: 8px; font-weight: 650; }
+    QTabBar::tab:hover { background: #eaecf0; color: #344054; }
+    QTabBar::tab:selected { background: #e2f4f6; color: #0e606a; }
+    QGroupBox { background: #ffffff; border: 1px solid #eaecf0; border-radius: 12px;
+                margin-top: 0; padding: 38px 16px 14px 16px; font-weight: 600; }
+    QGroupBox::title { subcontrol-origin: border; subcontrol-position: top left;
+                       left: 16px; top: 13px; padding: 0; color: #101828;
+                       background: transparent; font-size: 13px; font-weight: 750; }
     QLineEdit, QPlainTextEdit, QComboBox, QSpinBox {
-      background: #ffffff; color: #111827; border: 1px solid #98a2b3;
-      border-radius: 6px; padding: 7px; selection-background-color: #b8e5eb;
-      selection-color: #111827;
+      background: #f9fafb; color: #101828; border: 1px solid #d0d5dd;
+      border-radius: 8px; padding: 7px 10px; selection-background-color: #b8e5eb;
+      selection-color: #101828; min-height: 20px;
     }
     QLineEdit:focus, QPlainTextEdit:focus, QComboBox:focus, QSpinBox:focus {
-      border: 2px solid #168c9b;
+      background: #ffffff; border: 1px solid #168c9b;
     }
     QComboBox QAbstractItemView { background: #ffffff; color: #111827;
                                   selection-background-color: #e2f4f6; }
-    QPushButton { background: #f2f4f7; color: #111827; border: 1px solid #98a2b3;
-                  border-radius: 6px; padding: 8px 13px; }
-    QPushButton:hover { background: #e4e7ec; }
-    QPushButton:disabled { color: #98a2b3; background: #f9fafb; border-color: #d0d5dd; }
-    QPushButton#primary { background: #dff3f5; border-color: #168c9b; font-weight: 700; }
-    QPushButton#primary:hover { background: #c8e9ed; }
-    QPushButton#danger { background: #fff1f3; border-color: #fda4af; }
-    QProgressBar { background: #ffffff; color: #111827; border: 1px solid #98a2b3;
-                   border-radius: 6px; text-align: center; min-height: 20px; }
-    QProgressBar::chunk { background: #9ddde4; border-radius: 5px; }
-    QScrollArea { border: 0; background: #ffffff; }
+    QPushButton { background: #ffffff; color: #344054; border: 1px solid #d0d5dd;
+                  border-radius: 8px; padding: 8px 14px; font-weight: 650; }
+    QPushButton:hover { background: #f9fafb; border-color: #98a2b3; }
+    QPushButton:disabled { color: #98a2b3; background: #f9fafb; border-color: #eaecf0; }
+    QPushButton#primary { background: #168c9b; color: #ffffff; border-color: #168c9b;
+                          font-weight: 750; }
+    QPushButton#primary:hover { background: #117681; }
+    QPushButton#danger { background: #ffffff; color: #b42318; border-color: #fda29b; }
+    QFrame#actionCard { background: #ffffff; border: 1px solid #eaecf0;
+                        border-radius: 12px; }
+    QProgressBar { background: #f2f4f7; color: #344054; border: 0;
+                   border-radius: 4px; text-align: center; min-height: 8px;
+                   max-height: 8px; }
+    QProgressBar::chunk { background: #168c9b; border-radius: 4px; }
+    QScrollArea { border: 0; background: transparent; }
   )"));
 }
 
@@ -267,12 +297,14 @@ QWidget *MigrationStudioWindow::buildMigrationTab() {
 
   auto *scroll = new QScrollArea(page);
   scroll->setWidgetResizable(true);
+  scroll->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
   auto *content = new QWidget(scroll);
+  content->setMaximumWidth(1420);
   auto *layout = new QVBoxLayout(content);
-  layout->setContentsMargins(18, 16, 18, 16);
-  layout->setSpacing(14);
+  layout->setContentsMargins(6, 8, 6, 12);
+  layout->setSpacing(10);
 
-  auto *paths = new QGroupBox(QStringLiteral("项目路径 / Project paths"), content);
+  auto *paths = new QGroupBox(QStringLiteral("01  项目路径"), content);
   auto *pathsRow = new QHBoxLayout(paths);
   pathsRow->setSpacing(14);
   sourceEdit_ = new QLineEdit(paths);
@@ -284,44 +316,44 @@ QWidget *MigrationStudioWindow::buildMigrationTab() {
       QStandardPaths::findExecutable(QStringLiteral("python3")), paths);
   addLabeledField(
       pathsRow, paths,
-      QStringLiteral("老项目 / Source"),
-      pathField(sourceEdit_, QStringLiteral("选择… / Browse"), [this] {
+      QStringLiteral("源码目录"),
+      pathField(sourceEdit_, QStringLiteral("浏览…"), [this] {
         chooseSource();
       }),
       2);
   addLabeledField(
       pathsRow, paths,
-      QStringLiteral("输出目录 / Output"),
-      pathField(outputEdit_, QStringLiteral("选择… / Browse"), [this] {
+      QStringLiteral("输出目录"),
+      pathField(outputEdit_, QStringLiteral("浏览…"), [this] {
         chooseOutput();
       }),
       2);
   addLabeledField(
       pathsRow, paths,
       QStringLiteral("Python"),
-      pathField(pythonEdit_, QStringLiteral("选择… / Browse"), [this] {
+      pathField(pythonEdit_, QStringLiteral("浏览…"), [this] {
         chooseFile(pythonEdit_, QStringLiteral("选择 Python / Select Python"));
       }));
   layout->addWidget(paths);
 
   auto *selection =
-      new QGroupBox(QStringLiteral("选择范围 / Selection"), content);
+      new QGroupBox(QStringLiteral("02  迁移范围"), content);
   auto *selectionLayout = new QHBoxLayout(selection);
   classesEdit_ = new QPlainTextEdit(selection);
   classesEdit_->setPlaceholderText(
       QStringLiteral("每行一个类 / One class per line\nCheckoutViewModel"));
-  classesEdit_->setFixedHeight(88);
+  classesEdit_->setFixedHeight(74);
   modulesEdit_ = new QPlainTextEdit(selection);
   modulesEdit_->setPlaceholderText(
       QStringLiteral("每行一个模块 / One module per line\n:app:checkout"));
-  modulesEdit_->setFixedHeight(88);
+  modulesEdit_->setFixedHeight(74);
   auto *classColumn = new QVBoxLayout;
-  auto *classLabel = new QLabel(QStringLiteral("类 / Classes"), selection);
+  auto *classLabel = new QLabel(QStringLiteral("类"), selection);
   classLabel->setObjectName(QStringLiteral("fieldLabel"));
   classColumn->addWidget(classLabel);
   classColumn->addWidget(classesEdit_);
   auto *moduleColumn = new QVBoxLayout;
-  auto *moduleLabel = new QLabel(QStringLiteral("模块 / Modules"), selection);
+  auto *moduleLabel = new QLabel(QStringLiteral("模块"), selection);
   moduleLabel->setObjectName(QStringLiteral("fieldLabel"));
   moduleColumn->addWidget(moduleLabel);
   moduleColumn->addWidget(modulesEdit_);
@@ -329,9 +361,9 @@ QWidget *MigrationStudioWindow::buildMigrationTab() {
   selectionLayout->addLayout(moduleColumn, 1);
   auto *optionsColumn = new QVBoxLayout;
   dependenciesCheck_ =
-      new QCheckBox(QStringLiteral("包含唯一依赖\nInclude dependencies"), selection);
+      new QCheckBox(QStringLiteral("包含本地唯一依赖"), selection);
   forceCheck_ =
-      new QCheckBox(QStringLiteral("替换已生成文件\nReplace generated files"), selection);
+      new QCheckBox(QStringLiteral("覆盖已生成文件"), selection);
   optionsColumn->addWidget(dependenciesCheck_);
   optionsColumn->addWidget(forceCheck_);
   optionsColumn->addStretch();
@@ -339,7 +371,7 @@ QWidget *MigrationStudioWindow::buildMigrationTab() {
   layout->addWidget(selection);
 
   auto *binding =
-      new QGroupBox(QStringLiteral("模块绑定 / Module binding"), content);
+      new QGroupBox(QStringLiteral("03  模块绑定"), content);
   auto *bindingRow = new QHBoxLayout(binding);
   bindingRow->setSpacing(12);
   applicationIdEdit_ =
@@ -359,20 +391,20 @@ QWidget *MigrationStudioWindow::buildMigrationTab() {
   releaseSpin_ = new QSpinBox(binding);
   releaseSpin_->setRange(1, 2147483647);
   releaseSpin_->setValue(1);
-  addLabeledField(bindingRow, binding, QStringLiteral("Application ID"),
+  addLabeledField(bindingRow, binding, QStringLiteral("应用 ID"),
                   applicationIdEdit_, 2);
-  addLabeledField(bindingRow, binding, QStringLiteral("Module ID"),
+  addLabeledField(bindingRow, binding, QStringLiteral("模块 ID"),
                   moduleIdEdit_, 2);
-  addLabeledField(bindingRow, binding, QStringLiteral("Channel"), channelEdit_);
-  addLabeledField(bindingRow, binding, QStringLiteral("Platform"),
+  addLabeledField(bindingRow, binding, QStringLiteral("渠道"), channelEdit_);
+  addLabeledField(bindingRow, binding, QStringLiteral("平台"),
                   platformCombo_);
-  addLabeledField(bindingRow, binding, QStringLiteral("Profile"), profileCombo_,
+  addLabeledField(bindingRow, binding, QStringLiteral("交付 Profile"), profileCombo_,
                   2);
-  addLabeledField(bindingRow, binding, QStringLiteral("Release"), releaseSpin_);
+  addLabeledField(bindingRow, binding, QStringLiteral("版本"), releaseSpin_);
   layout->addWidget(binding);
 
   auto *strict =
-      new QGroupBox(QStringLiteral("严格验证 / Strict verification"), content);
+      new QGroupBox(QStringLiteral("04  严格验证"), content);
   auto *strictRow = new QHBoxLayout(strict);
   strictRow->setSpacing(14);
   const QString bundledRuntime =
@@ -394,36 +426,41 @@ QWidget *MigrationStudioWindow::buildMigrationTab() {
   addLabeledField(
       strictRow, strict,
       QStringLiteral("C++17 Runtime"),
-      pathField(runtimeEdit_, QStringLiteral("选择… / Browse"), [this] {
+      pathField(runtimeEdit_, QStringLiteral("浏览…"), [this] {
         chooseFile(runtimeEdit_, QStringLiteral("选择 pvm_cli / Select pvm_cli"));
       }));
   addLabeledField(
       strictRow, strict,
-      QStringLiteral("Private key"),
-      pathField(privateKeyEdit_, QStringLiteral("选择… / Browse"), [this] {
+      QStringLiteral("私钥"),
+      pathField(privateKeyEdit_, QStringLiteral("浏览…"), [this] {
         chooseFile(privateKeyEdit_, QStringLiteral("选择私钥 / Select private key"));
       }));
   addLabeledField(
       strictRow, strict,
-      QStringLiteral("Public key"),
-      pathField(publicKeyEdit_, QStringLiteral("选择… / Browse"), [this] {
+      QStringLiteral("公钥"),
+      pathField(publicKeyEdit_, QStringLiteral("浏览…"), [this] {
         chooseFile(publicKeyEdit_, QStringLiteral("选择公钥 / Select public key"));
       }));
   layout->addWidget(strict);
 
+  auto *actionCard = new QFrame(content);
+  actionCard->setObjectName(QStringLiteral("actionCard"));
+  auto *actionCardLayout = new QVBoxLayout(actionCard);
+  actionCardLayout->setContentsMargins(14, 12, 14, 12);
+  actionCardLayout->setSpacing(10);
   auto *actions = new QHBoxLayout;
-  scanButton_ = new QPushButton(QStringLiteral("1. 扫描 / Scan"), content);
-  convertButton_ = new QPushButton(QStringLiteral("2. 生成 / Convert"), content);
+  scanButton_ = new QPushButton(QStringLiteral("扫描"), actionCard);
+  convertButton_ = new QPushButton(QStringLiteral("生成迁移骨架"), actionCard);
   convertButton_->setObjectName(QStringLiteral("primary"));
   structuralButton_ =
-      new QPushButton(QStringLiteral("3. 结构验证 / Verify"), content);
+      new QPushButton(QStringLiteral("结构验证"), actionCard);
   strictButton_ =
-      new QPushButton(QStringLiteral("4. 严格验证 / Strict"), content);
-  cancelButton_ = new QPushButton(QStringLiteral("取消 / Cancel"), content);
+      new QPushButton(QStringLiteral("严格验证"), actionCard);
+  cancelButton_ = new QPushButton(QStringLiteral("取消"), actionCard);
   cancelButton_->setObjectName(QStringLiteral("danger"));
   cancelButton_->setEnabled(false);
   auto *openButton =
-      new QPushButton(QStringLiteral("打开输出 / Open output"), content);
+      new QPushButton(QStringLiteral("打开输出目录"), actionCard);
   actions->addWidget(scanButton_);
   actions->addWidget(convertButton_);
   actions->addWidget(structuralButton_);
@@ -431,15 +468,19 @@ QWidget *MigrationStudioWindow::buildMigrationTab() {
   actions->addStretch();
   actions->addWidget(cancelButton_);
   actions->addWidget(openButton);
-  layout->addLayout(actions);
+  actionCardLayout->addLayout(actions);
 
-  progress_ = new QProgressBar(content);
+  auto *progressRow = new QHBoxLayout;
+  statusLabel_ = new QLabel(QStringLiteral("就绪"), actionCard);
+  statusLabel_->setObjectName(QStringLiteral("statusLabel"));
+  progress_ = new QProgressBar(actionCard);
   progress_->setRange(0, 100);
   progress_->setValue(0);
-  progress_->setFormat(QStringLiteral("%p%"));
-  statusLabel_ = new QLabel(QStringLiteral("就绪 / Ready"), content);
-  layout->addWidget(progress_);
-  layout->addWidget(statusLabel_);
+  progress_->setTextVisible(false);
+  progressRow->addWidget(statusLabel_);
+  progressRow->addWidget(progress_, 1);
+  actionCardLayout->addLayout(progressRow);
+  layout->addWidget(actionCard);
   layout->addStretch();
 
   connect(scanButton_, &QPushButton::clicked, this,
@@ -463,16 +504,15 @@ QWidget *MigrationStudioWindow::buildMigrationTab() {
 QWidget *MigrationStudioWindow::buildReviewTab() {
   auto *page = new QWidget;
   auto *layout = new QVBoxLayout(page);
-  layout->setContentsMargins(18, 16, 18, 16);
-  layout->setSpacing(10);
+  layout->setContentsMargins(12, 12, 12, 12);
+  layout->setSpacing(12);
 
   auto *help = new QLabel(
-      QStringLiteral("直接编辑迁移审批、Capability、行为用例和 DSL。保存时会先校验 JSON；"
-                     "module.pvm.json 还会通过 DSL 编译与 Host IDL 校验。\n"
-                     "Edit review decisions, behavior cases and DSL directly. JSON is "
-                     "validated before saving; DSL also passes compiler and Host IDL checks."),
+      QStringLiteral("复核迁移审批、Capability、行为用例和 DSL。JSON 保存前会校验，"
+                     "DSL 还会经过编译器与 Host IDL 检查。"),
       page);
   help->setWordWrap(true);
+  help->setObjectName(QStringLiteral("statusLabel"));
   layout->addWidget(help);
 
   auto *toolbar = new QHBoxLayout;
@@ -484,8 +524,8 @@ QWidget *MigrationStudioWindow::buildReviewTab() {
        QStringLiteral("module.pvm.json"),
        QStringLiteral("migration-report.json"),
        QStringLiteral("verification.json")});
-  auto *reload = new QPushButton(QStringLiteral("重新载入 / Reload"), page);
-  reviewSaveButton_ = new QPushButton(QStringLiteral("保存 / Save"), page);
+  auto *reload = new QPushButton(QStringLiteral("重新载入"), page);
+  reviewSaveButton_ = new QPushButton(QStringLiteral("保存修改"), page);
   reviewSaveButton_->setObjectName(QStringLiteral("primary"));
   toolbar->addWidget(reviewFileCombo_, 1);
   toolbar->addWidget(reload);
@@ -496,7 +536,7 @@ QWidget *MigrationStudioWindow::buildReviewTab() {
   reviewEditor_->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
   reviewEditor_->setLineWrapMode(QPlainTextEdit::NoWrap);
   layout->addWidget(reviewEditor_, 1);
-  reviewStatus_ = new QLabel(QStringLiteral("尚未载入 / Not loaded"), page);
+  reviewStatus_ = new QLabel(QStringLiteral("尚未载入"), page);
   layout->addWidget(reviewStatus_);
 
   connect(reviewFileCombo_, &QComboBox::currentTextChanged, this,
@@ -510,13 +550,13 @@ QWidget *MigrationStudioWindow::buildReviewTab() {
 QWidget *MigrationStudioWindow::buildLogTab() {
   auto *page = new QWidget;
   auto *layout = new QVBoxLayout(page);
-  layout->setContentsMargins(18, 16, 18, 16);
-  layout->setSpacing(10);
+  layout->setContentsMargins(12, 12, 12, 12);
+  layout->setSpacing(12);
 
   auto *toolbar = new QHBoxLayout;
-  auto *clear = new QPushButton(QStringLiteral("清空 / Clear"), page);
-  auto *copy = new QPushButton(QStringLiteral("复制 / Copy"), page);
-  auto *exportButton = new QPushButton(QStringLiteral("导出 / Export"), page);
+  auto *clear = new QPushButton(QStringLiteral("清空"), page);
+  auto *copy = new QPushButton(QStringLiteral("复制"), page);
+  auto *exportButton = new QPushButton(QStringLiteral("导出日志"), page);
   toolbar->addStretch();
   toolbar->addWidget(clear);
   toolbar->addWidget(copy);
