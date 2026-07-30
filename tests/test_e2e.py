@@ -231,6 +231,19 @@ class CounterState {
         compile_file(self.source, None, remote, signer_command=command)
         self.assertEqual(remote.read_bytes(), self.module.read_bytes())
 
+    def test_packaged_runtime_signer_protocol(self):
+        packaged = self.directory / "packaged-signed.pvm"
+        previous = os.environ.get("PVM_SIGNER")
+        os.environ["PVM_SIGNER"] = str(self.runtime)
+        try:
+            compile_file(self.source, self.private_key, packaged)
+        finally:
+            if previous is None:
+                os.environ.pop("PVM_SIGNER", None)
+            else:
+                os.environ["PVM_SIGNER"] = previous
+        self.assertEqual(packaged.read_bytes(), self.module.read_bytes())
+
     def test_c_abi_callbacks_effects_and_snapshot(self):
         completed = subprocess.run(
             [

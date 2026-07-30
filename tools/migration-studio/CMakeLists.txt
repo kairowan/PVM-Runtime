@@ -9,6 +9,18 @@ find_package(Qt6 6.12 REQUIRED COMPONENTS Widgets)
 qt_standard_project_setup()
 
 get_filename_component(PVM_REPO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
+set(PVM_STUDIO_BACKEND_DIR "" CACHE PATH
+    "Optional PyInstaller onedir package for the migration backend")
+set(PVM_STUDIO_THIRD_PARTY_LICENSE_DIR "" CACHE PATH
+    "Optional directory containing bundled runtime license notices")
+if(WIN32)
+    set(PVM_RUNTIME_CLI_DEFAULT
+        "${PVM_REPO_ROOT}/build/client/Release/pvm_cli.exe")
+else()
+    set(PVM_RUNTIME_CLI_DEFAULT "${PVM_REPO_ROOT}/build/client/pvm_cli")
+endif()
+set(PVM_RUNTIME_CLI "${PVM_RUNTIME_CLI_DEFAULT}" CACHE FILEPATH
+    "pvm_cli executable bundled with Migration Studio")
 
 qt_add_executable(PVMMigrationStudio
     MACOSX_BUNDLE
@@ -35,32 +47,43 @@ set_target_properties(PVMMigrationStudio PROPERTIES
 enable_testing()
 add_test(NAME migration-studio-self-test COMMAND PVMMigrationStudio --self-test)
 
-install(TARGETS PVMMigrationStudio
-    BUNDLE DESTINATION .
-    RUNTIME DESTINATION bin
-)
-
 if(APPLE)
     set(PVM_STUDIO_RESOURCES "PVMMigrationStudio.app/Contents/Resources")
-    install(
-        DIRECTORY "${PVM_REPO_ROOT}/server/src/pvm_server"
-        DESTINATION "${PVM_STUDIO_RESOURCES}/python"
-        FILES_MATCHING
-        PATTERN "*.py"
-        PATTERN "__pycache__" EXCLUDE
-    )
-    install(
-        DIRECTORY "${PVM_REPO_ROOT}/spec/"
-        DESTINATION "PVMMigrationStudio.app/Contents/spec"
-        FILES_MATCHING PATTERN "*.json"
-    )
-    install(
-        PROGRAMS "${PVM_REPO_ROOT}/build/client/pvm_cli"
+    set(PVM_STUDIO_SPEC_DESTINATION "PVMMigrationStudio.app/Contents/spec")
+    install(TARGETS PVMMigrationStudio BUNDLE DESTINATION .)
+else()
+    set(PVM_STUDIO_RESOURCES ".")
+    set(PVM_STUDIO_SPEC_DESTINATION "spec")
+    install(TARGETS PVMMigrationStudio RUNTIME DESTINATION .)
+endif()
+
+install(
+    DIRECTORY "${PVM_REPO_ROOT}/server/src/pvm_server"
+    DESTINATION "${PVM_STUDIO_RESOURCES}/python"
+    FILES_MATCHING
+    PATTERN "*.py"
+    PATTERN "__pycache__" EXCLUDE
+)
+install(
+    DIRECTORY "${PVM_REPO_ROOT}/spec/"
+    DESTINATION "${PVM_STUDIO_SPEC_DESTINATION}"
+    FILES_MATCHING PATTERN "*.json"
+)
+install(PROGRAMS "${PVM_RUNTIME_CLI}"
+    DESTINATION "${PVM_STUDIO_RESOURCES}/bin")
+if(PVM_STUDIO_BACKEND_DIR)
+    install(DIRECTORY "${PVM_STUDIO_BACKEND_DIR}/"
         DESTINATION "${PVM_STUDIO_RESOURCES}/bin"
-    )
+        USE_SOURCE_PERMISSIONS)
+endif()
+install(
+    DIRECTORY "${PVM_REPO_ROOT}/third_party/qt/licenses/"
+    DESTINATION "${PVM_STUDIO_RESOURCES}/licenses/qt"
+)
+if(PVM_STUDIO_THIRD_PARTY_LICENSE_DIR)
     install(
-        DIRECTORY "${PVM_REPO_ROOT}/third_party/qt/licenses/"
-        DESTINATION "${PVM_STUDIO_RESOURCES}/licenses/qt"
+        DIRECTORY "${PVM_STUDIO_THIRD_PARTY_LICENSE_DIR}/"
+        DESTINATION "${PVM_STUDIO_RESOURCES}/licenses/runtime"
     )
 endif()
 

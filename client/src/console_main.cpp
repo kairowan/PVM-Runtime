@@ -1,11 +1,24 @@
 #include "pvm/runtime.hpp"
 
+#include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <iterator>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
+
+#if defined(_WIN32)
+#include <fcntl.h>
+#include <io.h>
+#endif
+
+#if PVM_USE_OPENSSL
+#include <openssl/evp.h>
+#include <openssl/pem.h>
+#endif
 
 namespace {
 
@@ -19,8 +32,10 @@ struct Options {
   std::string state_file;
   std::string verify_payload;
   std::string verify_signature;
+  std::string private_key;
   std::uint64_t minimum_release{0};
   std::optional<std::size_t> tap_index;
+  bool sign_stdin{false};
   bool validate_only{false};
 };
 
@@ -30,7 +45,8 @@ void usage(const char* program) {
                " [--channel CHANNEL] [--platform PLATFORM] [--profile PROFILE]"
                " [--state-file FILE] [--tap-index N] [--validate-only]\n"
             << "       " << program
-            << " --verify-payload FILE --verify-signature FILE --public-key FILE\n";
+            << " --verify-payload FILE --verify-signature FILE --public-key FILE\n"
+            << "       " << program << " --sign-stdin --private-key FILE\n";
 }
 
 Options parse_options(int argc, char** argv) {
@@ -63,6 +79,10 @@ Options parse_options(int argc, char** argv) {
       options.verify_payload = value();
     } else if (argument == "--verify-signature") {
       options.verify_signature = value();
+    } else if (argument == "--private-key") {
+      options.private_key = value();
+    } else if (argument == "--sign-stdin") {
+      options.sign_stdin = true;
     } else if (argument == "--tap-index") {
       options.tap_index = std::stoull(value());
     } else if (argument == "--validate-only") {
@@ -73,6 +93,19 @@ Options parse_options(int argc, char** argv) {
     } else {
       throw pvm::RuntimeError("unknown argument: " + argument);
     }
+  }
+  if (options.sign_stdin) {
+    if (options.private_key.empty()) {
+      throw pvm::RuntimeError("--sign-stdin requires --private-key");
+    }
+    if (!options.module.empty() || !options.public_key.empty() ||
+        !options.application_id.empty() || !options.state_file.empty() ||
+        !options.verify_payload.empty() || !options.verify_signature.empty() ||
+        options.tap_index.has_value() || options.validate_only) {
+      throw pvm::RuntimeError(
+          "--sign-stdin cannot be combined with runtime or verification options");
+    }
+    return options;
   }
   if (options.public_key.empty()) {
     throw pvm::RuntimeError("--public-key is required");
@@ -85,6 +118,57 @@ Options parse_options(int argc, char** argv) {
     throw pvm::RuntimeError("--module, --public-key, and --app-id are required");
   }
   return options;
+}
+
+void sign_stdin(const std::string& private_key_path) {
+#if PVM_USE_OPENSSL
+#if defined(_WIN32)
+  if (_setmode(_fileno(stdin), _O_BINARY) == -1 ||
+      _setmode(_fileno(stdout), _O_BINARY) == -1) {
+    throw pvm::RuntimeError("cannot switch signer input/output to binary mode");
+  }
+#endif
+  const std::string payload((std::istreambuf_iterator<char>(std::cin)),
+                            std::istreambuf_iterator<char>());
+  if (payload.empty() || payload.size() > 16 * 1024 * 1024) {
+    throw pvm::RuntimeError("signing payload is empty or exceeds 16 MiB");
+  }
+  FILE* file = std::fopen(private_key_path.c_str(), "rb");
+  if (file == nullptr) {
+    throw pvm::RuntimeError("cannot open private key: " + private_key_path);
+  }
+  EVP_PKEY* raw_key = PEM_read_PrivateKey(file, nullptr, nullptr, nullptr);
+  std::fclose(file);
+  if (raw_key == nullptr) {
+    throw pvm::RuntimeError("cannot parse private key");
+  }
+  std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)> key(raw_key,
+                                                          EVP_PKEY_free);
+  if (EVP_PKEY_base_id(key.get()) != EVP_PKEY_ED25519) {
+    throw pvm::RuntimeError("private key is not Ed25519");
+  }
+  EVP_MD_CTX* raw_context = EVP_MD_CTX_new();
+  if (raw_context == nullptr) {
+    throw pvm::RuntimeError("cannot allocate signature context");
+  }
+  std::unique_ptr<EVP_MD_CTX, decltype(&EVP_MD_CTX_free)> context(
+      raw_context, EVP_MD_CTX_free);
+  std::size_t signature_size = 64;
+  std::vector<std::uint8_t> signature(signature_size);
+  if (EVP_DigestSignInit(context.get(), nullptr, nullptr, nullptr, key.get()) !=
+          1 ||
+      EVP_DigestSign(context.get(), signature.data(), &signature_size,
+                     reinterpret_cast<const unsigned char*>(payload.data()),
+                     payload.size()) != 1 ||
+      signature_size != signature.size()) {
+    throw pvm::RuntimeError("Ed25519 signing failed");
+  }
+  std::cout.write(reinterpret_cast<const char*>(signature.data()),
+                  static_cast<std::streamsize>(signature.size()));
+#else
+  static_cast<void>(private_key_path);
+  throw pvm::RuntimeError("signing requires an OpenSSL-enabled build");
+#endif
 }
 
 class ConsoleHost final : public pvm::UiHost, public pvm::CapabilityHost {
@@ -180,6 +264,10 @@ void write_state(const std::string& path, const std::vector<std::uint8_t>& state
 int main(int argc, char** argv) {
   try {
     const auto options = parse_options(argc, argv);
+    if (options.sign_stdin) {
+      sign_stdin(options.private_key);
+      return 0;
+    }
     if (!options.verify_payload.empty()) {
       const auto payload = read_state(options.verify_payload);
       const auto signature = read_state(options.verify_signature);

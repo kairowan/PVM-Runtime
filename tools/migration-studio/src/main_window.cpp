@@ -48,16 +48,47 @@ QString cleanAbsolutePath(const QString &value) {
   return QFileInfo(QDir::cleanPath(value.trimmed())).absoluteFilePath();
 }
 
+QString bundledResourceRoot() {
+#if defined(Q_OS_MACOS)
+  return QDir(QCoreApplication::applicationDirPath())
+      .absoluteFilePath(QStringLiteral("../Resources"));
+#else
+  return QCoreApplication::applicationDirPath();
+#endif
+}
+
+QString bundledExecutable(const QString &name) {
+#if defined(Q_OS_WIN)
+  return QDir(bundledResourceRoot())
+      .filePath(QStringLiteral("bin/") + name + QStringLiteral(".exe"));
+#else
+  return QDir(bundledResourceRoot()).filePath(QStringLiteral("bin/") + name);
+#endif
+}
+
+QString bundledSpec(const QString &name) {
+#if defined(Q_OS_MACOS)
+  return QDir(QCoreApplication::applicationDirPath())
+      .filePath(QStringLiteral("../spec/") + name);
+#else
+  return QDir(bundledResourceRoot()).filePath(QStringLiteral("spec/") + name);
+#endif
+}
+
+bool isRepoCheckout(const QString &path) {
+  return QFileInfo(QDir(path).filePath(
+                       QStringLiteral("server/src/pvm_server/migrate.py")))
+             .isFile() &&
+         QFileInfo(QDir(path).filePath(QStringLiteral("spec/host_idl.json")))
+             .isFile();
+}
+
 QString discoverRepoRoot() {
   for (const QString &start :
        {QCoreApplication::applicationDirPath(), QDir::currentPath()}) {
     QDir directory(start);
     do {
-      if (QFileInfo(directory.filePath(
-                        QStringLiteral("server/src/pvm_server/migrate.py")))
-              .isFile() &&
-          QFileInfo(directory.filePath(QStringLiteral("spec/host_idl.json")))
-              .isFile()) {
+      if (isRepoCheckout(directory.absolutePath())) {
         return directory.absolutePath();
       }
     } while (directory.cdUp());
@@ -309,11 +340,22 @@ QWidget *MigrationStudioWindow::buildMigrationTab() {
   pathsRow->setSpacing(14);
   sourceEdit_ = new QLineEdit(paths);
   sourceEdit_->setPlaceholderText(QStringLiteral("/path/to/legacy-project"));
+  const QString defaultOutput =
+      isRepoCheckout(repoRoot_)
+          ? QDir(repoRoot_).filePath(
+                QStringLiteral("build/migration-studio-output"))
+          : QDir(QStandardPaths::writableLocation(
+                     QStandardPaths::DocumentsLocation))
+                .filePath(QStringLiteral("PVM Migration Studio"));
   outputEdit_ = new QLineEdit(
-      QDir(repoRoot_).filePath(QStringLiteral("build/migration-studio-output")),
-      paths);
+      defaultOutput, paths);
+  const QString packagedBackend =
+      bundledExecutable(QStringLiteral("pvm_migration_backend"));
   pythonEdit_ = new QLineEdit(
-      QStandardPaths::findExecutable(QStringLiteral("python3")), paths);
+      QFileInfo(packagedBackend).isExecutable()
+          ? packagedBackend
+          : QStandardPaths::findExecutable(QStringLiteral("python3")),
+      paths);
   addLabeledField(
       pathsRow, paths,
       QStringLiteral("源码目录"),
@@ -330,9 +372,10 @@ QWidget *MigrationStudioWindow::buildMigrationTab() {
       2);
   addLabeledField(
       pathsRow, paths,
-      QStringLiteral("Python"),
+      QStringLiteral("迁移引擎"),
       pathField(pythonEdit_, QStringLiteral("浏览…"), [this] {
-        chooseFile(pythonEdit_, QStringLiteral("选择 Python / Select Python"));
+        chooseFile(pythonEdit_,
+                   QStringLiteral("选择迁移引擎 / Select migration engine"));
       }));
   layout->addWidget(paths);
 
@@ -408,20 +451,28 @@ QWidget *MigrationStudioWindow::buildMigrationTab() {
   auto *strictRow = new QHBoxLayout(strict);
   strictRow->setSpacing(14);
   const QString bundledRuntime =
-      QDir(QCoreApplication::applicationDirPath())
-          .absoluteFilePath(QStringLiteral("../Resources/bin/pvm_cli"));
+      bundledExecutable(QStringLiteral("pvm_cli"));
+  const QString defaultPrivateKey =
+      QDir(repoRoot_).filePath(QStringLiteral("server/var/keys/dev-private.pem"));
+  const QString defaultPublicKey =
+      QDir(repoRoot_).filePath(QStringLiteral("server/var/keys/dev-public.pem"));
+#if defined(Q_OS_WIN)
+  const QString developmentRuntime = QDir(repoRoot_).filePath(
+      QStringLiteral("build/client/Release/pvm_cli.exe"));
+#else
+  const QString developmentRuntime =
+      QDir(repoRoot_).filePath(QStringLiteral("build/client/pvm_cli"));
+#endif
   runtimeEdit_ = new QLineEdit(
       QFileInfo(bundledRuntime).isExecutable()
           ? bundledRuntime
-          : QDir(repoRoot_).filePath(QStringLiteral("build/client/pvm_cli")),
+          : developmentRuntime,
       strict);
   privateKeyEdit_ = new QLineEdit(
-      QDir(repoRoot_).filePath(
-          QStringLiteral("server/var/keys/dev-private.pem")),
+      QFileInfo(defaultPrivateKey).isFile() ? defaultPrivateKey : QString(),
       strict);
   publicKeyEdit_ = new QLineEdit(
-      QDir(repoRoot_).filePath(
-          QStringLiteral("server/var/keys/dev-public.pem")),
+      QFileInfo(defaultPublicKey).isFile() ? defaultPublicKey : QString(),
       strict);
   addLabeledField(
       strictRow, strict,
@@ -636,7 +687,8 @@ bool MigrationStudioWindow::validate(Operation operation, QString *error) const 
     return false;
   }
   if (!QFileInfo(pythonEdit_->text()).isExecutable()) {
-    *error = QStringLiteral("请选择可执行的 Python。/ Select an executable Python.");
+    *error = QStringLiteral(
+        "请选择可执行的迁移引擎。/ Select an executable migration engine.");
     return false;
   }
   if (operation == Operation::Convert &&
@@ -723,8 +775,7 @@ QStringList MigrationStudioWindow::commandArguments(Operation operation) const {
 QProcessEnvironment MigrationStudioWindow::processEnvironment() const {
   QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
   const QString bundledSource =
-      QDir(QCoreApplication::applicationDirPath())
-          .absoluteFilePath(QStringLiteral("../Resources/python"));
+      QDir(bundledResourceRoot()).filePath(QStringLiteral("python"));
   const QString serverSource =
       QFileInfo(QDir(bundledSource)
                     .filePath(QStringLiteral("pvm_server/migrate.py")))
@@ -740,13 +791,16 @@ QProcessEnvironment MigrationStudioWindow::processEnvironment() const {
   environment.insert(QStringLiteral("PYTHONUNBUFFERED"), QStringLiteral("1"));
   environment.insert(QStringLiteral("PYTHONDONTWRITEBYTECODE"),
                      QStringLiteral("1"));
+  environment.insert(QStringLiteral("PVM_HOST_IDL"), hostIdlPath());
+  const QString packagedSigner = bundledExecutable(QStringLiteral("pvm_cli"));
+  if (QFileInfo(packagedSigner).isExecutable()) {
+    environment.insert(QStringLiteral("PVM_SIGNER"), packagedSigner);
+  }
   return environment;
 }
 
 QString MigrationStudioWindow::hostIdlPath() const {
-  const QString bundled =
-      QDir(QCoreApplication::applicationDirPath())
-          .absoluteFilePath(QStringLiteral("../spec/host_idl.json"));
+  const QString bundled = bundledSpec(QStringLiteral("host_idl.json"));
   return QFileInfo(bundled).isFile()
              ? bundled
              : QDir(repoRoot_).filePath(QStringLiteral("spec/host_idl.json"));

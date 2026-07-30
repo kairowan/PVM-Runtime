@@ -1,0 +1,265 @@
+name: Attach Desktop Packages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/publish-desktop-package.yml
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing v-prefixed release tag
+        required: true
+        default: v0.5.0
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag || 'v0.5.0' }}
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
+            { echo "Release tag must look like v1.2.3" >&2; exit 1; }
+          VERSION="${RELEASE_TAG#v}"
+          grep -F "project(pvm_migration_studio VERSION $VERSION " \
+            tools/migration-studio/CMakeLists.txt
+          gh release view "$RELEASE_TAG" >/dev/null
+          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+  macos:
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            package_arch: arm64
+            host_arch: arm64
+          - runner: macos-15-intel
+            package_arch: x64
+            host_arch: x86_64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Build the embedded migration backend
+        run: |
+          test "$(uname -m)" = "${{ matrix.host_arch }}"
+          python -m pip install --disable-pip-version-check pyinstaller==6.18.0
+          PYTHONPATH=server/src \
+            python scripts/migration_studio_backend.py --self-test
+          PYINSTALLER_CONFIG_DIR="$PWD/build/migration-studio-backend/config" \
+            python -m PyInstaller \
+              --clean --noconfirm --onedir \
+              --name pvm_migration_backend \
+              --paths server/src \
+              --distpath build/migration-studio-backend \
+              --workpath build/migration-studio-backend/work \
+              --specpath build/migration-studio-backend \
+              scripts/migration_studio_backend.py
+          build/migration-studio-backend/pvm_migration_backend/pvm_migration_backend \
+            --self-test
+          mkdir -p build/migration-studio-licenses
+          PYTHON_LICENSE="$(python -c \
+            'import sys; from pathlib import Path; print(next(p for p in (Path(sys.base_prefix)/"LICENSE.txt", Path(sys.base_prefix)/"LICENSE") if p.is_file()))')"
+          PYINSTALLER_LICENSE="$(python -c \
+            'from importlib.metadata import distribution; d=distribution("pyinstaller"); print(next(d.locate_file(p) for p in d.files if str(p).endswith("licenses/COPYING.txt")))')"
+          cp "$PYTHON_LICENSE" build/migration-studio-licenses/PYTHON-LICENSE.txt
+          cp "$PYINSTALLER_LICENSE" build/migration-studio-licenses/PYINSTALLER-COPYING.txt
+      - name: Build the portable C++ runtime and Qt application
+        run: |
+          OPENSSL_ROOT="$(brew --prefix openssl@3)"
+          OPENSSL_LICENSE="$(find "$OPENSSL_ROOT" -type f -iname 'license*' -print -quit)"
+          test -n "$OPENSSL_LICENSE"
+          cp "$OPENSSL_LICENSE" build/migration-studio-licenses/OPENSSL-LICENSE.txt
+          cmake -S client -B build/client \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DOPENSSL_ROOT_DIR="$OPENSSL_ROOT" \
+            -DOPENSSL_USE_STATIC_LIBS=TRUE
+          cmake --build build/client -j
+          python scripts/setup_migration_studio_qt.py
+          cmake -S tools/migration-studio -B build/migration-studio \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="$(cat build/migration-studio-tools/qt-prefix.txt)" \
+            -DPVM_RUNTIME_CLI="$PWD/build/client/pvm_cli" \
+            -DPVM_STUDIO_BACKEND_DIR="$PWD/build/migration-studio-backend/pvm_migration_backend" \
+            -DPVM_STUDIO_THIRD_PARTY_LICENSE_DIR="$PWD/build/migration-studio-licenses"
+          cmake --build build/migration-studio -j
+          ctest --test-dir build/migration-studio --output-on-failure
+          cmake --install build/migration-studio --prefix dist/desktop
+      - name: Verify and archive the macOS package
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
+          PACKAGE_ARCH: ${{ matrix.package_arch }}
+        run: |
+          APP="$PWD/dist/desktop/PVMMigrationStudio.app"
+          BIN="$APP/Contents/Resources/bin"
+          test -x "$APP/Contents/MacOS/PVMMigrationStudio"
+          test -x "$BIN/pvm_cli"
+          test -x "$BIN/pvm_migration_backend"
+          test -f "$APP/Contents/spec/host_idl.json"
+          test -f "$APP/Contents/Resources/licenses/qt/LGPL-3.0-only.txt"
+          test -f "$APP/Contents/Resources/licenses/runtime/PYTHON-LICENSE.txt"
+          test -f "$APP/Contents/Resources/licenses/runtime/OPENSSL-LICENSE.txt"
+          ! otool -L "$BIN/pvm_cli" | grep -E '/(opt/homebrew|usr/local)/'
+          "$APP/Contents/MacOS/PVMMigrationStudio" --self-test
+          "$BIN/pvm_migration_backend" --self-test
+          "$BIN/pvm_migration_backend" -m pvm_server.migrate --help >/dev/null
+          PYTHONPATH=server/src python -m pvm_server.keys \
+            --directory build/package-smoke-keys
+          PVM_HOST_IDL="$APP/Contents/spec/host_idl.json" \
+            PVM_SIGNER="$BIN/pvm_cli" \
+            "$BIN/pvm_migration_backend" -m pvm_server.migrate convert \
+              client/platform/android/demo \
+              --class MainActivity \
+              --application-id com.protectedvm.demo \
+              --platform android \
+              --profile offline_sealed \
+              --module-id package.smoke \
+              --channel enterprise \
+              --release 1 \
+              --output build/package-smoke
+          test -f build/package-smoke/module.pvm.json
+          codesign --force --deep --sign - "$APP"
+          codesign --verify --deep --strict "$APP"
+          mkdir -p dist/release
+          ARCHIVE="dist/release/PVM-Migration-Studio-$VERSION-macOS-$PACKAGE_ARCH.zip"
+          ditto -c -k --sequesterRsrc --keepParent "$APP" "$ARCHIVE"
+          shasum -a 256 "$ARCHIVE" > "$ARCHIVE.sha256"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: desktop-macos-${{ matrix.package_arch }}
+          path: dist/release/*
+
+  windows:
+    needs: validate
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Build the embedded migration backend
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check pyinstaller==6.18.0
+          $env:PYTHONPATH = "server/src"
+          $env:PYINSTALLER_CONFIG_DIR = "$pwd/build/migration-studio-backend/config"
+          python scripts/migration_studio_backend.py --self-test
+          python -m PyInstaller `
+            --clean --noconfirm --onedir `
+            --name pvm_migration_backend `
+            --paths server/src `
+            --distpath build/migration-studio-backend `
+            --workpath build/migration-studio-backend/work `
+            --specpath build/migration-studio-backend `
+            scripts/migration_studio_backend.py
+          build/migration-studio-backend/pvm_migration_backend/pvm_migration_backend.exe `
+            --self-test
+          New-Item -ItemType Directory -Force build/migration-studio-licenses |
+            Out-Null
+          $pythonLicense = python -c `
+            "import sys; from pathlib import Path; print(next(p for p in (Path(sys.base_prefix)/'LICENSE.txt', Path(sys.base_prefix)/'LICENSE') if p.is_file()))"
+          $pyinstallerLicense = python -c `
+            "from importlib.metadata import distribution; d=distribution('pyinstaller'); print(next(d.locate_file(p) for p in d.files if str(p).endswith('licenses/COPYING.txt')))"
+          Copy-Item $pythonLicense `
+            build/migration-studio-licenses/PYTHON-LICENSE.txt
+          Copy-Item $pyinstallerLicense `
+            build/migration-studio-licenses/PYINSTALLER-COPYING.txt
+      - name: Build the portable C++ runtime and Qt application
+        shell: pwsh
+        run: |
+          vcpkg install openssl:x64-windows-static
+          Copy-Item `
+            "$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows-static/share/openssl/copyright" `
+            build/migration-studio-licenses/OPENSSL-LICENSE.txt
+          cmake -S client -B build/client -A x64 `
+            "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
+            -DVCPKG_TARGET_TRIPLET=x64-windows-static `
+            -DOPENSSL_USE_STATIC_LIBS=TRUE
+          cmake --build build/client --config Release --parallel
+          python scripts/setup_migration_studio_qt.py
+          $qtPrefix = Get-Content build/migration-studio-tools/qt-prefix.txt
+          cmake -S tools/migration-studio -B build/migration-studio -A x64 `
+            "-DCMAKE_PREFIX_PATH=$qtPrefix" `
+            "-DPVM_RUNTIME_CLI=$pwd/build/client/Release/pvm_cli.exe" `
+            "-DPVM_STUDIO_BACKEND_DIR=$pwd/build/migration-studio-backend/pvm_migration_backend" `
+            "-DPVM_STUDIO_THIRD_PARTY_LICENSE_DIR=$pwd/build/migration-studio-licenses"
+          cmake --build build/migration-studio --config Release --parallel
+          ctest --test-dir build/migration-studio -C Release --output-on-failure
+          cmake --install build/migration-studio --config Release --prefix dist/desktop
+      - name: Verify and archive the Windows package
+        shell: pwsh
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          $package = Resolve-Path dist/desktop
+          & "$package/PVMMigrationStudio.exe" --self-test
+          & "$package/bin/pvm_migration_backend.exe" --self-test
+          & "$package/bin/pvm_migration_backend.exe" -m pvm_server.migrate --help | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "embedded migration backend failed" }
+          @(
+            "$package/bin/pvm_cli.exe",
+            "$package/spec/host_idl.json",
+            "$package/licenses/qt/LGPL-3.0-only.txt",
+            "$package/licenses/runtime/PYTHON-LICENSE.txt",
+            "$package/licenses/runtime/OPENSSL-LICENSE.txt"
+          ) | ForEach-Object {
+            if (!(Test-Path $_)) { throw "missing packaged resource: $_" }
+          }
+          $env:PYTHONPATH = "server/src"
+          python -m pvm_server.keys --directory build/package-smoke-keys
+          $env:PVM_HOST_IDL = "$package/spec/host_idl.json"
+          $env:PVM_SIGNER = "$package/bin/pvm_cli.exe"
+          & "$package/bin/pvm_migration_backend.exe" -m pvm_server.migrate convert `
+            client/platform/android/demo `
+            --class MainActivity `
+            --application-id com.protectedvm.demo `
+            --platform android `
+            --profile offline_sealed `
+            --module-id package.smoke `
+            --channel enterprise `
+            --release 1 `
+            --output build/package-smoke
+          if (!(Test-Path build/package-smoke/module.pvm.json)) {
+            throw "packaged conversion smoke did not generate the DSL"
+          }
+          New-Item -ItemType Directory -Force dist/release | Out-Null
+          $archive = "dist/release/PVM-Migration-Studio-$env:VERSION-Windows-x64.zip"
+          Compress-Archive -Path "dist/desktop/*" -DestinationPath $archive
+          $hash = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLower()
+          "$hash  $(Split-Path -Leaf $archive)" |
+            Set-Content -Encoding ascii "$archive.sha256"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: desktop-windows-x64
+          path: dist/release/*
+
+  publish:
+    needs: [validate, macos, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: desktop-*
+          path: release-assets
+          merge-multiple: true
+      - name: Attach desktop packages to the existing release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.validate.outputs.tag }}
+        run: gh release upload "$RELEASE_TAG" release-assets/* --clobber

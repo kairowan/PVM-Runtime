@@ -49,6 +49,9 @@ set_target_properties(pvm_runtime PROPERTIES
 if(PVM_BUILD_TOOLS)
     add_executable(pvm_cli src/console_main.cpp)
     target_link_libraries(pvm_cli PRIVATE pvm_runtime)
+    target_compile_definitions(pvm_cli PRIVATE
+        PVM_USE_OPENSSL=$<BOOL:${PVM_USE_OPENSSL}>
+    )
 
     add_executable(pvm_c_api_smoke tests/c_api_smoke.cpp)
     target_link_libraries(pvm_c_api_smoke PRIVATE pvm_runtime)

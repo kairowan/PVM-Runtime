@@ -967,7 +967,10 @@ def _verify_dsl(output):
             "module.pvm.json is not canonical; run pvm_server.tooling format"
         )
     Compiler(source).build()
-    lint(source, load_host_idl(ROOT / "spec/host_idl.json"))
+    host_idl = Path(
+        os.environ.get("PVM_HOST_IDL", ROOT / "spec/host_idl.json")
+    )
+    lint(source, load_host_idl(host_idl))
     return source, {
         "moduleId": source["module"]["id"],
         "applicationId": source["module"]["application_id"],

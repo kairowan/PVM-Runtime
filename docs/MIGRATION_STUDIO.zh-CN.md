@@ -50,15 +50,28 @@ make migration-studio-run
 | `build/migration-studio-tools/` | 仓库内的 `aqtinstall` 与下载归档 |
 | `build/migration-studio/` | CMake 构建目录 |
 | `dist/desktop/PVMMigrationStudio.app` | 可移动的 macOS 开发包 |
+| `dist/release/PVM-Migration-Studio-*.zip` | 可直接分发的 Release 压缩包 |
 | `build/migration-studio-output/` | 默认迁移输出 |
 
 安装脚本只下载需要的 Qt Base 归档。macOS 应用动态链接随包携带的 Qt Framework，
 并包含对应的 Qt 许可和 NOTICE 文件。
 
-## 随包运行环境
+## 可下载软件包
 
-macOS 应用包内包含迁移 Python 后端、JSON 规范、C++17 `pvm_cli` 和 Qt Runtime，
-不会携带开发私钥。当前转换、签名和严格验证仍要求宿主提供 Python 3.9+ 与 OpenSSL。
+`v0.5.0` GitHub Release 分别提供 Windows x64、macOS Apple Silicon 和 macOS Intel
+压缩包：
+
+- `PVM-Migration-Studio-0.5.0-Windows-x64.zip`
+- `PVM-Migration-Studio-0.5.0-macOS-arm64.zip`
+- `PVM-Migration-Studio-0.5.0-macOS-x64.zip`
+
+每个压缩包都包含 Qt 主程序、独立迁移后端、启用 OpenSSL 的 C++17 `pvm_cli`、JSON
+规范、Qt 运行库和许可说明，不要求电脑另装 Python 或 OpenSSL。软件包不会携带开发
+或生产私钥；严格验证前需要选择实际使用的密钥对。
+
+每个 ZIP 旁边都有 `.sha256` 校验文件。当前公开的 macOS 包使用 ad-hoc 签名，
+Windows 包尚未做 Authenticode 签名。macOS 首次运行时可能需要从右键菜单选择
+**打开**，Windows 在配置组织代码签名证书前可能显示 SmartScreen 提示。
 
 后端进程通过 `QProcess` 接收参数数组，不会把源码路径拼接成 Shell 命令。界面日志
 会隐藏所选源码、输出、仓库和用户主目录的路径前缀。
@@ -75,5 +88,6 @@ make migration-studio-package
 JSON Lines 进度并调用真实 CLI。严格验证还会检查源码漂移、未完成复核、Capability
 批准、DSL 合法性、行为用例、目标绑定、签名和 C++17 VM 执行。
 
-Apple CI 当前会构建和验证 macOS 应用包。Qt/CMake 源码也支持 Windows 和 Linux，
-但这两个平台的安装包与 CI 产物尚未加入。
+`Attach Desktop Packages` 工作流会在原生 Windows x64、macOS ARM64 和 macOS
+Intel Runner 上构建软件包，执行主程序与内置后端自检、检查随包资源、生成 SHA-256，
+然后把产物追加到已有 Release。

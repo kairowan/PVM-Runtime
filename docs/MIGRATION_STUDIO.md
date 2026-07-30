@@ -56,18 +56,32 @@ All downloads, source, build caches, and outputs remain under this repository:
 | `build/migration-studio-tools/` | Repository-local `aqtinstall` and archives |
 | `build/migration-studio/` | CMake build tree |
 | `dist/desktop/PVMMigrationStudio.app` | Relocatable macOS development package |
+| `dist/release/PVM-Migration-Studio-*.zip` | Portable Release archives |
 | `build/migration-studio-output/` | Default migration output |
 
 Only the required Qt Base archive is installed. The macOS application is
 dynamically linked to bundled Qt frameworks and includes the corresponding Qt
 license and notice files.
 
-## Packaged runtime
+## Downloadable packages
 
-The macOS package contains the migration Python backend, JSON specifications,
-the C++17 `pvm_cli`, and its Qt runtime. It never packages development private
-keys. Python 3.9+ and OpenSSL are currently expected on the host for conversion,
-signing, and strict verification.
+The `v0.5.0` GitHub Release provides separate archives for Windows x64, macOS
+Apple Silicon, and macOS Intel:
+
+- `PVM-Migration-Studio-0.5.0-Windows-x64.zip`
+- `PVM-Migration-Studio-0.5.0-macOS-arm64.zip`
+- `PVM-Migration-Studio-0.5.0-macOS-x64.zip`
+
+Each archive contains the Qt application, a standalone migration backend,
+the OpenSSL-enabled C++17 `pvm_cli`, JSON specifications, Qt runtime libraries,
+and license notices. No system Python or OpenSSL installation is required.
+Development or production private keys are never included; select the intended
+keypair before strict verification.
+
+Each archive has a neighboring `.sha256` file. The current public packages are
+ad-hoc signed on macOS and unsigned on Windows. macOS may require **Open** from
+the context menu on first launch, and Windows SmartScreen may show a warning
+until organization code-signing certificates are configured.
 
 Backend processes receive argument vectors through `QProcess`; no source path
 is interpolated into a shell command. Displayed logs redact the selected source,
@@ -87,6 +101,7 @@ Strict verification additionally checks source drift, unresolved reviews,
 capability approvals, DSL validity, behavior cases, target binding, signing,
 and C++17 VM execution.
 
-The macOS package is currently built and verified by the Apple CI job. The Qt
-CMake source also supports Windows and Linux, but their installers and CI
-artifacts have not been added yet.
+The `Attach Desktop Packages` workflow builds packages on native Windows x64,
+macOS ARM64, and macOS Intel runners, runs the frontend and embedded-backend
+self-tests, verifies bundled resources, writes SHA-256 files, and attaches the
+artifacts to an existing Release.

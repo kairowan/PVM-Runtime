@@ -656,6 +656,15 @@ class Compiler:
 
 
 def sign_detached(payload, private_key=None, signer_command=None):
+    packaged_signer = os.environ.get("PVM_SIGNER")
+    if signer_command is None and packaged_signer:
+        require(private_key is not None, "a private key is required")
+        signer_command = [
+            packaged_signer,
+            "--sign-stdin",
+            "--private-key",
+            str(private_key),
+        ]
     if signer_command:
         command = shlex.split(signer_command) if isinstance(signer_command, str) else signer_command
         completed = subprocess.run(
