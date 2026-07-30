@@ -7,6 +7,9 @@ public final class PVMUIKitRenderer {
 
     private weak var root: UIView?
     private let surfaceFactory: SurfaceFactory
+    private var renderGeneration: UInt64 = 0
+    private var visibleNodeIDs: Set<UInt32> = []
+    private var appearedNodeIDs: Set<UInt32> = []
 
     public init(
         root: UIView,
@@ -25,7 +28,34 @@ public final class PVMUIKitRenderer {
         guard batch.operation == "replace", let root else {
             throw PVMHostError("Unsupported UI batch or missing root view")
         }
-        let rendered = create(batch.root, events: events)
+        renderGeneration += 1
+        let generation = renderGeneration
+        let nextVisible = collectIDs(batch.root)
+        appearedNodeIDs.formIntersection(nextVisible)
+        visibleNodeIDs = nextVisible
+        let awaitingAppear = nextVisible.subtracting(appearedNodeIDs)
+        let focused = firstResponder(in: root)
+        let focusedID = focused?.tag
+        let selection =
+            (focused as? UITextField).flatMap { input -> Range<Int>? in
+                guard let selected = input.selectedTextRange else { return nil }
+                let start = input.offset(
+                    from: input.beginningOfDocument,
+                    to: selected.start
+                )
+                let end = input.offset(
+                    from: input.beginningOfDocument,
+                    to: selected.end
+                )
+                return start..<end
+            }
+        let rendered =
+            create(
+                batch.root,
+                events: events,
+                awaitingAppear: awaitingAppear,
+                generation: generation
+            )
         root.subviews.forEach { $0.removeFromSuperview() }
         rendered.translatesAutoresizingMaskIntoConstraints = false
         root.addSubview(rendered)
@@ -35,9 +65,28 @@ public final class PVMUIKitRenderer {
             rendered.topAnchor.constraint(equalTo: root.topAnchor),
             rendered.bottomAnchor.constraint(lessThanOrEqualTo: root.bottomAnchor),
         ])
+        if let focusedID, let replacement = root.viewWithTag(focusedID) {
+            replacement.becomeFirstResponder()
+            if let input = replacement as? UITextField, let selection,
+               let start = input.position(
+                   from: input.beginningOfDocument,
+                   offset: min(selection.lowerBound, input.text?.utf16.count ?? 0)
+               ),
+               let end = input.position(
+                   from: input.beginningOfDocument,
+                   offset: min(selection.upperBound, input.text?.utf16.count ?? 0)
+               ) {
+                input.selectedTextRange = input.textRange(from: start, to: end)
+            }
+        }
     }
 
-    private func create(_ node: PVMUINode, events: @escaping EventSink) -> UIView {
+    private func create(
+        _ node: PVMUINode,
+        events: @escaping EventSink,
+        awaitingAppear: Set<UInt32>,
+        generation: UInt64
+    ) -> UIView {
         let view: UIView
         switch node.type {
         case "Text":
@@ -45,12 +94,19 @@ public final class PVMUIKitRenderer {
         case "Image":
             view = UIImageView()
         case "Row":
-            view = stack(.horizontal, node.children, events)
+            view = stack(.horizontal, node.children, events, awaitingAppear, generation)
         case "Column", "List":
-            view = stack(.vertical, node.children, events)
+            view = stack(.vertical, node.children, events, awaitingAppear, generation)
         case "Stack":
             let container = UIView()
-            node.children.map { create($0, events: events) }.forEach { child in
+            node.children.map {
+                create(
+                    $0,
+                    events: events,
+                    awaitingAppear: awaitingAppear,
+                    generation: generation
+                )
+            }.forEach { child in
                 child.translatesAutoresizingMaskIntoConstraints = false
                 container.addSubview(child)
                 NSLayoutConstraint.activate([
@@ -63,7 +119,13 @@ public final class PVMUIKitRenderer {
             view = container
         case "Scroll":
             let scroll = UIScrollView()
-            let content = stack(.vertical, node.children, events)
+            let content = stack(
+                .vertical,
+                node.children,
+                events,
+                awaitingAppear,
+                generation
+            )
             content.translatesAutoresizingMaskIntoConstraints = false
             scroll.addSubview(content)
             NSLayoutConstraint.activate([
@@ -85,17 +147,35 @@ public final class PVMUIKitRenderer {
         default:
             preconditionFailure("Unsupported VM node type \(node.type)")
         }
+        view.tag = Int(node.id)
         apply(node.props, to: view)
-        bind(node, to: view, events: events)
+        bind(
+            node,
+            to: view,
+            events: events,
+            awaitingAppear: awaitingAppear,
+            generation: generation
+        )
         return view
     }
 
     private func stack(
         _ axis: NSLayoutConstraint.Axis,
         _ children: [PVMUINode],
-        _ events: @escaping EventSink
+        _ events: @escaping EventSink,
+        _ awaitingAppear: Set<UInt32>,
+        _ generation: UInt64
     ) -> UIStackView {
-        let view = UIStackView(arrangedSubviews: children.map { create($0, events: events) })
+        let view = UIStackView(
+            arrangedSubviews: children.map {
+                create(
+                    $0,
+                    events: events,
+                    awaitingAppear: awaitingAppear,
+                    generation: generation
+                )
+            }
+        )
         view.axis = axis
         view.alignment = .fill
         return view
@@ -120,14 +200,27 @@ public final class PVMUIKitRenderer {
         }
     }
 
-    private func bind(_ node: PVMUINode, to view: UIView, events: @escaping EventSink) {
+    private func bind(
+        _ node: PVMUINode,
+        to view: UIView,
+        events: @escaping EventSink,
+        awaitingAppear: Set<UInt32>,
+        generation: UInt64
+    ) {
         if node.events.contains("tap"), let control = view as? UIControl {
             control.addAction(UIAction { _ in events(node.id, "tap", nil) }, for: .touchUpInside)
+        } else if node.events.contains("tap") {
+            view.isUserInteractionEnabled = true
+            view.addGestureRecognizer(
+                PVMClosureTapGestureRecognizer {
+                    events(node.id, "tap", nil)
+                }
+            )
         }
         if node.events.contains("change"), let control = view as? UIControl {
             control.addAction(
                 UIAction { _ in events(node.id, "change", self.value(of: control)) },
-                for: .valueChanged
+                for: control is UITextField ? .editingChanged : .valueChanged
             )
         }
         if node.events.contains("submit"), let input = view as? UITextField {
@@ -136,14 +229,50 @@ public final class PVMUIKitRenderer {
                 for: .editingDidEndOnExit
             )
         }
-        if node.events.contains("appear") {
-            DispatchQueue.main.async { events(node.id, "appear", nil) }
+        if node.events.contains("appear"), awaitingAppear.contains(node.id) {
+            DispatchQueue.main.async { [weak self] in
+                guard let self,
+                      self.renderGeneration == generation,
+                      self.visibleNodeIDs.contains(node.id),
+                      self.appearedNodeIDs.insert(node.id).inserted
+                else { return }
+                events(node.id, "appear", nil)
+            }
         }
+    }
+
+    private func collectIDs(_ root: PVMUINode) -> Set<UInt32> {
+        var result: Set<UInt32> = []
+        func visit(_ node: PVMUINode) {
+            result.insert(node.id)
+            node.children.forEach(visit)
+        }
+        visit(root)
+        return result
+    }
+
+    private func firstResponder(in view: UIView) -> UIView? {
+        if view.isFirstResponder { return view }
+        return view.subviews.lazy.compactMap(firstResponder).first
     }
 
     private func value(of control: UIControl) -> String? {
         if let input = control as? UITextField { return input.text ?? "" }
         if let toggle = control as? UISwitch { return String(toggle.isOn) }
         return nil
+    }
+}
+
+private final class PVMClosureTapGestureRecognizer: UITapGestureRecognizer {
+    private let handler: () -> Void
+
+    init(handler: @escaping () -> Void) {
+        self.handler = handler
+        super.init(target: nil, action: nil)
+        addTarget(self, action: #selector(invoke))
+    }
+
+    @objc private func invoke() {
+        handler()
     }
 }

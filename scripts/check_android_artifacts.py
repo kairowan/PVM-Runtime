@@ -195,6 +195,12 @@ def validate_with_runtime(delivery, bootstrap):
             bootstrap["applicationId"],
             "--min-release",
             bootstrap["release"],
+            "--channel",
+            bootstrap["channel"],
+            "--platform",
+            bootstrap["platform"],
+            "--profile",
+            bootstrap["profile"],
             "--validate-only",
         ]
         run(command)

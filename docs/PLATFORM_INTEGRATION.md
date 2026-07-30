@@ -25,7 +25,7 @@ sequenceDiagram
     Store->>VM: preload module + release floor
     VM-->>Store: verified release/metadata
     Store-->>App: immutable local module path
-    App->>VM: create_v2
+    App->>VM: create_v3(application/channel/platform/profile/floor)
     VM-->>App: Runtime policy metadata
     App->>Registry: apply capability versions
     App->>VM: restore state
@@ -49,6 +49,8 @@ sequenceDiagram
 - 只有完整验证后才能原子切换。
 - LKG 必须满足安装包 release floor。
 - 缓存至少保留当前和上一已验证版本。
+- `current` 状态必须严格校验格式、application/channel/platform/profile、正整数
+  release、当前 SHA-256 和最多两项的去重历史；历史第一项必须等于当前 Hash。
 
 ## Android
 
@@ -59,7 +61,7 @@ sequenceDiagram
 - `PvmCrypto.kt`：Google Tink Ed25519 默认验签与可注入 verifier。
 - `PvmModuleValidator.kt`：JNI 预加载验证。
 - `AndroidViewRenderer.kt`：View Renderer。
-- `compose/PvmComposeRenderer.kt`：Compose/CMP 适配接口。
+- `compose/PvmComposeRenderer.kt`：尚未接入当前 Gradle 构建的 Compose/CMP 参考原型。
 - `CapabilityRegistry.kt` 与 `BasicAndroidCapabilities.kt`。
 - `pvm_jni.cpp` 与 Android CMake。
 - `runtime` Gradle Library：发布包含完整 C++ Runtime 的 AAR 和 Maven 元数据。
@@ -233,8 +235,25 @@ AAR 已携带 JNI/R8 consumer rules。目标 App 仍需根据实际 Capability �
 - `PVMPlatformCrypto.swift`：CryptoKit Ed25519。
 - `PVMUIKitRenderer.swift` 与 `PVMSwiftUIRenderer.swift`。
 - `PVMCapabilityRegistry.swift` 与基础 Capability。
+- `PVMHost.swift`：`@MainActor` 统一 Host、C ABI v3 绑定、事件与生命周期入口。
+- [`Package.swift`](../Package.swift)：iOS 15 的 C++ Core、Objective-C++ Bridge 和 Swift
+  Runtime 源码包。
+- `PrivacyInfo.xcprivacy`：随 Swift Package Runtime target 打包的隐私清单基线。
 
-### Module Store 配置
+### 推荐交付 Profile
+
+iOS 默认建议使用 `offline_sealed`：把签名 `.pvm` 和公钥作为目标 App 的审核包资源，
+再通过 `PVMHost` 加载；Runtime/Bridge 始终随 App 静态交付，不从网络下载 Framework。
+
+在线签名字节码是可选交付模式，不代表天然符合 App Store 政策。选择
+`online_provisioned` 或 `store_on_demand` 前，必须按实际产品功能、模块能改变的行为、
+审核材料和目标市场逐项评估
+[Apple App Review Guidelines 2.5.2](https://developer.apple.com/app-store/review/guidelines/)。
+签名、受限 DSL/VM 和 Profile 约束是安全控制，不是审核结论。
+
+### 在线模式的 Module Store 配置
+
+以下配置只适用于产品已决定并审核在线模块交付的场景：
 
 ```swift
 let configuration = PVMModuleStore.Configuration(
@@ -248,22 +267,66 @@ let configuration = PVMModuleStore.Configuration(
     installationId: installationId,
     minimumRelease: minimumRelease
 )
+
+let store = try PVMModuleStore(configuration: configuration) { module, floor in
+    try PVMHost.validateModule(
+        module: module,
+        publicKey: publicKeyURL,
+        applicationID: Bundle.main.bundleIdentifier!,
+        channel: "production",
+        profile: "online_provisioned",
+        minimumRelease: floor
+    )
+}
 ```
 
-创建 Store 时传入 validator closure，由 Objective-C++ Bridge/C ABI 预加载临时模块并返回模块 release。Store 会要求该值与 Manifest 一致。
+`PVMHost.validateModule` 通过 Objective-C++ Bridge/C ABI v3 预加载临时模块并返回模块
+release；Store 会要求该值与 Manifest 完全一致。
+
+Store 拒绝重定向，按流式大小上限读取响应，并在任何切换前完成 Manifest、Hash、模块
+签名、五项绑定和 Runtime 预加载。`current.json` 与 Android/HarmonyOS 使用相同的
+严格 LKG state 语义，损坏或其他 App/渠道/Profile 的状态不会被复用。
 
 ### 线程和生命周期
 
 - `PVMModuleStore` 是 actor，网络和缓存状态串行化。
-- UI Renderer 必须在主线程应用 UI Tree。
+- `PVMHost`、UIKit/SwiftUI Renderer 在 MainActor 应用 UI Tree。
 - Objective-C++ Bridge 持有 `pvm_runtime*`，异步 completion 回到宿主串行上下文后再恢复 VM。
-- 页面退出、场景关闭或模块替换前调用任务取消。
+- 页面退出、场景关闭或模块替换前调用任务取消；cancel/close 后到达的 completion 被
+  generation/closed guard 丢弃。
+- `appear` 只在节点 absent→present 时发送；整树重绘中仍存在的同 ID 节点不会重复发送。
+
+### 构建和验证 iOS SDK
+
+在安装完整 Xcode 的 macOS 上，从仓库根目录执行：
+
+```bash
+make ios-sdk-check
+```
+
+该命令生成：
+
+```text
+dist/ios/PVMBridge.xcframework
+```
+
+XCFramework 是包含完整 C++17 Runtime 与 Objective-C++ Bridge 的静态库，含 arm64
+iPhoneOS slice 和 arm64/x86_64 Simulator slice，最低 iOS 15。门禁检查：
+
+1. slice、架构、deployment target、公开头文件和 C ABI v3/Objective-C 符号。
+2. 产物不包含私钥、模块或开发机绝对路径。
+3. 全部 Swift 源在 Swift 6 complete strict-concurrency 下以 warning-as-error typecheck。
+4. 一个 Swift consumer 实际链接 Simulator XCFramework，且没有未解析 PVM 符号。
+
+这是 SDK 构建门禁，不生成示例 App、`.xcarchive` 或 IPA，也不执行 codesign、真机
+生命周期、entitlement、隐私问卷或 App Store 审核。
 
 ### 文件和打包
 
 - 模块使用 `completeUntilFirstUserAuthentication`。
 - 状态文件使用完整文件保护和原子写。
-- 生产建议把 Runtime/Bridge 封装为静态 XCFramework；不从网络下载 Framework。
+- `make ios-sdk-check` 生成静态 XCFramework；目标 App 负责选择本地 Swift Package
+  源码接入或封装该二进制，并完成 archive/codesign。
 - CryptoKit 验证内置 X.509 SubjectPublicKeyInfo Ed25519 公钥。
 - Capability 生成的 Usage Description/entitlement 必须进入 App 审核产物。
 
@@ -275,7 +338,9 @@ let configuration = PVMModuleStore.Configuration(
 - `PvmRuntimeHost.ets`：ArkTS Runtime/Capability Host。
 - `PvmModuleStore.ets`：签名 Manifest、缓存与 LKG。
 - `ArkUiRenderer.ets`：ArkUI 工厂接口。
-- Kuikly Renderer 适配基线。
+
+这些是可移植 Node-API/ArkTS 合同和参考实现；当前仓库没有经 DevEco 编译的 HAR/HSP，
+也没有可安装 HAP。
 
 ### App 必须注入
 
@@ -302,19 +367,30 @@ decodeUtf8
 
 ### 线程和平台边界
 
-- ArkTS Host 把 UI 批次交给项目 ArkUI/Kuikly Renderer。
+- ArkTS Host 把 UI 批次交给项目注入的 ArkUI Renderer/Node Factory。
 - Node-API 回调和 VM 生命周期必须在宿主选定的串行上下文中使用。
 - `SignatureVerifier` 由目标 DevEco/Harmony Crypto 或 HUKS Adapter 实现。
 - HUKS 可保护缓存密钥；HAP/HSP/远程资源策略仍由 Profile 与发布流水线约束。
 
 当前机器没有 DevEco/HarmonyOS SDK，因此仓库门禁只编译可移植 Node-API C++ 并检查 ArkTS 合同，不能声称 HAP 或真机验证。
 
+## KMP/CMP 与 Kuikly 边界
+
+`compose/PvmComposeRenderer.kt` 和 `platform/kuikly/PvmKuiklyRenderer.kt` 目前只是
+中立树与事件 Port 原型，没有进入现有 Gradle/Swift 构建，也没有锁定或验证任何
+Compose Multiplatform/Kuikly SDK 版本。因此它们不是可发布 KMP/CMP/Kuikly SDK。
+
+产品确实需要 KMP/CMP 时，应分别复用现有 Android 和 iOS Runtime，不新增虚构的
+`kmp` 字节码平台；只有需要 Kuikly 的产品才应锁定具体版本并实现、编译和真机验证
+Adapter。
+
 ## C ABI 生命周期
 
-推荐使用 v2 callbacks：
+新移动端集成使用 v3 创建接口；回调结构仍名为 `pvm_host_callbacks_v2`：
 
 1. 安装 `pvm_host_callbacks_v2`，包括签名验证回调。
-2. 调用 `pvm_runtime_create_v2`，完成模块签名、绑定、防回滚和字节码验证。
+2. 调用 `pvm_runtime_create_v3`，传入预期 application/channel/platform/profile 和
+   `minimum_release`，完成模块签名、绑定、防回滚和字节码验证。
 3. 读取 Runtime metadata，并让 Capability Registry 检查最低版本。
 4. 可选调用 `pvm_runtime_restore_state`。
 5. 调用 `pvm_runtime_start`。
@@ -325,7 +401,12 @@ decodeUtf8
 9. 两次调用 `pvm_runtime_snapshot_state` 获取长度和内容，并原子持久化。
 10. 调用 `pvm_runtime_destroy`。
 
-旧的 `pvm_runtime_create` 为 ABI 兼容保留；新移动端集成应使用带平台验签器的 v2。
+Runtime 只能 start 一次；dispatch/complete 在 start 前失败，restore 在 start 后失败。
+cancel 会删除所有 continuation，之后直接调用 C ABI 完成同一 task 会返回
+“missing or cancelled”；平台 Host 还会在边界丢弃 cancel/close 后的迟到回调。
+
+旧的 `pvm_runtime_create` 和 `pvm_runtime_create_v2` 只为 ABI 兼容保留，未接收完整
+channel/platform/profile 预期值，不应用于新的移动端接入。
 
 `pvm_runtime_dispatch_value` 的值在调用期间被复制，并受模块
 `max_state_bytes` 预算限制。DSL 处理器用 PVBC v5 `event.value` 读取它；对没有值的
@@ -347,6 +428,8 @@ children
 
 - 属性批量应用，避免逐属性 JNI/Node-API 往返。
 - 可访问性标签、动态字体和 RTL 由 Renderer 正确映射。
+- `appear` 按 absent→present 触发：同 ID 节点连续存在于 replace 批次时只发一次，
+  从树中移除再加入后才能再次触发。
 - `NativeSurface` 只承载宿主已注册类型。
 - 地图手势、视频帧、相机预览等高频数据留在原生侧。
 - Renderer conformance 检查结构语义，不要求跨平台像素完全一致。

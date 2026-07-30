@@ -7,6 +7,7 @@
     {"id": "documentation", "command": "make docs-check"},
     {"id": "delivery-profiles", "command": "make delivery-matrix"},
     {"id": "android-demo-artifacts", "command": "make android-demo-check"},
+    {"id": "ios-sdk-artifacts", "command": "make ios-sdk-check"},
     {"id": "historical-bytecode", "command": "make compatibility"},
     {"id": "sanitizers", "command": "make sanitizer-check"},
     {"id": "package-fuzz-smoke", "command": "make fuzz-check"}

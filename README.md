@@ -17,7 +17,8 @@
 - 一份 DSL 源码按目标平台和交付 Profile 生成独立签名模块，共用同一种 PVBC
   格式与业务语义，不复制多套业务源码；单个 `.pvm` 不会跨平台混用。
 - 一个 C++17 Runtime 负责签名、绑定、防回滚、字节码和资源预算验证。
-- UI 仍由 View、Compose/CMP、UIKit、SwiftUI、ArkUI 或 Kuikly 等原生后端渲染。
+- UI 仍由宿主原生后端渲染；当前构建覆盖 Android View、UIKit/SwiftUI 和 ArkUI
+  合同，Compose/CMP 与 Kuikly 仅是尚未接入产品构建的原型。
 - 支付、地图、相机、音视频、推送等重能力留在宿主，通过版本化 Capability IDL 调用。
 - `Offline Sealed` 与联网交付不是互相冒充的模式，而是明确分离的构建产物。
 
@@ -41,7 +42,7 @@
 
 | Profile | 模块如何进入设备 | 适合场景 |
 |---|---|---|
-| `Offline Sealed` | 签名模块随 Android APK/AAB、iOS IPA 或 HarmonyOS HAP 打包 | 首次启动必须离线、弱网、政企 |
+| `Offline Sealed` | 由目标 App 工程把签名模块随 APK/AAB、IPA 或 HAP 打包 | 首次启动必须离线、弱网、政企 |
 | `Online Provisioned` | 首次激活后下载，之后使用本地 LKG | 静态安装包不携带完整业务模块 |
 | `Store On-Demand` | 应用市场允许范围内的签名资源交付 | 商店按需内容与合规更新 |
 | `Enterprise Managed` | 私有仓库、MDM、组织许可与审计 | 企业私有分发和专有设备 |
@@ -54,21 +55,27 @@
 
 - JSON 承载的私有 DSL，覆盖状态、页面树、事件、同步/异步 Effect 和资源预算。
 - 确定性 PVBC v5 字节码；Runtime 5 兼容读取 v1–v5。
-- Ed25519 模块签名、App/平台/Profile 绑定、SHA-256 内容寻址和签名 Manifest。
+- Ed25519 模块签名、application/channel/platform/profile/release 绑定、SHA-256 内容寻址和签名 Manifest。
 - v4 稳定 `persistence_id`，支持状态字段改名/新增迁移并拒绝类型冲突。
 - v5 `event.value` 把 Input/Switch 的 change/submit 值安全送入处理器和状态。
 
 ### Runtime 与宿主
 
 - C++17 加载器、字节码验证器、解释器、栈类型检查、控制流检查和指令 watchdog。
-- 稳定 C ABI，以及 Android JNI、iOS Objective-C++、HarmonyOS Node-API 桥。
+- C ABI v3 在创建时强制 application/channel/platform/profile/release floor 绑定，以及
+  Android JNI、iOS Objective-C++、HarmonyOS Node-API 桥。
+- Runtime 按“创建 → 可选恢复 → 单次启动 → 分发/完成 → 取消 → 销毁”的状态机执行；
+  start 前拒绝事件和异步完成，start 后拒绝状态恢复和重复启动。
 - 中立 UI Tree、事件回传、Native Surface、同步和异步 Capability。
-- Android View、Compose/CMP、UIKit、SwiftUI、ArkUI 和 Kuikly 接口/适配基线。
+- Android View、UIKit/SwiftUI 与 ArkUI 合同统一 `appear` absent→present 语义；三端
+  Host 在 cancel/close 后丢弃迟到异步回调。
+- Compose/CMP 与 Kuikly 目前只是未进入 Gradle/Swift 产品构建的 Port 原型。
 
 ### 安全交付
 
 - Manifest 与模块双重验签、不可变模块 URL、同源限制和首次安装版本下限。
-- 临时下载、大小/Hash 校验、VM 预加载、原子切换、双版本历史和 LKG 回退。
+- 临时下载、大小/Hash 校验、VM 预加载、原子切换、双版本历史和 LKG 回退；三端
+  LKG 状态严格绑定 application/channel/platform/profile/release 并校验当前 Hash 与历史。
 - 稳定设备分桶、灰度止血、远程 signer 协议和 JSONL 审计。
 - Linux ASan+UBSan、macOS UBSan、libFuzzer 包解析入口和恶意字节码测试。
 
@@ -131,6 +138,30 @@ Maven/独立 AAR 一致性、APK ZIP alignment，以及 AAR 内 ELF `PT_LOAD` �
 商店包。正式业务 App 应依赖 Runtime Maven/AAR，嵌入自己平台/Profile 对应的模块，
 并使用自己的 application ID、公钥、release floor 和正式签名。
 
+### 构建 iOS Runtime SDK
+
+在安装完整 Xcode 的 macOS 上执行：
+
+```bash
+make ios-sdk-check
+```
+
+该门禁通过 [`Package.swift`](Package.swift) 组织 C++17 Core、Objective-C++ Bridge 和
+Swift Host，构建 `dist/ios/PVMBridge.xcframework`，并验证：
+
+- arm64 iPhoneOS 与 arm64/x86_64 Simulator 静态 slice、iOS 15 deployment target。
+- C ABI v3 和 Objective-C Bridge 符号、公开头文件、Swift 6 严格并发 typecheck。
+- 一个实际链接 XCFramework 的 Swift consumer，以及产物不存在私钥或本机绝对路径泄漏。
+
+Swift 层提供 `@MainActor PVMHost`、UIKit/SwiftUI Renderer、Module Store、Capability
+Registry 与 `PrivacyInfo.xcprivacy`。这是一套 SDK 构建基线，不是 IPA：目标 App 仍需
+完成示例接入、真机生命周期验证、archive/codesign、entitlement 和商店审核。
+
+iOS 产品默认建议使用 `offline_sealed`，由目标 App 在审核包内携带签名业务模块。
+如果产品选择在线字节码交付，必须针对实际功能和更新行为逐项评估
+[Apple App Review Guidelines 2.5.2](https://developer.apple.com/app-store/review/guidelines/)；
+签名、受限 VM 或 Profile 名称本身都不代表天然合规。
+
 ### 执行发布门禁
 
 ```bash
@@ -151,7 +182,8 @@ fuzz-check         1000 次覆盖引导包解析模糊测试
 ```
 
 需要 Android SDK 的 `make android-demo-check` 已登记为独立自动门禁，但不并入可在
-无 Android SDK 环境运行的 `release-check` 聚合命令。
+无 Android SDK 环境运行的 `release-check` 聚合命令。需要 Xcode 的
+`make ios-sdk-check` 同样登记为独立 iOS SDK 门禁，不并入该聚合命令。
 
 `delivery-matrix` 生成供目标 App 工程嵌入的模块、公钥、Capability 和 bootstrap。
 仓库内的 Android Demo 会把 Android Offline Sealed 输入封装成测试 APK/AAB；正式
@@ -213,12 +245,13 @@ PVM Runtime 提高静态分析、篡改和错误交付的成本，但不承诺�
 ## 项目成熟度
 
 仓库内的编译、签名、发布、缓存、VM、三端桥接和自动化门禁已经形成闭环；Android
-已经具备可分发 AAR/Maven、可安装 APK/AAB 和单台物理设备证据。进入真实产品前仍
-需要使用目标 App、账号和 SDK 完成：
+已经具备可分发 AAR/Maven、可安装 APK/AAB 和单台物理设备证据；iOS 已具备 Swift
+Package、统一 Host、Privacy Manifest 和可重复生成的静态 XCFramework 基线。进入
+真实产品前仍需要使用目标 App、账号和 SDK 完成：
 
 - 正式 KMS/HSM、密钥轮换和审计接入。
-- iOS XCFramework/Swift Package、DevEco HAP，以及 Android/iOS/HarmonyOS 完整真机矩阵。
-- KMP/CMP 与 Kuikly 的真实构建模块、Adapter 和发布产物。
+- iOS 示例 App、真机、archive/codesign 与审核证据；HarmonyOS DevEco HAR/HAP 和真机。
+- KMP/CMP 的真实构建模块与发布产物；Kuikly 仅在产品确有需要时锁定版本并实现 Adapter。
 - 支付、地图、相机、媒体、推送等实际 Capability Adapter。
 - 应用商店审核、支付沙箱、持续长时 fuzz、红队和性能 SLO。
 

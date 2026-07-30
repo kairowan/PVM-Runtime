@@ -2,6 +2,7 @@ import Foundation
 
 public struct PVMRuntimePolicy: Decodable, Sendable {
     public let applicationId: String
+    public let channel: String
     public let release: UInt64
     public let profile: String
     public let platform: String

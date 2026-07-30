@@ -14,12 +14,23 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+MAX_MANIFEST_BYTES = 64 * 1024
+MAX_MODULE_BYTES = 16 * 1024 * 1024
+
 
 def read_json(path, default):
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except (FileNotFoundError, json.JSONDecodeError):
         return default
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, request, file_pointer, code, message, headers, new_url):
+        return None
+
+
+OPENER = urllib.request.build_opener(NoRedirect)
 
 
 def request(url, token="", etag="", installation_id=""):
@@ -30,7 +41,56 @@ def request(url, token="", etag="", installation_id=""):
         headers["If-None-Match"] = etag
     if installation_id:
         headers["X-PVM-Installation-ID"] = installation_id
-    return urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=15)
+    return OPENER.open(urllib.request.Request(url, headers=headers), timeout=15)
+
+
+def is_sha256(value):
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
+def read_bound_state(path, args):
+    try:
+        if not 1 <= path.stat().st_size <= 16 * 1024:
+            return {}
+    except FileNotFoundError:
+        return {}
+    state = read_json(path, {})
+    history = state.get("history")
+    if (
+        state.get("format") != 1
+        or state.get("application_id") != args.app_id
+        or state.get("channel") != args.channel
+        or state.get("platform") != args.platform
+        or state.get("profile") != args.profile
+        or not isinstance(state.get("etag"), str)
+        or type(state.get("release")) is not int
+        or state["release"] < 1
+        or not is_sha256(state.get("sha256"))
+        or not isinstance(history, list)
+        or not 1 <= len(history) <= 2
+        or history[0] != state["sha256"]
+        or len(set(history)) != len(history)
+        or not all(is_sha256(value) for value in history)
+    ):
+        return {}
+    return state
+
+
+def cached_module(state, args):
+    if not state or state["release"] < args.minimum_release:
+        return None
+    path = args.cache.resolve() / "modules" / (state["sha256"] + ".pvm")
+    if not path.is_file() or not 1 <= path.stat().st_size <= MAX_MODULE_BYTES:
+        return None
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(16 * 1024), b""):
+            digest.update(chunk)
+    return path if digest.hexdigest() == state["sha256"] else None
 
 
 def atomic_json(path, value):
@@ -94,12 +154,40 @@ def verify_manifest_envelope(encoded, args):
     return payload
 
 
+def validate_module(path, minimum_release, args):
+    completed = subprocess.run(
+        [
+            str(args.runtime),
+            "--module",
+            str(path),
+            "--public-key",
+            str(args.public_key),
+            "--app-id",
+            args.app_id,
+            "--min-release",
+            str(minimum_release),
+            "--channel",
+            args.channel,
+            "--platform",
+            args.platform,
+            "--profile",
+            args.profile,
+            "--validate-only",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    if completed.returncode:
+        raise RuntimeError("VM preload validation failed: " + completed.stderr.strip())
+
+
 def provision_strict(args):
     cache = args.cache.resolve()
     modules = cache / "modules"
     modules.mkdir(parents=True, exist_ok=True)
     state_path = cache / "current.json"
-    state = read_json(state_path, {})
+    state = read_bound_state(state_path, args)
     installed_release = int(state.get("release", 0))
     manifest_url = "%s/v1/apps/%s/%s/%s/%s/manifest" % (
         args.server.rstrip("/"),
@@ -108,10 +196,10 @@ def provision_strict(args):
         args.platform,
         args.profile,
     )
-    cached_module = modules / (state.get("sha256", "") + ".pvm")
-    usable_cache = cached_module.is_file() and installed_release >= args.minimum_release
-    if cached_module.is_file():
-        os.chmod(cached_module, 0o600)
+    cached = cached_module(state, args)
+    usable_cache = cached is not None
+    if cached is not None:
+        os.chmod(cached, 0o600)
     try:
         with request(
             manifest_url,
@@ -119,21 +207,23 @@ def provision_strict(args):
             state.get("etag", "") if usable_cache else "",
             args.installation_id,
         ) as response:
-            encoded_manifest = response.read()
+            encoded_manifest = response.read(MAX_MANIFEST_BYTES + 1)
             etag = response.headers.get("ETag", "")
+            if len(encoded_manifest) > MAX_MANIFEST_BYTES:
+                raise RuntimeError("manifest exceeds its size budget")
     except urllib.error.HTTPError as error:
         if error.code == 304 and usable_cache:
-            print(str(cached_module))
+            print(str(cached))
             return
         if usable_cache:
             print("manifest unavailable; using last-known-good module", file=sys.stderr)
-            print(str(cached_module))
+            print(str(cached))
             return
         raise
     except urllib.error.URLError:
         if usable_cache:
             print("network unavailable; using last-known-good module", file=sys.stderr)
-            print(str(cached_module))
+            print(str(cached))
             return
         raise
     manifest = verify_manifest_envelope(encoded_manifest, args)
@@ -158,25 +248,30 @@ def provision_strict(args):
         or manifest["platform"] != args.platform
     ):
         raise RuntimeError("manifest binding mismatch")
+    if type(manifest["release"]) is not int or not 1 <= manifest["release"] <= 2**64 - 1:
+        raise RuntimeError("manifest release is invalid")
     minimum_release = max(installed_release, args.minimum_release)
-    if int(manifest["release"]) < minimum_release:
+    if manifest["release"] < minimum_release:
         raise RuntimeError("manifest rejected by anti-rollback policy")
     digest = manifest["sha256"]
-    if len(digest) != 64 or any(ch not in "0123456789abcdef" for ch in digest):
+    if not is_sha256(digest):
         raise RuntimeError("manifest contains an invalid module hash")
+    if type(manifest["size"]) is not int or not 1 <= manifest["size"] <= MAX_MODULE_BYTES:
+        raise RuntimeError("manifest module size is invalid")
     if manifest["module_url"] != "/v1/modules/%s.pvm" % digest:
         raise RuntimeError("manifest module URL is not bound to its content hash")
     destination = modules / (digest + ".pvm")
 
     if destination.exists():
-        body = destination.read_bytes()
-        if len(body) != int(manifest["size"]) or hashlib.sha256(body).hexdigest() != digest:
+        if not destination.is_file() or destination.stat().st_size != manifest["size"]:
+            destination.unlink()
+        elif hashlib.sha256(destination.read_bytes()).hexdigest() != digest:
             destination.unlink()
     if not destination.exists():
         module_url = args.server.rstrip("/") + manifest["module_url"]
         with request(module_url, args.token) as response:
-            body = response.read(int(manifest["size"]) + 1)
-        if len(body) != int(manifest["size"]) or hashlib.sha256(body).hexdigest() != digest:
+            body = response.read(manifest["size"] + 1)
+        if len(body) != manifest["size"] or hashlib.sha256(body).hexdigest() != digest:
             raise RuntimeError("downloaded module failed size/hash verification")
         temporary = modules / (digest + ".tmp")
         try:
@@ -184,33 +279,24 @@ def provision_strict(args):
                 output.write(body)
                 output.flush()
                 os.fsync(output.fileno())
-            validate = [
-                str(args.runtime),
-                "--module",
-                str(temporary),
-                "--public-key",
-                str(args.public_key),
-                "--app-id",
-                args.app_id,
-                "--min-release",
-                str(minimum_release),
-                "--validate-only",
-            ]
-            completed = subprocess.run(
-                validate, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-            )
-            if completed.returncode:
-                raise RuntimeError("VM preload validation failed: " + completed.stderr.strip())
+            validate_module(temporary, minimum_release, args)
             os.replace(str(temporary), str(destination))
             os.chmod(destination, 0o600)
         finally:
             temporary.unlink(missing_ok=True)
+    else:
+        validate_module(destination, minimum_release, args)
 
     history = [digest] + [
         item for item in state.get("history", []) if item != digest and (modules / (item + ".pvm")).exists()
     ]
     history = history[:2]
     new_state = {
+        "format": 1,
+        "application_id": args.app_id,
+        "channel": args.channel,
+        "platform": args.platform,
+        "profile": args.profile,
         "etag": etag,
         "history": history,
         "release": int(manifest["release"]),
@@ -227,9 +313,9 @@ def provision(args):
     try:
         return provision_strict(args)
     except Exception as error:
-        state = read_json(args.cache.resolve() / "current.json", {})
-        cached = args.cache.resolve() / "modules" / (state.get("sha256", "") + ".pvm")
-        if cached.is_file() and int(state.get("release", 0)) >= args.minimum_release:
+        state = read_bound_state(args.cache.resolve() / "current.json", args)
+        cached = cached_module(state, args)
+        if cached is not None:
             print(
                 "module refresh failed (%s); using last-known-good module" % error,
                 file=sys.stderr,

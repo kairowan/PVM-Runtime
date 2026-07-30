@@ -44,14 +44,17 @@ make release-check
 | `make docs-check` | README/docs 本地链接与 SVG XML |
 | `make delivery-matrix` | Android/iOS/HarmonyOS × 四 Profile |
 | `make android-demo-check` | Android Demo APK/AAB、Runtime AAR/Maven、R8 smoke 与安装包安全属性 |
+| `make ios-sdk-check` | iOS 15 静态 XCFramework、Swift 6 consumer 与产物安全属性 |
 | `make compatibility` | 五业务域 × PVBC v1/v2/v3 |
 | `make sanitizer-check` | Linux ASan+UBSan；macOS 26 使用 UBSan |
 | `make fuzz-check` | Clang libFuzzer 包解析 smoke |
 
 这些门禁不能替代 `externalRequired` 中的 HSM、商店、真机、支付沙箱和红队证据。
 
-`android-demo-check` 是需要 Android SDK 的独立自动门禁，不并入可跨平台运行的
-`release-check` 聚合命令。它使用 API 36、NDK `28.0.13004108` 构建并验证：
+`android-demo-check` 和 `ios-sdk-check` 是需要各自平台 SDK 的独立自动门禁，不并入
+可跨平台运行的 `release-check` 聚合命令。
+
+Android 门禁使用 API 36、NDK `28.0.13004108` 构建并验证：
 
 - 可安装的 Debug APK 与 Debug AAB。
 - 可复用的 Release AAR 及本地 Maven 仓库。
@@ -75,6 +78,23 @@ make android-demo-check
 交付矩阵产物仍是宿主工程输入。Android bootstrap 声明
 `packageFormats: ["apk", "aab"]`；仓库生成的 Demo 包只证明示例集成链路，正式业务
 App 必须使用自身签名策略构建。
+
+在安装完整 Xcode 的 macOS 上，iOS SDK 发布任务还必须执行：
+
+```bash
+make ios-sdk-check
+```
+
+该门禁生成 `dist/ios/PVMBridge.xcframework`，检查 arm64 iPhoneOS 与
+arm64/x86_64 Simulator slice、iOS 15 deployment target、C ABI v3/Objective-C 符号、
+公开头文件、Swift 6 strict-concurrency、实际链接 consumer，以及私钥/本机路径泄漏。
+它不会生成 `.xcarchive` 或 IPA，也不能代替 codesign、真机、entitlement、隐私问卷和
+App Store 审核。
+
+iOS 默认发布建议为 `offline_sealed`。任何在线字节码交付都必须针对实际模块能够改变
+的功能评估
+[Apple App Review Guidelines 2.5.2](https://developer.apple.com/app-store/review/guidelines/)；
+自动门禁通过不等于商店天然合规。
 
 ## 编译与发布
 
@@ -246,5 +266,5 @@ python3 -m pvm_server.serve \
 - Host IDL/生成产物版本。
 - application/channel/platform/profile/release。
 - 模块 SHA-256、Manifest payload Hash 和 signer key ID。
-- release-check 结果与外部证据链接。
+- release-check、对应平台 `android-demo-check`/`ios-sdk-check` 结果与外部证据链接。
 - 灰度时间线、指标、止血条件和负责人。

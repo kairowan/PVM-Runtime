@@ -101,6 +101,7 @@ public final class PVMPushInbox: @unchecked Sendable {
     private let key = "pvm.push.inbox"
     private let lock = NSLock()
 
+    @MainActor
     init(registry: PVMCapabilityRegistry, defaults: UserDefaults) {
         self.defaults = defaults
         registry.registerAsync("push.inbox") { [weak self] operation, _, complete in

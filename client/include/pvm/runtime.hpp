@@ -97,10 +97,22 @@ class Runtime {
                                        std::uint64_t minimum_release, UiHost& ui_host,
                                        CapabilityHost& capability_host,
                                        SignatureVerifier signature_verifier = {});
+  static std::unique_ptr<Runtime> load_bound(
+      const std::string& module_path, const std::string& public_key_path,
+      const std::string& expected_application_id, const std::string& expected_channel,
+      const std::string& expected_platform, const std::string& expected_profile,
+      std::uint64_t minimum_release, UiHost& ui_host, CapabilityHost& capability_host,
+      SignatureVerifier signature_verifier = {});
   static std::unique_ptr<Runtime> load_package(
       const std::vector<std::uint8_t>& package, const std::string& public_key_path,
       const std::string& expected_application_id, std::uint64_t minimum_release,
       UiHost& ui_host, CapabilityHost& capability_host,
+      SignatureVerifier signature_verifier = {});
+  static std::unique_ptr<Runtime> load_package_bound(
+      const std::vector<std::uint8_t>& package, const std::string& public_key_path,
+      const std::string& expected_application_id, const std::string& expected_channel,
+      const std::string& expected_platform, const std::string& expected_profile,
+      std::uint64_t minimum_release, UiHost& ui_host, CapabilityHost& capability_host,
       SignatureVerifier signature_verifier = {});
   ~Runtime();
   Runtime(Runtime&&) noexcept;
@@ -117,6 +129,7 @@ class Runtime {
   void restore_state(const std::vector<std::uint8_t>& snapshot);
 
   const std::string& application_id() const;
+  const std::string& channel() const;
   std::uint64_t release() const;
   const std::vector<std::string>& capabilities() const;
   const std::vector<std::uint16_t>& capability_versions() const;

@@ -7,7 +7,7 @@ ifeq ($(FUZZ_CXX),)
 FUZZ_CXX := clang++
 endif
 
-.PHONY: android-demo-apk android-demo-check android-packages bootstrap build compatibility delivery-matrix docs-check fuzz-check generate-host-idl host-manifest publish release-check sanitizer-check serve demo platform-check test verify-contracts
+.PHONY: android-demo-apk android-demo-check android-packages bootstrap build compatibility delivery-matrix docs-check fuzz-check generate-host-idl host-manifest ios-packages ios-sdk-check publish release-check sanitizer-check serve demo platform-check test verify-contracts
 
 bootstrap:
 	PYTHONPATH="$(PYTHONPATH_VALUE)" $(PYTHON) -m pvm_server.keys --directory server/var/keys
@@ -43,6 +43,12 @@ android-demo-apk: android-packages
 
 android-demo-check: build android-packages
 	ANDROID_HOME="$(ANDROID_SDK_PATH)" $(PYTHON) scripts/check_android_artifacts.py
+
+ios-packages:
+	$(PYTHON) scripts/build_ios_artifacts.py
+
+ios-sdk-check: ios-packages
+	$(PYTHON) scripts/check_ios_artifacts.py
 
 host-manifest:
 	PYTHONPATH="$(PYTHONPATH_VALUE)" $(PYTHON) -m pvm_server.host_manifest \

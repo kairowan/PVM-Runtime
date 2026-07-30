@@ -2,6 +2,7 @@ package com.protectedvm.demo
 
 import android.app.Activity
 import android.os.Bundle
+import android.system.Os
 import android.view.ViewGroup
 import android.view.WindowInsets
 import android.view.WindowInsetsController
@@ -14,6 +15,7 @@ import com.protectedvm.host.PvmCrypto
 import com.protectedvm.host.PvmRuntimeHost
 import org.json.JSONObject
 import java.io.File
+import java.io.FileOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import kotlin.math.roundToInt
@@ -55,7 +57,7 @@ class MainActivity : Activity() {
 
     override fun onStop() {
         runtime?.let { host ->
-            runCatching { File(filesDir, STATE_FILE).writeBytes(host.snapshotState()) }
+            runCatching { persistState(host.snapshotState()) }
         }
         super.onStop()
     }
@@ -88,16 +90,24 @@ class MainActivity : Activity() {
                 modulePath = module.absolutePath,
                 publicKeyPath = publicKey.absolutePath,
                 applicationId = applicationId,
+                expectedChannel = bootstrap.getString("channel"),
+                expectedProfile = bootstrap.getString("profile"),
                 minimumRelease = bootstrap.getLong("release"),
                 renderer = AndroidViewRenderer(this, root),
                 capabilities = capabilities,
                 errors = ::showError,
             )
-        File(filesDir, STATE_FILE).takeIf(File::isFile)?.let {
-            host.restoreState(it.readBytes())
+        try {
+            File(filesDir, STATE_FILE).takeIf(File::isFile)?.let { state ->
+                runCatching { host.restoreState(state.readBytes()) }
+                    .onFailure { state.delete() }
+            }
+            host.start()
+            runtime = host
+        } catch (error: Throwable) {
+            host.close()
+            throw error
         }
-        host.start()
-        runtime = host
     }
 
     private fun copyAsset(name: String): File {
@@ -129,6 +139,20 @@ class MainActivity : Activity() {
                 packageBytes.copyOfRange(14 + payloadSize, packageBytes.size),
             ),
         ) { PvmCrypto.lastFailure ?: "Android platform Ed25519 verification failed" }
+    }
+
+    private fun persistState(state: ByteArray) {
+        val destination = File(filesDir, STATE_FILE)
+        val temporary = File(filesDir, "$STATE_FILE.tmp")
+        try {
+            FileOutputStream(temporary).use {
+                it.write(state)
+                it.fd.sync()
+            }
+            Os.rename(temporary.absolutePath, destination.absolutePath)
+        } finally {
+            temporary.delete()
+        }
     }
 
     private fun showError(error: Throwable) {

@@ -42,7 +42,8 @@ DSL 只存在于构建边界，不写入 `.pvm`。生产模块不包含状态源
 application_id / channel / platform / profile
 ```
 
-平台和 Profile 同时存在于 Manifest 与签名字节码中，避免同名发布互相覆盖或误加载。
+application、channel、platform、profile 和 release 同时存在于 Manifest 与签名字节码
+中，避免跨应用、跨渠道、跨平台或跨交付策略误加载。
 
 ### Device Plane
 
@@ -53,7 +54,9 @@ application_id / channel / platform / profile
 | UIHost | 把中立 UI Tree 映射到原生 Renderer，并回传事件 |
 | Capability Host | 对版本、权限、线程、参数和用户授权再次检查后调用原生 SDK |
 
-Android、iOS、HarmonyOS 共用同一 Runtime 和 C ABI，不复制解释器。
+Android、iOS、HarmonyOS 共用同一 Runtime 和 C ABI，不复制解释器。新移动端 Host
+使用 C ABI v3：创建时强制 application/channel/platform/profile 与 release floor，
+Module Store 再要求 VM 返回的 release 等于签名 Manifest release。
 
 ## 从 DSL 到 UI 的数据流
 
@@ -133,7 +136,7 @@ Runtime 5 读取 v1–v5；默认编译 v5。历史格式没有 Capability 版�
 ```text
 signed Manifest
   → signature
-  → App/platform/profile/release binding
+  → application/channel/platform/profile/release binding
   → same-origin content-addressed URL
   → temporary download
   → size + SHA-256
@@ -144,7 +147,10 @@ signed Manifest
   → remove cache entries outside two-version history
 ```
 
-任何一步失败，临时文件都会删除，当前 LKG 保持不变。
+任何一步失败，临时文件都会删除，当前 LKG 保持不变。Android、iOS 与 HarmonyOS
+的 `current` 状态格式都固定为 v1，并严格校验 application/channel/platform/profile、
+正整数 release、当前 SHA-256、非空且最多两项的去重历史，以及“历史第一项等于当前
+Hash”；绑定不匹配或损坏的状态不会成为 LKG。
 
 ## 状态生命周期
 
@@ -158,12 +164,29 @@ PVBC v4 为每个状态字段写入由 App、模块和 `persistence_id` 生成�
 
 v1–v3 模块继续使用严格 Schema 相等恢复。
 
+## Runtime 生命周期
+
+Runtime 生命周期是显式状态机：
+
+```text
+created → optional restore → start (exactly once) → dispatch/complete/snapshot
+                                             └── cancel pending tasks → destroy
+```
+
+- `dispatch` 和异步 `complete_effect` 在 start 前失败。
+- `restore_state` 只能在 start 前执行；重复 start 被拒绝。
+- cancel 清空 VM continuation；三端 Host 递增任务 generation 或解除回调持有，
+  因而 cancel/close 后到达的原生异步结果会被丢弃，不能恢复已取消或已销毁的 VM。
+- 平台 Host 的 close 是幂等终点；之后不再接受事件、状态或异步结果。
+
 ## UI 与 Capability 边界
 
 VM 输出整批中立 UI Tree，节点只包含类型、稳定数值 ID、属性、事件和子节点。宿主：
 
 - 在平台 UI 线程创建或更新原生控件。
 - 把点击、输入、提交、出现等事件回传 VM；v5 change/submit 可携带受预算限制的字符串值。
+- `appear` 只在节点从 absent 进入 present 时发送一次；仍存在于后续整树 replace 的节点
+  不会重复发送，离开树后重新出现才可再次发送。
 - 用 Native Surface 承载地图、播放器、相机预览等高频原生内容。
 - 不让视频帧、相机帧或手势流穿过 VM。
 
@@ -209,7 +232,10 @@ Profile 只改变模块来源与打包约束。Android `Offline Sealed` 可嵌�
 
 - KeyStore/Keychain/HUKS 缓存密钥与平台完整性证明。
 - 商业支付、地图、相机、媒体和推送 Adapter。
-- Compose/CMP、ArkUI、Kuikly 的目标项目版本编译与真机 UI 回归。
+- iOS 示例 App、真机、archive/codesign 与审核证据。
+- HarmonyOS DevEco 工程、HAR/HAP、HUKS Adapter 和真机；当前只有可移植
+  Node-API/ArkTS/ArkUI 合同。
+- KMP/CMP 的目标项目构建；Kuikly 只在产品需要时锁定版本并实现 Adapter。
 - 正式 KMS/HSM、组织日志、应用市场审核、支付沙箱、红队和性能 SLO。
 
 安全假设与剩余风险见[安全模型](SECURITY_MODEL.md)，当前证据见[交付状态](DELIVERY_STATUS.md)。

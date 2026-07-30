@@ -5,9 +5,10 @@ NS_ASSUME_NONNULL_BEGIN
 typedef void (^PVMUIBatchHandler)(NSString* json);
 typedef NSString* _Nullable (^PVMSyncEffectHandler)(
     NSString* capability, NSString* operation, NSString* argumentsJSON);
+typedef void (NS_SWIFT_SENDABLE ^PVMAsyncCompletion)(NSString* result);
 typedef void (^PVMAsyncEffectHandler)(
     uint64_t taskID, NSString* capability, NSString* operation, NSString* argumentsJSON,
-    void (^complete)(NSString* result));
+    PVMAsyncCompletion complete);
 typedef BOOL (^PVMSignatureVerifier)(
     NSData* payload, NSData* signature, NSString* publicKeyPath);
 
@@ -16,6 +17,8 @@ typedef BOOL (^PVMSignatureVerifier)(
 + (uint64_t)validateModulePath:(NSString*)modulePath
                  publicKeyPath:(NSString*)publicKeyPath
                  applicationID:(NSString*)applicationID
+               expectedChannel:(NSString*)expectedChannel
+               expectedProfile:(NSString*)expectedProfile
                 minimumRelease:(uint64_t)minimumRelease
              signatureVerifier:(PVMSignatureVerifier)signatureVerifier
                          error:(NSError* _Nullable* _Nullable)error;
@@ -23,6 +26,8 @@ typedef BOOL (^PVMSignatureVerifier)(
 - (nullable instancetype)initWithModulePath:(NSString*)modulePath
                               publicKeyPath:(NSString*)publicKeyPath
                               applicationID:(NSString*)applicationID
+                            expectedChannel:(NSString*)expectedChannel
+                            expectedProfile:(NSString*)expectedProfile
                              minimumRelease:(uint64_t)minimumRelease
                           signatureVerifier:(PVMSignatureVerifier)signatureVerifier
                                   uiHandler:(PVMUIBatchHandler)uiHandler

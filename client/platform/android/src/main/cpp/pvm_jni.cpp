@@ -191,6 +191,8 @@ Java_com_protectedvm_host_PvmRuntimeHost_nativeCreate(JNIEnv* env, jobject host,
                                                        jstring module_path,
                                                        jstring public_key_path,
                                                        jstring application_id,
+                                                       jstring expected_channel,
+                                                       jstring expected_profile,
                                                        jlong minimum_release) {
   auto bridge = std::make_unique<Bridge>();
   if (env->GetJavaVM(&bridge->vm) != JNI_OK) {
@@ -217,14 +219,17 @@ Java_com_protectedvm_host_PvmRuntimeHost_nativeCreate(JNIEnv* env, jobject host,
   const auto module = to_utf8(env, module_path);
   const auto key = to_utf8(env, public_key_path);
   const auto app = to_utf8(env, application_id);
+  const auto channel = to_utf8(env, expected_channel);
+  const auto profile = to_utf8(env, expected_profile);
   char error[512]{};
   const pvm_host_callbacks_v2 callbacks{
       bridge.get(), ui_callback, effect_callback, async_effect_callback,
       signature_verify_callback};
   bridge->runtime =
-      pvm_runtime_create_v2(module.c_str(), key.c_str(), app.c_str(),
-                            static_cast<std::uint64_t>(minimum_release), callbacks, error,
-                            sizeof(error));
+      pvm_runtime_create_v3(
+          module.c_str(), key.c_str(), app.c_str(), channel.c_str(), "android",
+          profile.c_str(), static_cast<std::uint64_t>(minimum_release), callbacks, error,
+          sizeof(error));
   if (bridge->runtime == nullptr) {
     env->DeleteGlobalRef(bridge->host);
     throw_runtime(env, error);
@@ -346,10 +351,12 @@ Java_com_protectedvm_host_PvmRuntimeHost_nativeDestroy(JNIEnv* env, jobject, jlo
 extern "C" JNIEXPORT jlong JNICALL
 Java_com_protectedvm_host_PvmModuleValidator_nativeValidate(
     JNIEnv* env, jclass, jstring module_path, jstring public_key_path, jstring application_id,
-    jlong minimum_release) {
+    jstring expected_channel, jstring expected_profile, jlong minimum_release) {
   const auto module = to_utf8(env, module_path);
   const auto key = to_utf8(env, public_key_path);
   const auto app = to_utf8(env, application_id);
+  const auto channel = to_utf8(env, expected_channel);
+  const auto profile = to_utf8(env, expected_profile);
   JniContext context;
   if (env->GetJavaVM(&context.vm) != JNI_OK) {
     throw_runtime(env, "Cannot access JavaVM");
@@ -359,9 +366,10 @@ Java_com_protectedvm_host_PvmModuleValidator_nativeValidate(
       &context, nullptr, nullptr, nullptr, signature_verify_callback};
   char error[512]{};
   auto* runtime =
-      pvm_runtime_create_v2(module.c_str(), key.c_str(), app.c_str(),
-                            static_cast<std::uint64_t>(minimum_release), callbacks, error,
-                            sizeof(error));
+      pvm_runtime_create_v3(
+          module.c_str(), key.c_str(), app.c_str(), channel.c_str(), "android",
+          profile.c_str(), static_cast<std::uint64_t>(minimum_release), callbacks, error,
+          sizeof(error));
   if (runtime == nullptr) {
     throw_runtime(env, error);
     return 0;

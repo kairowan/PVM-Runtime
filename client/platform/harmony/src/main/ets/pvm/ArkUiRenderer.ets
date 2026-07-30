@@ -13,6 +13,10 @@ export interface ArkUiNodeFactory {
 }
 
 export class ArkUiRenderer implements UiRenderer {
+  private renderGeneration: number = 0
+  private visibleNodeIds: Set<number> = new Set()
+  private appearedNodeIds: Set<number> = new Set()
+
   constructor(
     private host: ArkUiViewHost,
     private factory: ArkUiNodeFactory,
@@ -22,7 +26,22 @@ export class ArkUiRenderer implements UiRenderer {
     root: UiNode,
     emit: (nodeId: number, event: string, value?: string) => void,
   ): void {
-    this.host.replace(this.render(root, emit))
+    this.renderGeneration += 1
+    const generation = this.renderGeneration
+    const nextVisible = this.collectIds(root)
+    this.appearedNodeIds = new Set(
+      Array.from(this.appearedNodeIds).filter((id) => nextVisible.has(id)),
+    )
+    this.visibleNodeIds = nextVisible
+    const guardedEmit = (nodeId: number, event: string, value?: string): void => {
+      if (generation !== this.renderGeneration || !this.visibleNodeIds.has(nodeId)) return
+      if (event === 'appear') {
+        if (this.appearedNodeIds.has(nodeId)) return
+        this.appearedNodeIds.add(nodeId)
+      }
+      emit(nodeId, event, value)
+    }
+    this.host.replace(this.render(root, guardedEmit))
   }
 
   private render(
@@ -35,5 +54,15 @@ export class ArkUiRenderer implements UiRenderer {
     ]
     if (!supported.includes(node.type)) throw new Error(`Unsupported VM node type ${node.type}`)
     return this.factory.create(node, node.children.map((child) => this.render(child, emit)), emit)
+  }
+
+  private collectIds(root: UiNode): Set<number> {
+    const result: Set<number> = new Set()
+    const visit = (node: UiNode): void => {
+      result.add(node.id)
+      node.children.forEach(visit)
+    }
+    visit(root)
+    return result
   }
 }

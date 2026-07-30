@@ -5,6 +5,8 @@ public final class PVMSwiftUITree: ObservableObject {
     @Published public private(set) var root: PVMUINode?
     @Published private var values: [UInt32: String] = [:]
     public var emit: (UInt32, String, String?) -> Void = { _, _, _ in }
+    private var visibleNodeIDs: Set<UInt32> = []
+    private var appearedNodeIDs: Set<UInt32> = []
 
     public init() {}
 
@@ -15,8 +17,18 @@ public final class PVMSwiftUITree: ObservableObject {
         let batch = try JSONDecoder().decode(PVMUIBatch.self, from: Data(batchJSON.utf8))
         guard batch.operation == "replace" else { throw PVMHostError("Unsupported UI batch") }
         self.emit = events
+        let nextVisible = collectIDs(batch.root)
+        appearedNodeIDs.formIntersection(nextVisible)
+        visibleNodeIDs = nextVisible
         collectValues(batch.root)
         root = batch.root
+    }
+
+    public func appear(_ nodeID: UInt32) {
+        guard visibleNodeIDs.contains(nodeID), appearedNodeIDs.insert(nodeID).inserted else {
+            return
+        }
+        emit(nodeID, "appear", nil)
     }
 
     public func stringBinding(for node: PVMUINode) -> Binding<String> {
@@ -50,6 +62,16 @@ public final class PVMSwiftUITree: ObservableObject {
         }
         node.children.forEach(collectValues)
     }
+
+    private func collectIDs(_ root: PVMUINode) -> Set<UInt32> {
+        var result: Set<UInt32> = []
+        func visit(_ node: PVMUINode) {
+            result.insert(node.id)
+            node.children.forEach(visit)
+        }
+        visit(root)
+        return result
+    }
 }
 
 public struct PVMSwiftUIRenderer: View {
@@ -67,53 +89,59 @@ public struct PVMSwiftUIRenderer: View {
         }
     }
 
-    @ViewBuilder
-    private func node(_ value: PVMUINode) -> some View {
-        renderedNode(value)
-            .modifier(PVMNodeBehavior(node: value, emit: tree.emit))
+    private func node(_ value: PVMUINode) -> AnyView {
+        // ponytail: the DSL tree is dynamic; type erasure prevents recursive generic
+        // expansion during Swift compilation. Replace only after renderer profiling.
+        AnyView(
+            renderedNode(value)
+                .modifier(PVMNodeBehavior(node: value, emit: tree.emit, appear: tree.appear))
+        )
     }
 
-    @ViewBuilder
-    private func renderedNode(_ value: PVMUINode) -> some View {
+    private func renderedNode(_ value: PVMUINode) -> AnyView {
         switch value.type {
         case "Text":
-            Text(value.props["text"] ?? "")
+            return AnyView(Text(value.props["text"] ?? ""))
         case "Image":
-            Image(value.props["source"] ?? "")
+            return AnyView(Image(value.props["source"] ?? ""))
         case "Row":
-            HStack { children(value) }
+            return AnyView(HStack { children(value) })
         case "Column", "List":
-            VStack { children(value) }
+            return AnyView(VStack { children(value) })
         case "Stack":
-            ZStack { children(value) }
+            return AnyView(ZStack { children(value) })
         case "Scroll":
-            ScrollView { VStack { children(value) } }
+            return AnyView(ScrollView { VStack { children(value) } })
         case "Button":
-            Button(value.props["text"] ?? "") { tree.emit(value.id, "tap", nil) }
+            return AnyView(
+                Button(value.props["text"] ?? "") { tree.emit(value.id, "tap", nil) }
+            )
         case "Input":
-            TextField(value.props["text"] ?? "", text: tree.stringBinding(for: value))
-                .onSubmit { tree.emit(value.id, "submit", tree.value(for: value)) }
+            return AnyView(
+                TextField(value.props["text"] ?? "", text: tree.stringBinding(for: value))
+                    .onSubmit { tree.emit(value.id, "submit", tree.value(for: value)) }
+            )
         case "Switch":
-            Toggle(value.props["text"] ?? "", isOn: tree.boolBinding(for: value))
+            return AnyView(
+                Toggle(value.props["text"] ?? "", isOn: tree.boolBinding(for: value))
+            )
         case "NativeSurface":
             // ponytail: projects replace this placeholder with their registered UIViewRepresentable.
-            Text("NativeSurface: \(value.props["surfaceType"] ?? "")")
+            return AnyView(Text("NativeSurface: \(value.props["surfaceType"] ?? "")"))
         default:
-            EmptyView()
+            return AnyView(EmptyView())
         }
     }
 
-    @ViewBuilder
-    private func children(_ value: PVMUINode) -> some View {
-        ForEach(value.children, id: \.id) { child in
-            node(child)
-        }
+    private func children(_ value: PVMUINode) -> AnyView {
+        AnyView(ForEach(value.children, id: \.id) { child in node(child) })
     }
 }
 
 private struct PVMNodeBehavior: ViewModifier {
     let node: PVMUINode
     let emit: (UInt32, String, String?) -> Void
+    let appear: (UInt32) -> Void
 
     @ViewBuilder
     func body(content: Content) -> some View {
@@ -121,7 +149,7 @@ private struct PVMNodeBehavior: ViewModifier {
         let base = content
             .disabled(!enabled)
             .onAppear {
-                if node.events.contains("appear") { emit(node.id, "appear", nil) }
+                if node.events.contains("appear") { appear(node.id) }
             }
         if let label = node.props["accessibilityLabel"] {
             interactive(base.accessibilityLabel(Text(label)))

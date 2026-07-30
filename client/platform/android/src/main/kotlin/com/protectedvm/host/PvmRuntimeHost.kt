@@ -8,24 +8,50 @@ class PvmRuntimeHost(
     modulePath: String,
     publicKeyPath: String,
     applicationId: String,
+    expectedChannel: String,
+    expectedProfile: String,
     minimumRelease: Long,
     private val renderer: AndroidViewRenderer,
     private val capabilities: CapabilityRegistry,
     private val errors: (Throwable) -> Unit = { Log.e("ProtectedVM", "Runtime host error", it) },
 ) : UiEventSink, AutoCloseable {
     private val main = Handler(Looper.getMainLooper())
+    private var taskGeneration = 0L
     private var handle: Long =
-        nativeCreate(modulePath, publicKeyPath, applicationId, minimumRelease).also {
+        nativeCreate(
+            modulePath,
+            publicKeyPath,
+            applicationId,
+            expectedChannel,
+            expectedProfile,
+            minimumRelease,
+        ).also {
             require(it != 0L) { "Native runtime creation failed" }
         }
 
-    val policy: RuntimePolicy =
-        RuntimePolicy.parse(nativeMetadata(handle)).also {
-            require(it.platform == "android") {
-                "Android host rejected module for platform ${it.platform}"
-            }
-            capabilities.applyPolicy(it)
+    val policy: RuntimePolicy
+
+    init {
+        try {
+            policy =
+                RuntimePolicy.parse(nativeMetadata(handle)).also {
+                    require(it.platform == "android") {
+                        "Android host rejected module for platform ${it.platform}"
+                    }
+                    require(it.profile == expectedProfile) {
+                        "Android host rejected module for profile ${it.profile}"
+                    }
+                    require(it.channel == expectedChannel) {
+                        "Android host rejected module for channel ${it.channel}"
+                    }
+                    capabilities.applyPolicy(it)
+                }
+        } catch (error: Throwable) {
+            nativeDestroy(handle)
+            handle = 0
+            throw error
         }
+    }
 
     fun start() {
         checkMainThread()
@@ -53,12 +79,16 @@ class PvmRuntimeHost(
 
     fun cancelTasks() {
         checkMainThread()
-        nativeCancelTasks(requireHandle())
+        val current = requireHandle()
+        taskGeneration += 1
+        nativeCancelTasks(current)
     }
 
     override fun close() {
         checkMainThread()
         if (handle != 0L) {
+            taskGeneration += 1
+            nativeCancelTasks(handle)
             nativeDestroy(handle)
             handle = 0
         }
@@ -83,9 +113,10 @@ class PvmRuntimeHost(
         operation: String,
         argumentsJson: String,
     ) {
+        val generation = taskGeneration
         capabilities.invokeAsync(capability, operation, argumentsJson) { result ->
             main.post {
-                if (handle != 0L) {
+                if (handle != 0L && generation == taskGeneration) {
                     runCatching { nativeComplete(handle, taskId, result) }.onFailure(errors)
                 }
             }
@@ -113,6 +144,8 @@ class PvmRuntimeHost(
         modulePath: String,
         publicKeyPath: String,
         applicationId: String,
+        expectedChannel: String,
+        expectedProfile: String,
         minimumRelease: Long,
     ): Long
     private external fun nativeMetadata(handle: Long): String

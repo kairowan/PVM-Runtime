@@ -15,6 +15,8 @@ export const create: (
   publicKeyPath: string,
   applicationId: string,
   minimumRelease: number,
+  expectedChannel: string,
+  expectedProfile: string,
   callbacks: NativeCallbacks,
 ) => object
 export const start: (handle: object) => void

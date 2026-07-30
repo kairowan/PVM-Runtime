@@ -77,11 +77,41 @@ int main(int argc, char** argv) {
     return 2;
   }
   HostState state;
-  pvm_host_callbacks callbacks{&state, on_ui, on_effect, on_async_effect};
+  pvm_host_callbacks_v2 callbacks{
+      &state, on_ui, on_effect, on_async_effect, nullptr};
   char error[512]{};
+  pvm_runtime* mismatched =
+      pvm_runtime_create_v3(argv[1], argv[2], argv[3], "enterprise", "ios",
+                            "online_provisioned", 0, callbacks, error, sizeof(error));
+  if (mismatched != nullptr ||
+      std::string(error).find("platform binding mismatch") == std::string::npos) {
+    std::cerr << "C ABI platform binding assertion failed\n";
+    pvm_runtime_destroy(mismatched);
+    return 1;
+  }
   pvm_runtime* runtime =
-      pvm_runtime_create(argv[1], argv[2], argv[3], 0, callbacks, error, sizeof(error));
-  if (runtime == nullptr || !pvm_runtime_start(runtime, error, sizeof(error)) ||
+      pvm_runtime_create_v3(argv[1], argv[2], argv[3], "enterprise", "desktop",
+                            "online_provisioned", 0, callbacks, error, sizeof(error));
+  if (runtime == nullptr) {
+    std::cerr << error << '\n';
+    return 1;
+  }
+  if (pvm_runtime_dispatch(runtime, node_id("counter_increment"), 1, error, sizeof(error)) ||
+      std::string(error).find("not started") == std::string::npos) {
+    std::cerr << "pre-start dispatch assertion failed\n";
+    pvm_runtime_destroy(runtime);
+    return 1;
+  }
+  const auto initial_size =
+      pvm_runtime_snapshot_state(runtime, nullptr, 0, error, sizeof(error));
+  std::vector<std::uint8_t> initial(initial_size);
+  if (initial.empty() ||
+      pvm_runtime_snapshot_state(runtime, initial.data(), initial.size(), error, sizeof(error)) !=
+          initial.size() ||
+      !pvm_runtime_restore_state(runtime, initial.data(), initial.size(), error, sizeof(error)) ||
+      !pvm_runtime_start(runtime, error, sizeof(error)) ||
+      pvm_runtime_start(runtime, error, sizeof(error)) ||
+      std::string(error).find("already started") == std::string::npos ||
       !pvm_runtime_dispatch(runtime, node_id("counter_increment"), 1, error, sizeof(error)) ||
       !pvm_runtime_dispatch(runtime, node_id("counter_notify"), 1, error, sizeof(error))) {
     std::cerr << error << '\n';
@@ -107,6 +137,7 @@ int main(int argc, char** argv) {
   if (metadata.empty() ||
       pvm_runtime_metadata_json(runtime, metadata.data(), metadata.size(), error,
                                 sizeof(error)) != metadata.size() ||
+      metadata.find("\"channel\":\"enterprise\"") == std::string::npos ||
       metadata.find("\"storage.kv\"") == std::string::npos ||
       metadata.find("\"capabilityVersions\":{\"storage.kv\":1") == std::string::npos ||
       metadata.find("\"platform\":\"desktop\"") == std::string::npos) {
@@ -144,7 +175,8 @@ int main(int argc, char** argv) {
   if (snapshot.empty() ||
       pvm_runtime_snapshot_state(runtime, snapshot.data(), snapshot.size(), error, sizeof(error)) !=
           snapshot.size() ||
-      !pvm_runtime_restore_state(runtime, snapshot.data(), snapshot.size(), error, sizeof(error)) ||
+      pvm_runtime_restore_state(runtime, snapshot.data(), snapshot.size(), error, sizeof(error)) ||
+      std::string(error).find("before runtime start") == std::string::npos ||
       pvm_runtime_release(runtime) != 5 || state.ui_batches != 4 || state.effects != 1 ||
       state.async_effects != 1 || state.async_failed) {
     std::cerr << (error[0] == '\0' ? "C ABI assertion failed" : error) << '\n';

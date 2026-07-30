@@ -1,8 +1,10 @@
 import Foundation
 
-public final class PVMCapabilityRegistry: @unchecked Sendable {
+@MainActor
+public final class PVMCapabilityRegistry {
+    public typealias Completion = @Sendable (String) -> Void
     public typealias SyncHandler = (String, [Any]) throws -> String
-    public typealias AsyncHandler = (String, [Any], @escaping (String) -> Void) throws -> Void
+    public typealias AsyncHandler = (String, [Any], @escaping Completion) throws -> Void
 
     private var sync: [String: SyncHandler] = [:]
     private var async: [String: AsyncHandler] = [:]
@@ -49,7 +51,7 @@ public final class PVMCapabilityRegistry: @unchecked Sendable {
         _ id: String,
         operation: String,
         argumentsJSON: String,
-        complete: @escaping (String) -> Void
+        complete: @escaping Completion
     ) {
         do {
             try requireDeclared(id)

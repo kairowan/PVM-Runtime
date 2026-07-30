@@ -48,6 +48,12 @@ PVM_EXPORT pvm_runtime* pvm_runtime_create_v2(
     const char* module_path, const char* public_key_path, const char* expected_application_id,
     uint64_t minimum_release, pvm_host_callbacks_v2 callbacks, char* error,
     size_t error_capacity);
+// New platform hosts must use v3 so channel/platform/profile bindings are checked at creation.
+PVM_EXPORT pvm_runtime* pvm_runtime_create_v3(
+    const char* module_path, const char* public_key_path, const char* expected_application_id,
+    const char* expected_channel, const char* expected_platform, const char* expected_profile,
+    uint64_t minimum_release, pvm_host_callbacks_v2 callbacks, char* error,
+    size_t error_capacity);
 PVM_EXPORT int pvm_runtime_start(pvm_runtime* runtime, char* error, size_t error_capacity);
 PVM_EXPORT int pvm_runtime_dispatch(pvm_runtime* runtime, uint32_t node_id, uint8_t event_type,
                                     char* error, size_t error_capacity);

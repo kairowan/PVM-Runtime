@@ -37,7 +37,8 @@ def check_android():
         print("Android host: SKIP (SDK or Gradle project unavailable)")
         return
     platforms = sorted((sdk / "platforms").glob("android-*"))
-    ndks = sorted((sdk / "ndk").iterdir())
+    ndk_root = sdk / "ndk"
+    ndks = sorted(ndk_root.iterdir()) if ndk_root.is_dir() else []
     if not platforms or not ndks:
         print("Android host: SKIP (platform or NDK unavailable)")
         return
@@ -101,12 +102,19 @@ def check_ios():
             "arm64-apple-ios15.0-simulator",
             "-sdk",
             sdk,
+            "-Iclient/platform/ios/include",
+            "-swift-version",
+            "6",
+            "-strict-concurrency=complete",
             "-warnings-as-errors",
             "-typecheck",
             *sorted((ROOT / "client/platform/ios/swift").glob("*.swift")),
         ]
     )
-    print("iOS host: PASS (Objective-C++ + Swift/UIKit/SwiftUI/CryptoKit)")
+    print(
+        "iOS host: PASS "
+        "(Objective-C++ bridge + unified Host + Swift 6/UIKit/SwiftUI/CryptoKit)"
+    )
 
 
 def check_harmony_bridge():
@@ -136,7 +144,10 @@ def check_harmony_bridge():
             "build/pvm_napi.o",
         ]
     )
-    print("Harmony host: PASS (portable Node-API C++; DevEco SDK unavailable)")
+    print(
+        "Harmony portable bridge: PASS "
+        "(desktop Node-API headers only; DevEco/ArkTS/HAR/HAP not verified)"
+    )
 
 
 def main():

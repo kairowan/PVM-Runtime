@@ -35,13 +35,23 @@ class AndroidViewRenderer(
         }
     },
 ) {
+    private var renderGeneration = 0L
+    private var visibleNodeIds = emptySet<Long>()
+    private val appearedNodeIds = mutableSetOf<Long>()
+
     fun replaceTree(node: UiNode, events: UiEventSink) {
         checkMainThread()
+        renderGeneration += 1
+        val generation = renderGeneration
+        val nextVisible = node.collectIds()
+        appearedNodeIds.retainAll(nextVisible)
+        visibleNodeIds = nextVisible
+        val awaitingAppear = nextVisible - appearedNodeIds
         val focused = root.findFocus()
         val focusedTag = focused?.tag
         val selectionStart = (focused as? EditText)?.selectionStart ?: -1
         val selectionEnd = (focused as? EditText)?.selectionEnd ?: -1
-        val rendered = create(node, events)
+        val rendered = create(node, events, awaitingAppear, generation)
         root.removeAllViews()
         root.addView(
             rendered,
@@ -64,10 +74,16 @@ class AndroidViewRenderer(
         }
     }
 
-    private fun create(node: UiNode, sink: UiEventSink): View {
+    private fun create(
+        node: UiNode,
+        sink: UiEventSink,
+        awaitingAppear: Set<Long>,
+        generation: Long,
+    ): View {
         val view =
             when (node.type) {
                 "Text" -> TextView(context)
+                // ponytail: the target app owns image loading and its signed-source policy.
                 "Image" -> ImageView(context)
                 "Row" -> linear(LinearLayout.HORIZONTAL)
                 "Column", "List" -> linear(LinearLayout.VERTICAL)
@@ -75,7 +91,9 @@ class AndroidViewRenderer(
                 "Scroll" ->
                     ScrollView(context).also { scroll ->
                         val content = linear(LinearLayout.VERTICAL)
-                        node.children.forEach { content.addView(create(it, sink)) }
+                        node.children.forEach {
+                            content.addView(create(it, sink, awaitingAppear, generation))
+                        }
                         scroll.addView(content)
                     }
                 "Button" -> Button(context)
@@ -88,9 +106,11 @@ class AndroidViewRenderer(
         view.tag = node.id
         applyProperties(view, node.props)
         if (node.type != "Scroll" && view is ViewGroup) {
-            node.children.forEach { view.addView(create(it, sink)) }
+            node.children.forEach {
+                view.addView(create(it, sink, awaitingAppear, generation))
+            }
         }
-        bindEvents(view, node, sink)
+        bindEvents(view, node, sink, awaitingAppear, generation)
         return view
     }
 
@@ -115,13 +135,15 @@ class AndroidViewRenderer(
                 is Switch -> view.isChecked = value.toBooleanStrictOrNull() ?: false
             }
         }
-        if (view is ImageView) {
-            // ponytail: image loading remains a host policy; the signed source is kept as a tag.
-            view.tag = props["source"]
-        }
     }
 
-    private fun bindEvents(view: View, node: UiNode, sink: UiEventSink) {
+    private fun bindEvents(
+        view: View,
+        node: UiNode,
+        sink: UiEventSink,
+        awaitingAppear: Set<Long>,
+        generation: Long,
+    ) {
         if ("tap" in node.events) view.setOnClickListener { sink.emit(node.id, "tap", null) }
         if ("submit" in node.events && view is EditText) {
             view.imeOptions = EditorInfo.IME_ACTION_DONE
@@ -145,7 +167,17 @@ class AndroidViewRenderer(
                 sink.emit(node.id, "change", checked.toString())
             }
         }
-        if ("appear" in node.events) view.post { sink.emit(node.id, "appear", null) }
+        if ("appear" in node.events && node.id in awaitingAppear) {
+            view.post {
+                if (
+                    generation == renderGeneration &&
+                    node.id in visibleNodeIds &&
+                    appearedNodeIds.add(node.id)
+                ) {
+                    sink.emit(node.id, "appear", null)
+                }
+            }
+        }
     }
 
     private fun checkMainThread() {
@@ -153,4 +185,10 @@ class AndroidViewRenderer(
             "AndroidViewRenderer must run on the main thread"
         }
     }
+
+    private fun UiNode.collectIds(): Set<Long> =
+        buildSet {
+            add(id)
+            children.forEach { addAll(it.collectIds()) }
+        }
 }

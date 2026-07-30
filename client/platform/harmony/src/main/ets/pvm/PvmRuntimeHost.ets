@@ -2,6 +2,7 @@ import pvm from 'libpvm_harmony.so'
 
 export interface RuntimePolicy {
   applicationId: string
+  channel: string
   release: number
   profile: string
   platform: string
@@ -104,50 +105,84 @@ export class CapabilityRegistry {
 export class PvmRuntimeHost {
   readonly policy: RuntimePolicy
   private handle: object
+  private closed: boolean = false
+  private taskGeneration: number = 0
 
   constructor(
     modulePath: string,
     publicKeyPath: string,
     applicationId: string,
     minimumRelease: number,
+    expectedChannel: string,
+    expectedProfile: string,
     private renderer: UiRenderer,
     private capabilities: CapabilityRegistry,
     private signatureVerifier: SignatureVerifier,
   ) {
-    this.handle = pvm.create(modulePath, publicKeyPath, applicationId, minimumRelease, {
-      onUi: (json: string): void => {
-        const batch = JSON.parse(json) as UiBatch
-        if (batch.operation !== 'replace') throw new Error('Unsupported UI batch')
-        this.renderer.replaceTree(
-          batch.root,
-          (node, event, value) => this.dispatch(node, event, value),
-        )
+    this.handle = pvm.create(
+      modulePath,
+      publicKeyPath,
+      applicationId,
+      minimumRelease,
+      expectedChannel,
+      expectedProfile,
+      {
+        onUi: (json: string): void => {
+          const batch = JSON.parse(json) as UiBatch
+          if (batch.operation !== 'replace') throw new Error('Unsupported UI batch')
+          this.renderer.replaceTree(
+            batch.root,
+            (node, event, value) => this.dispatch(node, event, value),
+          )
+        },
+        onSyncEffect: (capability: string, operation: string, args: string): string =>
+          this.capabilities.invokeSync(capability, operation, args),
+        onAsyncEffect: (
+          taskId: string,
+          capability: string,
+          operation: string,
+          args: string,
+        ): void => {
+          const generation = this.taskGeneration
+          this.capabilities.invokeAsync(capability, operation, args).then((result) => {
+            if (!this.closed && generation === this.taskGeneration) {
+              pvm.complete(this.handle, taskId, result)
+            }
+          })
+        },
+        onVerifySignature: (
+          payload: ArrayBuffer,
+          signature: ArrayBuffer,
+          keyPath: string,
+        ): boolean => this.signatureVerifier.verify(payload, signature, keyPath),
       },
-      onSyncEffect: (capability: string, operation: string, args: string): string =>
-        this.capabilities.invokeSync(capability, operation, args),
-      onAsyncEffect: (taskId: string, capability: string, operation: string, args: string): void => {
-        this.capabilities.invokeAsync(capability, operation, args).then((result) => {
-          pvm.complete(this.handle, taskId, result)
-        })
-      },
-      onVerifySignature: (
-        payload: ArrayBuffer,
-        signature: ArrayBuffer,
-        keyPath: string,
-      ): boolean => this.signatureVerifier.verify(payload, signature, keyPath),
-    })
-    this.policy = JSON.parse(pvm.metadata(this.handle)) as RuntimePolicy
-    if (this.policy.platform !== 'harmonyos') {
-      throw new Error(`Harmony host rejected module for platform ${this.policy.platform}`)
+    )
+    try {
+      this.policy = JSON.parse(pvm.metadata(this.handle)) as RuntimePolicy
+      if (this.policy.platform !== 'harmonyos') {
+        throw new Error(`Harmony host rejected module for platform ${this.policy.platform}`)
+      }
+      if (this.policy.profile !== expectedProfile) {
+        throw new Error(`Harmony host rejected module for profile ${this.policy.profile}`)
+      }
+      if (this.policy.channel !== expectedChannel) {
+        throw new Error(`Harmony host rejected module for channel ${this.policy.channel}`)
+      }
+      this.capabilities.applyPolicy(this.policy)
+    } catch (error) {
+      pvm.destroy(this.handle)
+      this.closed = true
+      throw error
     }
-    this.capabilities.applyPolicy(this.policy)
   }
 
   start(): void {
+    this.requireOpen()
     pvm.start(this.handle)
   }
 
   dispatch(nodeId: number, event: string, value?: string): void {
+    this.requireOpen()
     const code: Record<string, number> = { tap: 1, change: 2, submit: 3, appear: 4 }
     const eventCode = code[event]
     if (eventCode === undefined) throw new Error(`Unknown VM event ${event}`)
@@ -159,18 +194,30 @@ export class PvmRuntimeHost {
   }
 
   snapshot(): ArrayBuffer {
+    this.requireOpen()
     return pvm.snapshot(this.handle)
   }
 
   restore(state: ArrayBuffer): void {
+    this.requireOpen()
     pvm.restore(this.handle, state)
   }
 
   cancelTasks(): void {
+    this.requireOpen()
+    this.taskGeneration += 1
     pvm.cancel(this.handle)
   }
 
   close(): void {
+    if (this.closed) return
+    this.closed = true
+    this.taskGeneration += 1
+    pvm.cancel(this.handle)
     pvm.destroy(this.handle)
+  }
+
+  private requireOpen(): void {
+    if (this.closed) throw new Error('Runtime is closed')
   }
 }

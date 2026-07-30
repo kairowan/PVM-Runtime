@@ -98,6 +98,10 @@ PVM DSL 当前使用 JSON 作为确定性语法载体。JSON 只是构建输入�
 - iOS Store On-Demand 不能声明 native 动态下载。
 - Android Store On-Demand 不能声明外部 `.dex`、`.jar` 或 `.so`。
 
+iOS 产品默认建议选择 `offline_sealed`。在线签名字节码是否可用必须针对实际产品按
+[Apple App Review Guidelines 2.5.2](https://developer.apple.com/app-store/review/guidelines/)
+审核；语言受限、模块签名和 Profile 校验本身都不是合规结论。
+
 ## 状态
 
 支持三种静态类型：
@@ -214,9 +218,12 @@ PVBC v5 的 `change`/`submit` 可以携带宿主控件值。处理器通过 `eve
 }
 ```
 
-Android View/Compose、UIKit/SwiftUI 与 HarmonyOS 端口会转发 Input 文本或 Switch 的
+Android View、UIKit/SwiftUI 与 HarmonyOS ArkUI 合同会转发 Input 文本或 Switch 的
 `"true"`/`"false"`。没有值的事件执行 `event.value` 会失败；输入值也受
-`max_state_bytes` 限制。
+`max_state_bytes` 限制。Compose/CMP 与 Kuikly 代码目前只是未进入产品构建的原型。
+
+`appear` 的合同是 absent→present：同一节点 ID 连续存在于整树 replace 批次时只触发
+一次；从树中移除后再次加入，才可再次触发。
 
 ## 处理器与指令
 
@@ -265,7 +272,9 @@ Runtime 在加载时重复执行独立验证，避免信任编译器输出。
 
 `effect.async` 从 PVBC v2 开始支持。VM 保存 continuation 和 64 位任务 ID，宿主完成后调用 `pvm_runtime_complete_effect`。页面或进程生命周期结束时调用 `pvm_runtime_cancel_all_tasks`。
 
-异步结果当前统一为 `string`，并受状态/结果大小与 `max_tasks` 约束。
+异步结果当前统一为 `string`，并受状态/结果大小与 `max_tasks` 约束。取消会删除
+continuation；Android/iOS/HarmonyOS Host 在 cancel/close 后丢弃迟到回调，不能让
+已取消任务或已销毁 Runtime 重新进入执行。
 
 ## 包格式
 

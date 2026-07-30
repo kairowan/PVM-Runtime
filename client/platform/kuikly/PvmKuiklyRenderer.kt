@@ -1,8 +1,8 @@
 package com.protectedvm.host.kuikly
 
 /**
- * The Kuikly SDK changes independently from official Compose. This narrow port is implemented by
- * the app module and contract-tested without coupling the VM repository to one Kuikly release.
+ * Prototype contract only. It is not part of the current Gradle/Swift builds and proves no
+ * compatibility with a specific Kuikly release. A product must pin Kuikly and implement/test the port.
  */
 interface PvmKuiklyPort<Node> {
     fun create(type: String, id: Long, props: Map<String, String>, children: List<Node>): Node

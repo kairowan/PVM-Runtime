@@ -26,6 +26,7 @@
 3. 对应平台的 `client/platform/<platform>/`
 4. `make platform-check delivery-matrix`
 5. Android 额外运行 `make android-demo-check`
+6. iOS 额外运行 `make ios-sdk-check`
 
 ### 负责发布与值班
 
@@ -53,7 +54,7 @@
 | DSL | 构建时业务输入，描述状态、页面、处理器和 Effect，不进入生产模块 |
 | PVBC | PVM 私有字节码 payload；当前默认版本为 v5 |
 | PVMP | 包含 PVBC 和 Ed25519 签名的模块容器 |
-| Manifest | 经过 Ed25519 签名的模块发布描述，绑定 App、平台、Profile、release 和 Hash |
+| Manifest | 经过 Ed25519 签名的模块发布描述，绑定 application、channel、platform、profile、release 和 Hash |
 | UIHost | 把 VM 的中立 UI Tree 映射到原生 UI 框架的宿主接口 |
 | Capability Host | 承载支付、网络、存储、相机等原生能力的版本化宿主接口 |
 | LKG | Last Known Good，最后一次完整验证并原子切换成功的本地模块 |
@@ -76,11 +77,14 @@
 |---|---|
 | `make demo` | 桌面端签名、发布、下载、执行与状态恢复闭环 |
 | `make android-demo-check` | Debug APK/AAB、R8 smoke APK、Release AAR/Maven 与包安全检查 |
+| `make ios-sdk-check` | iOS 15 静态 XCFramework、Swift 6 consumer 与产物安全检查 |
 | `make release-check` | 核心、三端可编译部分、兼容、模糊测试、文档与交付矩阵 |
 
 Android Demo 已在 HONOR BRP-AN00（API 35）验证；这是一台设备的 smoke 结果。iOS
-XCFramework/Swift Package、HarmonyOS HAR/HAP、KMP/CMP/Kuikly 产品化和三端完整
-设备矩阵仍按[功能完成度](FUNCTIONAL_STATUS.md)中的五阶段推进。
+已提供 Swift Package、`PVMHost`、Privacy Manifest 与 XCFramework 门禁，但示例 App、
+真机和正式签名仍待完成。HarmonyOS 目前只有可移植 Node-API/ArkTS 合同，没有经
+DevEco 生成的 HAR/HAP；KMP/CMP 和 Kuikly 也仍是未进入产品构建的原型。剩余工作按
+[功能完成度](FUNCTIONAL_STATUS.md)中的三个核心阶段推进。
 
 ## 文档维护规则
 

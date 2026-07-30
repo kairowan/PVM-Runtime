@@ -9,6 +9,7 @@ static NSString* const PVMErrorDomain = @"com.protectedvm.runtime";
 @interface PVMRuntimeBridge () {
   pvm_runtime* _runtime;
   std::string _syncResult;
+  uint64_t _taskGeneration;
 }
 @property(nonatomic, copy) PVMUIBatchHandler uiHandler;
 @property(nonatomic, copy) PVMSyncEffectHandler syncEffectHandler;
@@ -89,6 +90,8 @@ static int PVMStandaloneSignature(void* context, const uint8_t* payload, size_t 
 + (uint64_t)validateModulePath:(NSString*)modulePath
                  publicKeyPath:(NSString*)publicKeyPath
                  applicationID:(NSString*)applicationID
+               expectedChannel:(NSString*)expectedChannel
+               expectedProfile:(NSString*)expectedProfile
                 minimumRelease:(uint64_t)minimumRelease
              signatureVerifier:(PVMSignatureVerifier)signatureVerifier
                          error:(NSError* _Nullable* _Nullable)error {
@@ -97,8 +100,9 @@ static int PVMStandaloneSignature(void* context, const uint8_t* payload, size_t 
       (__bridge void*)verifier, nullptr, nullptr, nullptr, PVMStandaloneSignature};
   char message[512]{};
   pvm_runtime* runtime =
-      pvm_runtime_create_v2(modulePath.fileSystemRepresentation,
+      pvm_runtime_create_v3(modulePath.fileSystemRepresentation,
                             publicKeyPath.fileSystemRepresentation, applicationID.UTF8String,
+                            expectedChannel.UTF8String, "ios", expectedProfile.UTF8String,
                             minimumRelease, callbacks, message, sizeof(message));
   if (runtime == nullptr) {
     if (error != nullptr) *error = PVMError(message);
@@ -127,12 +131,16 @@ static int PVMStandaloneSignature(void* context, const uint8_t* payload, size_t 
                operation:(const char*)operation
            argumentsJSON:(const char*)argumentsJSON {
   __weak PVMRuntimeBridge* weakSelf = self;
+  const uint64_t generation = _taskGeneration;
   self.asyncEffectHandler(
       taskID, PVMString(capability), PVMString(operation), PVMString(argumentsJSON),
       ^(NSString* result) {
         dispatch_async(dispatch_get_main_queue(), ^{
           PVMRuntimeBridge* strongSelf = weakSelf;
-          if (strongSelf == nil || strongSelf->_runtime == nullptr) return;
+          if (strongSelf == nil || strongSelf->_runtime == nullptr ||
+              strongSelf->_taskGeneration != generation) {
+            return;
+          }
           NSData* encoded = [result dataUsingEncoding:NSUTF8StringEncoding];
           std::string terminated(static_cast<const char*>(encoded.bytes), encoded.length);
           char error[512]{};
@@ -147,6 +155,8 @@ static int PVMStandaloneSignature(void* context, const uint8_t* payload, size_t 
 - (nullable instancetype)initWithModulePath:(NSString*)modulePath
                               publicKeyPath:(NSString*)publicKeyPath
                               applicationID:(NSString*)applicationID
+                            expectedChannel:(NSString*)expectedChannel
+                            expectedProfile:(NSString*)expectedProfile
                              minimumRelease:(uint64_t)minimumRelease
                           signatureVerifier:(PVMSignatureVerifier)signatureVerifier
                                   uiHandler:(PVMUIBatchHandler)uiHandler
@@ -162,9 +172,10 @@ static int PVMStandaloneSignature(void* context, const uint8_t* payload, size_t 
   const pvm_host_callbacks_v2 callbacks{
       (__bridge void*)self, PVMUI, PVMSyncEffect, PVMAsyncEffect, PVMSignature};
   char message[512]{};
-  _runtime = pvm_runtime_create_v2(
+  _runtime = pvm_runtime_create_v3(
       modulePath.fileSystemRepresentation, publicKeyPath.fileSystemRepresentation,
-      applicationID.UTF8String, minimumRelease, callbacks, message, sizeof(message));
+      applicationID.UTF8String, expectedChannel.UTF8String, "ios",
+      expectedProfile.UTF8String, minimumRelease, callbacks, message, sizeof(message));
   if (_runtime == nullptr) {
     if (error != nullptr) *error = PVMError(message);
     return nil;
@@ -173,7 +184,12 @@ static int PVMStandaloneSignature(void* context, const uint8_t* payload, size_t 
 }
 
 - (void)dealloc {
-  [self close];
+  if (_runtime != nullptr) {
+    ++_taskGeneration;
+    pvm_runtime_cancel_all_tasks(_runtime);
+    pvm_runtime_destroy(_runtime);
+    _runtime = nullptr;
+  }
 }
 
 - (NSString*)metadataJSON {
@@ -258,11 +274,17 @@ static int PVMStandaloneSignature(void* context, const uint8_t* payload, size_t 
 
 - (void)cancelAllTasks {
   NSAssert(NSThread.isMainThread, @"Runtime cancellation must use the main thread");
-  if (_runtime != nullptr) pvm_runtime_cancel_all_tasks(_runtime);
+  if (_runtime != nullptr) {
+    ++_taskGeneration;
+    pvm_runtime_cancel_all_tasks(_runtime);
+  }
 }
 
 - (void)close {
+  NSAssert(NSThread.isMainThread, @"Runtime close must use the main thread");
   if (_runtime != nullptr) {
+    ++_taskGeneration;
+    pvm_runtime_cancel_all_tasks(_runtime);
     pvm_runtime_destroy(_runtime);
     _runtime = nullptr;
   }

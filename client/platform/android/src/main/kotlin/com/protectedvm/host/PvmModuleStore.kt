@@ -50,7 +50,7 @@ class PvmModuleStore(
         val state = readState() ?: return null
         if (state.release < minimumRelease) return null
         return File(modules, "${state.sha256}.pvm").takeIf {
-            it.isFile && it.hasSha256(state.sha256)
+            it.isFile && it.length() in 1..MAX_MODULE_BYTES && it.hasSha256(state.sha256)
         }?.also {
             runCatching { Os.chmod(it.absolutePath, 0b110000000) }
         }
@@ -110,7 +110,10 @@ class PvmModuleStore(
         val size = manifest.getLong("size")
         require(size in 1..MAX_MODULE_BYTES) { "Module size is outside the host budget" }
         val destination = File(modules, "$digest.pvm")
-        if (destination.isFile && !destination.hasSha256(digest)) {
+        if (
+            destination.isFile &&
+            (destination.length() != size || !destination.hasSha256(digest))
+        ) {
             require(destination.delete()) { "Cannot remove corrupt cached module" }
         }
 
@@ -154,6 +157,8 @@ class PvmModuleStore(
                         temporary.absolutePath,
                         publicKeyPath,
                         applicationId,
+                        channel,
+                        profile,
                         releaseFloor,
                     )
                 require(validatedRelease == release) { "Manifest/module release mismatch" }
@@ -162,6 +167,17 @@ class PvmModuleStore(
             } finally {
                 temporary.delete()
             }
+        } else {
+            val validatedRelease =
+                PvmModuleValidator.validate(
+                    destination.absolutePath,
+                    publicKeyPath,
+                    applicationId,
+                    channel,
+                    profile,
+                    releaseFloor,
+                )
+            require(validatedRelease == release) { "Cached manifest/module release mismatch" }
         }
 
         val history =
@@ -196,7 +212,13 @@ class PvmModuleStore(
 
     private fun readState(): State? =
         runCatching {
+            require(currentFile.length() in 1..MAX_STATE_BYTES)
             val source = JSONObject(currentFile.readText())
+            require(source.getInt("format") == 1)
+            require(source.getString("application_id") == applicationId)
+            require(source.getString("channel") == channel)
+            require(source.getString("platform") == "android")
+            require(source.getString("profile") == profile)
             val digest = source.getString("sha256")
             require(SHA256.matches(digest))
             val historyArray = source.getJSONArray("history")
@@ -208,9 +230,13 @@ class PvmModuleStore(
                         add(value)
                     }
                 }
+            require(history.isNotEmpty() && history.size <= 2)
+            require(history.first() == digest && history.distinct().size == history.size)
+            val release = source.getLong("release")
+            require(release > 0)
             State(
                 etag = source.optString("etag"),
-                release = source.getLong("release"),
+                release = release,
                 sha256 = digest,
                 history = history,
             )
@@ -221,6 +247,11 @@ class PvmModuleStore(
         val temporary = File(root, "current.tmp")
         val json =
             JSONObject()
+                .put("format", 1)
+                .put("application_id", applicationId)
+                .put("channel", channel)
+                .put("platform", "android")
+                .put("profile", profile)
                 .put("etag", state.etag)
                 .put("release", state.release)
                 .put("sha256", state.sha256)
@@ -253,6 +284,7 @@ class PvmModuleStore(
             )
         private const val MAX_MANIFEST_BYTES = 64 * 1024
         private const val MAX_MODULE_BYTES = 16L * 1024L * 1024L
+        private const val MAX_STATE_BYTES = 16L * 1024L
     }
 }
 

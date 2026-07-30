@@ -1,4 +1,6 @@
 build/
+.build/
+.swiftpm/
 dist/
 .gradle/
 .cxx/
@@ -15,3 +17,4 @@ client/var/
 __pycache__/
 *.pyc
 *.tmp
+.DS_Store

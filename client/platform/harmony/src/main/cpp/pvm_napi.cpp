@@ -3,6 +3,7 @@
 
 #include "pvm/runtime_c.h"
 
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <memory>
@@ -12,6 +13,13 @@
 
 namespace {
 
+constexpr double kMaximumSafeInteger = 9'007'199'254'740'991.0;
+
+bool is_safe_integer(double value) {
+  return std::isfinite(value) && std::floor(value) == value &&
+         std::abs(value) <= kMaximumSafeInteger;
+}
+
 struct Bridge {
   napi_env env{nullptr};
   napi_ref ui{nullptr};
@@ -20,6 +28,23 @@ struct Bridge {
   napi_ref verify_signature{nullptr};
   pvm_runtime* runtime{nullptr};
   std::string sync_result;
+
+  void close() {
+    if (runtime != nullptr) {
+      pvm_runtime_destroy(runtime);
+      runtime = nullptr;
+    }
+    if (ui != nullptr) napi_delete_reference(env, ui);
+    if (sync_effect != nullptr) napi_delete_reference(env, sync_effect);
+    if (async_effect != nullptr) napi_delete_reference(env, async_effect);
+    if (verify_signature != nullptr) napi_delete_reference(env, verify_signature);
+    ui = nullptr;
+    sync_effect = nullptr;
+    async_effect = nullptr;
+    verify_signature = nullptr;
+  }
+
+  ~Bridge() { close(); }
 };
 
 void check(napi_status status, const char* operation) {
@@ -117,17 +142,7 @@ int signature_verify_callback(void* context, const std::uint8_t* payload,
   return verified ? 1 : 0;
 }
 
-void release_bridge(napi_env env, Bridge* bridge) {
-  if (bridge->runtime != nullptr) {
-    pvm_runtime_destroy(bridge->runtime);
-    bridge->runtime = nullptr;
-  }
-  if (bridge->ui != nullptr) napi_delete_reference(env, bridge->ui);
-  if (bridge->sync_effect != nullptr) napi_delete_reference(env, bridge->sync_effect);
-  if (bridge->async_effect != nullptr) napi_delete_reference(env, bridge->async_effect);
-  if (bridge->verify_signature != nullptr) napi_delete_reference(env, bridge->verify_signature);
-  delete bridge;
-}
+void release_bridge(napi_env, Bridge* bridge) { delete bridge; }
 
 void finalize(napi_env env, void* data, void*) { release_bridge(env, static_cast<Bridge*>(data)); }
 
@@ -161,27 +176,32 @@ napi_ref callback_property(napi_env env, napi_value object, const char* name) {
 
 napi_value create(napi_env env, napi_callback_info info) {
   try {
-    const auto argv = arguments(env, info, 5);
+    const auto argv = arguments(env, info, 7);
     auto bridge = std::make_unique<Bridge>();
     bridge->env = env;
-    bridge->ui = callback_property(env, argv[4], "onUi");
-    bridge->sync_effect = callback_property(env, argv[4], "onSyncEffect");
-    bridge->async_effect = callback_property(env, argv[4], "onAsyncEffect");
-    bridge->verify_signature = callback_property(env, argv[4], "onVerifySignature");
+    bridge->ui = callback_property(env, argv[6], "onUi");
+    bridge->sync_effect = callback_property(env, argv[6], "onSyncEffect");
+    bridge->async_effect = callback_property(env, argv[6], "onAsyncEffect");
+    bridge->verify_signature = callback_property(env, argv[6], "onVerifySignature");
     double minimum_release = 0;
     check(napi_get_value_double(env, argv[3], &minimum_release), "minimumRelease must be a number");
-    if (minimum_release < 0) throw std::runtime_error("minimumRelease must be non-negative");
+    if (!is_safe_integer(minimum_release) || minimum_release < 0) {
+      throw std::runtime_error("minimumRelease must be a non-negative safe integer");
+    }
     const auto module = string_value(env, argv[0]);
     const auto key = string_value(env, argv[1]);
     const auto app = string_value(env, argv[2]);
+    const auto channel = string_value(env, argv[4]);
+    const auto profile = string_value(env, argv[5]);
     char error[512]{};
     const pvm_host_callbacks_v2 callbacks{
         bridge.get(), ui_callback, sync_effect_callback, async_effect_callback,
         signature_verify_callback};
     bridge->runtime =
-        pvm_runtime_create_v2(module.c_str(), key.c_str(), app.c_str(),
-                              static_cast<std::uint64_t>(minimum_release), callbacks, error,
-                              sizeof(error));
+        pvm_runtime_create_v3(
+            module.c_str(), key.c_str(), app.c_str(), channel.c_str(), "harmonyos",
+            profile.c_str(), static_cast<std::uint64_t>(minimum_release), callbacks, error,
+            sizeof(error));
     if (bridge->runtime == nullptr) throw std::runtime_error(error);
     napi_value result = nullptr;
     check(napi_create_external(env, bridge.get(), finalize, nullptr, &result),
@@ -224,10 +244,15 @@ napi_value dispatch(napi_env env, napi_callback_info info) {
   return guarded(env, info, 3, [&](const auto& argv) {
     auto* bridge = bridge_value(env, argv[0]);
     double node = 0;
-    std::uint32_t event = 0;
+    double event = 0;
     check(napi_get_value_double(env, argv[1], &node), "nodeId must be a number");
-    check(napi_get_value_uint32(env, argv[2], &event), "event must be a number");
-    if (node <= 0 || node > UINT32_MAX) throw std::runtime_error("Invalid node id");
+    check(napi_get_value_double(env, argv[2], &event), "event must be a number");
+    if (!is_safe_integer(node) || node <= 0 || node > UINT32_MAX) {
+      throw std::runtime_error("Invalid node id");
+    }
+    if (!is_safe_integer(event) || event < 1 || event > 4) {
+      throw std::runtime_error("Invalid event");
+    }
     char error[512]{};
     if (!pvm_runtime_dispatch(bridge->runtime, static_cast<std::uint32_t>(node),
                               static_cast<std::uint8_t>(event), error, sizeof(error))) {
@@ -241,11 +266,16 @@ napi_value dispatch_value(napi_env env, napi_callback_info info) {
   return guarded(env, info, 4, [&](const auto& argv) {
     auto* bridge = bridge_value(env, argv[0]);
     double node = 0;
-    std::uint32_t event = 0;
+    double event = 0;
     check(napi_get_value_double(env, argv[1], &node), "nodeId must be a number");
-    check(napi_get_value_uint32(env, argv[2], &event), "event must be a number");
+    check(napi_get_value_double(env, argv[2], &event), "event must be a number");
     const auto value = string_value(env, argv[3]);
-    if (node <= 0 || node > UINT32_MAX) throw std::runtime_error("Invalid node id");
+    if (!is_safe_integer(node) || node <= 0 || node > UINT32_MAX) {
+      throw std::runtime_error("Invalid node id");
+    }
+    if (!is_safe_integer(event) || event < 1 || event > 4) {
+      throw std::runtime_error("Invalid event");
+    }
     char error[512]{};
     if (!pvm_runtime_dispatch_value(bridge->runtime, static_cast<std::uint32_t>(node),
                                     static_cast<std::uint8_t>(event), value.c_str(), error,
@@ -334,10 +364,7 @@ napi_value destroy(napi_env env, napi_callback_info info) {
     void* raw = nullptr;
     check(napi_get_value_external(env, argv[0], &raw), "Expected runtime handle");
     auto* bridge = static_cast<Bridge*>(raw);
-    if (bridge != nullptr && bridge->runtime != nullptr) {
-      pvm_runtime_destroy(bridge->runtime);
-      bridge->runtime = nullptr;
-    }
+    if (bridge != nullptr) bridge->close();
     return undefined(env);
   });
 }

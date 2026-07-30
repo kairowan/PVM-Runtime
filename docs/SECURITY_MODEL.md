@@ -7,7 +7,8 @@ PVM Runtime 的目标是让业务模块在构建、交付、缓存和执行过�
 优先保护以下资产：
 
 1. DSL 业务结构、状态与流程不以平台源码形式进入生产包。
-2. 设备只执行由受信任发布密钥签名、且绑定当前 App/平台/Profile 的模块。
+2. 设备只执行由受信任发布密钥签名、且绑定当前
+   application/channel/platform/profile/release 的模块。
 3. 攻击者不能用旧的有效模块或 Manifest 绕过单调 release。
 4. 损坏、超限或类型不安全的字节码不能进入解释执行。
 5. 模块只能调用预先声明、宿主已安装且版本足够的 Capability。
@@ -110,7 +111,8 @@ max(已安装 LKG release, 安装包 minimumRelease)
 签名验证后仍执行以下检查：
 
 - 包头、长度、格式和 Runtime 最低版本。
-- App、平台、Profile 与单调 release 绑定。
+- application、channel、platform、profile 与单调 release 绑定；新移动端 Host 使用
+  C ABI v3 传入四项预期值和 release floor，Store 再核对 VM release 与 Manifest。
 - 表大小、索引、唯一性、状态类型和持久化 ID。
 - 跳转目标、分支栈形状、指令操作数和 Capability 声明。
 - UI 深度、节点唯一性、任务数、状态大小、栈和每事件指令预算。
@@ -131,7 +133,10 @@ Runtime 对签名模块的预算也有硬上限，不能仅相信模块声明。
 7. 原子移动为内容 Hash 文件并更新状态。
 8. 保留最近两个已验证版本。
 
-任何步骤失败都不能覆盖当前 LKG。
+三端 `current` 状态自身也被当作不可信输入：只接受格式 v1、匹配当前
+application/channel/platform/profile、正整数 release、合法当前 SHA-256，以及非空、
+去重、最多两项且第一项等于当前 Hash 的历史。任何步骤或状态校验失败都不能覆盖或
+冒充当前 LKG。
 
 ## 密钥管理要求
 
@@ -152,6 +157,7 @@ Runtime 对签名模块的预算也有硬上限，不能仅相信模块声明。
 | 模块 Hash/签名/预加载失败 | 删除临时文件，保留 LKG |
 | Capability 缺失或版本不足 | 启动前拒绝该模块或显示宿主降级 UI |
 | 状态字段类型冲突 | 拒绝恢复，不把旧字节解释为新类型 |
+| cancel/close 后异步结果迟到 | Host generation/closed guard 丢弃结果，不恢复 VM continuation |
 | 仓库访问策略缺失 | 服务端默认要求激活，失败关闭 |
 
 ## 生产验收清单
@@ -162,5 +168,7 @@ Runtime 对签名模块的预算也有硬上限，不能仅相信模块声明。
 - [ ] TLS、鉴权、CDN、审计与告警使用生产配置。
 - [ ] 三端 Root/Jailbreak/Hook 信号进入风险评分，但不会误伤离线基础功能。
 - [ ] `make release-check` 在受控 CI 中通过。
+- [ ] Android 发布任务单独通过 `make android-demo-check`，iOS SDK 发布任务单独通过
+      `make ios-sdk-check`。
 - [ ] 持续 fuzz、依赖扫描、红队和真机性能报告归档。
 - [ ] 支付、权益和高价值 API 在可信服务端再次授权。

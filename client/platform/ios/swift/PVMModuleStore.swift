@@ -44,6 +44,7 @@ public actor PVMModuleStore {
     private let config: Configuration
     private let validate: Validator
     private let fileManager = FileManager.default
+    private let redirectRejector = PVMRedirectRejector()
 
     public init(configuration: Configuration, validator: @escaping Validator) throws {
         guard Self.isSegment(configuration.applicationId),
@@ -68,6 +69,8 @@ public actor PVMModuleStore {
         guard state.release >= config.minimumRelease else { return nil }
         let module = modules.appendingPathComponent("\(state.sha256).pvm")
         guard fileManager.fileExists(atPath: module.path),
+              let size = fileSize(module),
+              (1...Self.maximumModuleBytes).contains(size),
               (try? sha256(module)) == state.sha256
         else { return nil }
         try? fileManager.setAttributes(
@@ -116,6 +119,9 @@ public actor PVMModuleStore {
         guard let http = response as? HTTPURLResponse else {
             throw PVMHostError("Manifest response is not HTTP")
         }
+        guard http.url == manifestURL else {
+            throw PVMHostError("Manifest request was redirected")
+        }
         if http.statusCode == 304 {
             guard let cached = lastKnownGood() else {
                 throw PVMHostError("Server returned 304 without a cached module")
@@ -144,12 +150,13 @@ public actor PVMModuleStore {
               manifest.platform == "ios",
               manifest.release >= releaseFloor,
               Self.isSHA256(manifest.sha256),
-              (1...(16 * 1024 * 1024)).contains(manifest.size)
+              (1...Self.maximumModuleBytes).contains(manifest.size)
         else { throw PVMHostError("Manifest binding, release, hash, or size is invalid") }
 
         let destination = modules.appendingPathComponent("\(manifest.sha256).pvm")
         if fileManager.fileExists(atPath: destination.path),
-           (try? sha256(destination)) != manifest.sha256 {
+           fileSize(destination) != manifest.size ||
+            (try? sha256(destination)) != manifest.sha256 {
             try fileManager.removeItem(at: destination)
         }
         if !fileManager.fileExists(atPath: destination.path) {
@@ -163,17 +170,22 @@ public actor PVMModuleStore {
             if let token = config.activationToken {
                 moduleRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
             }
-            let (downloaded, moduleResponse) = try await session.download(for: moduleRequest)
-            guard (moduleResponse as? HTTPURLResponse)?.statusCode == 200 else {
-                throw PVMHostError("Module download failed")
-            }
+            let (moduleData, moduleResponse) =
+                try await boundedData(
+                    for: moduleRequest,
+                    session: session,
+                    maximum: manifest.size
+                )
+            guard let moduleHTTP = moduleResponse as? HTTPURLResponse,
+                  moduleHTTP.statusCode == 200,
+                  moduleHTTP.url == moduleURL,
+                  moduleData.count == manifest.size
+            else { throw PVMHostError("Module download was redirected, truncated, or rejected") }
             let temporary = modules.appendingPathComponent("\(manifest.sha256).tmp")
             try? fileManager.removeItem(at: temporary)
-            try fileManager.copyItem(at: downloaded, to: temporary)
+            try moduleData.write(to: temporary, options: .atomic)
             defer { try? fileManager.removeItem(at: temporary) }
-            let attributes = try fileManager.attributesOfItem(atPath: temporary.path)
-            guard (attributes[.size] as? NSNumber)?.intValue == manifest.size,
-                  try sha256(temporary) == manifest.sha256
+            guard try sha256(temporary) == manifest.sha256
             else { throw PVMHostError("Module size or SHA-256 mismatch") }
             let release = try await validate(temporary, releaseFloor)
             guard release == manifest.release else {
@@ -184,6 +196,11 @@ public actor PVMModuleStore {
                 [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
                 ofItemAtPath: destination.path
             )
+        } else {
+            let release = try await validate(destination, releaseFloor)
+            guard release == manifest.release else {
+                throw PVMHostError("Cached module release mismatch")
+            }
         }
 
         let prior = previous?.history ?? []
@@ -194,6 +211,11 @@ public actor PVMModuleStore {
             }).uniqued().prefix(2)
         let state =
             State(
+                format: 1,
+                applicationId: config.applicationId,
+                channel: config.channel,
+                platform: "ios",
+                profile: config.profile,
                 etag: http.value(forHTTPHeaderField: "ETag") ?? "",
                 release: manifest.release,
                 sha256: manifest.sha256,
@@ -210,12 +232,28 @@ public actor PVMModuleStore {
     }
 
     private func readState() -> State? {
-        guard let data = try? Data(contentsOf: currentFile),
+        guard let size = fileSize(currentFile),
+              (1...Self.maximumStateBytes).contains(size),
+              let data = try? Data(contentsOf: currentFile),
               let state = try? JSONDecoder().decode(State.self, from: data),
+              state.format == 1,
+              state.applicationId == config.applicationId,
+              state.channel == config.channel,
+              state.platform == "ios",
+              state.profile == config.profile,
+              state.release > 0,
               Self.isSHA256(state.sha256),
+              !state.history.isEmpty,
+              state.history.count <= 2,
+              state.history.first == state.sha256,
+              Set(state.history).count == state.history.count,
               state.history.allSatisfy(Self.isSHA256)
         else { return nil }
         return state
+    }
+
+    private func fileSize(_ file: URL) -> Int? {
+        try? file.resourceValues(forKeys: [.fileSizeKey]).fileSize
     }
 
     private func boundedData(
@@ -223,7 +261,10 @@ public actor PVMModuleStore {
         session: URLSession,
         maximum: Int
     ) async throws -> (Data, URLResponse) {
-        let (bytes, response) = try await session.bytes(for: request)
+        let (bytes, response) = try await session.bytes(
+            for: request,
+            delegate: redirectRejector
+        )
         var data = Data()
         data.reserveCapacity(min(maximum, 16 * 1024))
         for try await byte in bytes {
@@ -279,10 +320,21 @@ public actor PVMModuleStore {
     }
 
     private struct State: Codable {
+        let format: Int
+        let applicationId: String
+        let channel: String
+        let platform: String
+        let profile: String
         let etag: String
         let release: UInt64
         let sha256: String
         let history: [String]
+
+        enum CodingKeys: String, CodingKey {
+            case format
+            case applicationId = "application_id"
+            case channel, platform, profile, etag, release, sha256, history
+        }
     }
 
     private static let profiles = [
@@ -291,6 +343,8 @@ public actor PVMModuleStore {
         "store_on_demand",
         "enterprise_managed",
     ]
+    private static let maximumModuleBytes = 16 * 1024 * 1024
+    private static let maximumStateBytes = 16 * 1024
 
     private static func isSegment(_ value: String) -> Bool {
         let bytes = value.utf8
@@ -312,5 +366,17 @@ private extension Sequence where Element: Hashable {
     func uniqued() -> [Element] {
         var seen = Set<Element>()
         return filter { seen.insert($0).inserted }
+    }
+}
+
+private final class PVMRedirectRejector: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping (URLRequest?) -> Void
+    ) {
+        completionHandler(nil)
     }
 }

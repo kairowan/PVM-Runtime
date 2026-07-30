@@ -10,13 +10,18 @@ Android 已额外完成一台 HONOR API 35 设备的交互与状态恢复验收�
 |---|---|---|
 | DSL 静态类型、控制流与预算检查 | 已实现 | `make test` |
 | PVBC v1–v5 读取、签名、绑定、防回滚 | 已实现 | `make test compatibility` |
+| C ABI v3 application/channel/platform/profile/release floor 绑定 | 已实现 | C ABI smoke、三端 Host 构建 |
+| Runtime 创建/恢复/单次启动/分发/取消生命周期 | 已实现 | C ABI 生命周期负向测试 |
 | 同步/异步 Effect 与取消 | 已实现 | C ABI smoke、任务预算测试 |
 | v4 稳定状态 ID 与增量迁移 | 已实现 | 状态改名/新增/冲突测试 |
 | v5 Input/Switch 事件值进入 VM 状态 | 已实现 | `event.value` C ABI 回归测试 |
 | 签名 Manifest、下载、Hash、预加载、原子 LKG | 已实现 | HTTP/LKG 测试与三端 Module Store |
+| 三端 LKG state 绑定与严格历史校验 | 已实现 | `make test platform-check`（desktop 负向回归 + 三端边界编译） |
 | Android Gradle SDK 与 Demo | 已实现 | `make android-demo-check` |
 | Android Debug APK/AAB | 已生成 | `dist/android/PVMRuntime-demo-debug.{apk,aab}` |
 | Android Release AAR/本地 Maven | 已生成 | `com.protectedvm:pvm-runtime:0.5.0` |
+| iOS Swift Package、统一 Host、Privacy Manifest | 已实现 | `make ios-sdk-check` |
+| iOS 静态 XCFramework | 可重复生成 | `dist/ios/PVMBridge.xcframework` |
 | 生产签名 APK/AAB、IPA、HAP | 目标工程负责 | 仍需正式身份、证书和商店配置 |
 
 ## Android 产品化基线
@@ -37,12 +42,12 @@ Android 已额外完成一台 HONOR API 35 设备的交互与状态恢复验收�
 
 | 后端 | 当前可用范围 | 仍需处理 |
 |---|---|---|
-| Android View | 11 类节点、属性、tap/change/submit/appear、输入值、NativeSurface 工厂；HONOR API 35 已验收交互/状态恢复 | 图片加载策略、更多 API/厂商设备、样式与性能 |
-| Android Compose/CMP | 递归树与输入值参考实现 | 接入 Compose 依赖；完善 Switch 视觉、submit/appear 和测试 |
-| UIKit | 11 类节点、Stack 约束、属性、四类事件、输入值、NativeSurface 工厂 | 图片加载、复杂布局/复用与真机校准 |
-| SwiftUI | 递归树、输入绑定、Switch、tap/appear/submit、enabled/无障碍 | NativeSurface 仍是占位；图片与复杂列表策略 |
-| ArkUI | 中立树到工厂的完整事件值合同 | 需要 DevEco SDK 和业务 `ArkUiNodeFactory` |
-| Kuikly | 中立树、属性、事件值 Port 合同 | 需要选定 Kuikly 版本并实现/编译 Port |
+| Android View | 11 类节点、属性、四类事件、输入值、NativeSurface 工厂和 appear absent→present；HONOR API 35 已验收交互/状态恢复 | 图片加载策略、更多 API/厂商设备、样式与性能 |
+| Android Compose/CMP | 未进入 Gradle 构建的递归树/输入值原型 | 建立真实 KMP/CMP 模块、依赖、事件语义和测试 |
+| UIKit | 11 类节点、Stack 约束、属性、四类事件、输入值、NativeSurface 工厂和 appear absent→present | 图片加载、复杂布局/复用与真机校准 |
+| SwiftUI | 递归树、输入绑定、Switch、四类事件、enabled/无障碍和 appear absent→present | NativeSurface 仍是占位；图片与复杂列表策略 |
+| ArkUI | 可移植的中立树、事件值和 appear absent→present 工厂合同 | 需要 DevEco SDK、真实工程和业务 `ArkUiNodeFactory` |
+| Kuikly | 未进入构建、未锁定 SDK 版本的 Port 原型 | 仅在产品需要时选定版本并实现/编译/真机验证 |
 
 `spec/renderer_conformance.json` 中的 `compiled`、`sdk-required` 和
 `adapter-required` 是机器可读后端状态。
@@ -69,24 +74,28 @@ Android 已额外完成一台 HONOR API 35 设备的交互与状态恢复验收�
 Native Component `camera.preview`、`host.screen`、`map.view` 和 `player.view`
 同样是合同，需要通过各 Renderer 的 NativeSurface 工厂接入。
 
-## 剩余跨平台五阶段
+## 当前状态与剩余三个核心阶段
 
-Android 已从“桥接源码”推进到可构建、可分发 SDK 和单设备 Demo 基线。剩余工作按最小
-依赖顺序拆为五阶段：
+以下两项基线已经完成，不再列入“剩余阶段”：
 
-1. **共享边界加固**：让 Runtime 创建接口强制校验目标平台；修复 iOS/HarmonyOS
-   Module Store 的重定向、大小、LKG 状态边界；统一关闭后异步 completion 与
-   `appear` 生命周期语义，并补负向回归。
-2. **iOS 产品 SDK**：构建并链接完整 C++ Runtime 的静态 XCFramework，提供 Swift
-   Package、`@MainActor PVMHost`、UIKit/SwiftUI 示例 App，以及设备/模拟器构建门禁。
-3. **HarmonyOS 产品 SDK**：建立真实 DevEco 工程和 HAR/HSP 分发物，实现文件、网络、
-   HUKS/验签、Validator、基础 Capability 与 ArkUI 节点，并生成示例 HAP。
-4. **KMP/CMP 与 Kuikly**：建立 `commonMain/androidMain/iosMain`、平台 actual Runtime、
-   可接入 Host 的 Compose Renderer 和 Maven 发布；锁定 Kuikly 版本并实现独立 Adapter。
-   KMP/Kuikly Android target 使用 Android 模块，iOS target 使用 iOS 模块，不新增虚构的
-   `kmp` 字节码平台。
-5. **生产验收与运营**：为 Android/iOS/HarmonyOS 生成正式签名 APK/AAB、IPA、HAP，
-   完成三端真机矩阵、业务所需 Capability、HSM/KMS、生产鉴权、审计、告警、性能、
-   商店与支付沙箱证据。
+- **共享边界**：C ABI v3 强绑定、Runtime 生命周期状态机、三端严格 LKG state、
+  cancel/close 迟到回调丢弃、Renderer `appear` absent→present 与负向回归已落地。
+- **iOS SDK 基线**：Swift Package、`@MainActor PVMHost`、Privacy Manifest、完整 C++17
+  Runtime 静态 XCFramework 和 `make ios-sdk-check` 已落地。尚未完成的是目标示例 App、
+  真机生命周期、archive/codesign、entitlement 和审核证据；这些进入生产验收阶段。
+
+剩余工作按依赖关系收束为三个核心阶段：
+
+1. **HarmonyOS 产品 SDK**：建立真实 DevEco 工程和 HAR/HSP 分发物，实现文件、网络、
+   HUKS/验签、Validator、基础 Capability 与 ArkUI 节点，并生成示例 HAP 和真机证据。
+   当前仓库只有可移植 Node-API/ArkTS 合同，不能把它当成 HAR/HAP。
+2. **KMP/CMP 产品化（Kuikly 按需）**：建立 `commonMain/androidMain/iosMain`、平台
+   actual Runtime、Compose Host 和 Maven 分发；只有业务明确采用 Kuikly 时才锁定版本
+   并实现独立 Adapter。Android/iOS target 复用现有平台模块，不新增虚构的 `kmp`
+   字节码平台。
+3. **生产验收与运营**：完成 iOS 示例/真机/签名，为三端生成正式签名 APK/AAB、IPA、
+   HAP，补齐完整设备矩阵、业务 Capability、HSM/KMS、生产鉴权、审计、告警、性能、
+   商店与支付沙箱证据。iOS 在线字节码交付还必须按具体产品评估 Apple 2.5.2，不能
+   将本 SDK 描述为天然合规。
 
 完整外部验收项见[交付状态](DELIVERY_STATUS.md)，接入步骤见[三端集成](PLATFORM_INTEGRATION.md)。

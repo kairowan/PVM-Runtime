@@ -5,6 +5,7 @@ import org.json.JSONObject
 
 data class RuntimePolicy(
     val applicationId: String,
+    val channel: String,
     val release: Long,
     val profile: String,
     val platform: String,
@@ -27,6 +28,7 @@ data class RuntimePolicy(
                 }
             return RuntimePolicy(
                 applicationId = source.getString("applicationId"),
+                channel = source.getString("channel"),
                 release = source.getLong("release"),
                 profile = source.getString("profile"),
                 platform = source.getString("platform"),

@@ -29,8 +29,9 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size
   static FuzzHost host;
   try {
     const std::vector<std::uint8_t> package(data, data + size);
-    auto runtime = pvm::Runtime::load_package(
-        package, "", "com.example.protected", 0, host, host,
+    auto runtime = pvm::Runtime::load_package_bound(
+        package, "", "com.example.protected", "enterprise", "desktop",
+        "online_provisioned", 0, host, host,
         [](const std::uint8_t*, std::size_t, const std::uint8_t*, std::size_t,
            const std::string&) { return true; });
     static_cast<void>(runtime);

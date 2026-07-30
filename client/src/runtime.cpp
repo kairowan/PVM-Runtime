@@ -525,7 +525,10 @@ void validate_handler(const Module& module, const std::vector<Instruction>& inst
 }
 
 Module parse_payload(const std::uint8_t* payload, std::size_t payload_size,
-                     const std::string& expected_application_id, std::uint64_t minimum_release) {
+                     const std::string& expected_application_id,
+                     const std::string& expected_channel,
+                     const std::string& expected_platform,
+                     const std::string& expected_profile, std::uint64_t minimum_release) {
   Reader reader(payload, payload_size);
   expect_magic(reader, "PVBC");
   const auto format = reader.u16();
@@ -558,6 +561,27 @@ Module parse_payload(const std::uint8_t* payload, std::size_t payload_size,
   }
   if (module.application_id != expected_application_id) {
     throw RuntimeError("module application binding mismatch");
+  }
+  if (!expected_channel.empty() && module.channel != expected_channel) {
+    throw RuntimeError("module channel binding mismatch");
+  }
+  static constexpr std::array<const char*, 4> profiles{
+      "offline_sealed",
+      "online_provisioned",
+      "store_on_demand",
+      "enterprise_managed",
+  };
+  static constexpr std::array<const char*, 4> platforms{
+      "android",
+      "ios",
+      "harmonyos",
+      "desktop",
+  };
+  if (!expected_platform.empty() && expected_platform != platforms.at(module.platform - 1)) {
+    throw RuntimeError("module platform binding mismatch");
+  }
+  if (!expected_profile.empty() && expected_profile != profiles.at(module.profile - 1)) {
+    throw RuntimeError("module delivery profile binding mismatch");
   }
   if (module.release < minimum_release) {
     throw RuntimeError("module rejected by anti-rollback policy");
@@ -681,6 +705,9 @@ Module parse_payload(const std::uint8_t* payload, std::size_t payload_size,
 Module parse_package(const std::vector<std::uint8_t>& package,
                      const std::string& public_key_path,
                      const std::string& expected_application_id,
+                     const std::string& expected_channel,
+                     const std::string& expected_platform,
+                     const std::string& expected_profile,
                      std::uint64_t minimum_release,
                      const SignatureVerifier& signature_verifier) {
   if (package.size() > kMaximumModuleBytes) {
@@ -701,14 +728,19 @@ Module parse_package(const std::vector<std::uint8_t>& package,
   const auto* signature = reader.bytes(signature_size);
   verify_ed25519(payload, payload_size, signature, signature_size, public_key_path,
                  signature_verifier);
-  return parse_payload(payload, payload_size, expected_application_id, minimum_release);
+  return parse_payload(payload, payload_size, expected_application_id, expected_channel,
+                       expected_platform, expected_profile, minimum_release);
 }
 
 Module load_module(const std::string& module_path, const std::string& public_key_path,
-                   const std::string& expected_application_id, std::uint64_t minimum_release,
+                   const std::string& expected_application_id,
+                   const std::string& expected_channel,
+                   const std::string& expected_platform,
+                   const std::string& expected_profile, std::uint64_t minimum_release,
                    const SignatureVerifier& signature_verifier) {
   return parse_package(read_file(module_path, kMaximumModuleBytes), public_key_path,
-                       expected_application_id, minimum_release, signature_verifier);
+                       expected_application_id, expected_channel, expected_platform, expected_profile,
+                       minimum_release, signature_verifier);
 }
 
 void append_u16(std::vector<std::uint8_t>& output, std::uint16_t value) {
@@ -738,6 +770,10 @@ class Runtime::Impl {
       : module(std::move(loaded)), state(module.initial_state), ui_host(ui), capability_host(capability) {}
 
   void start() {
+    if (started) {
+      throw RuntimeError("runtime has already started");
+    }
+    started = true;
     if (module.entry_handler) {
       execute(*module.entry_handler, std::nullopt);
     } else {
@@ -750,6 +786,9 @@ class Runtime::Impl {
   }
 
   void dispatch(std::uint32_t node_id, EventType event, std::optional<std::string> value) {
+    if (!started) {
+      throw RuntimeError("runtime has not started");
+    }
     const auto handler = find_event(module.pages[current_page], node_id, event);
     if (!handler) {
       throw RuntimeError("UI event is not registered");
@@ -761,6 +800,9 @@ class Runtime::Impl {
   }
 
   void complete_effect(std::uint64_t task_id, Value result) {
+    if (!started) {
+      throw RuntimeError("runtime has not started");
+    }
     if (!std::holds_alternative<std::string>(result)) {
       throw RuntimeError("asynchronous capability result must be a string");
     }
@@ -814,6 +856,9 @@ class Runtime::Impl {
   }
 
   void restore_state(const std::vector<std::uint8_t>& snapshot) {
+    if (started) {
+      throw RuntimeError("state can only be restored before runtime start");
+    }
     Reader reader(snapshot.data(), snapshot.size());
     expect_magic(reader, "PVST");
     const auto version = reader.u16();
@@ -1127,6 +1172,7 @@ class Runtime::Impl {
   UiHost& ui_host;
   CapabilityHost& capability_host;
   std::uint16_t current_page{0};
+  bool started{false};
   std::uint64_t next_task_id{1};
   std::unordered_map<std::uint64_t, Frame> tasks;
 };
@@ -1142,8 +1188,21 @@ std::unique_ptr<Runtime> Runtime::load(const std::string& module_path,
                                        std::uint64_t minimum_release, UiHost& ui_host,
                                        CapabilityHost& capability_host,
                                        SignatureVerifier signature_verifier) {
-  auto module = load_module(module_path, public_key_path, expected_application_id, minimum_release,
-                            signature_verifier);
+  auto module = load_module(module_path, public_key_path, expected_application_id, "", "", "",
+                            minimum_release, signature_verifier);
+  return std::unique_ptr<Runtime>(
+      new Runtime(std::make_unique<Impl>(std::move(module), ui_host, capability_host)));
+}
+
+std::unique_ptr<Runtime> Runtime::load_bound(
+    const std::string& module_path, const std::string& public_key_path,
+    const std::string& expected_application_id, const std::string& expected_channel,
+    const std::string& expected_platform, const std::string& expected_profile,
+    std::uint64_t minimum_release, UiHost& ui_host, CapabilityHost& capability_host,
+    SignatureVerifier signature_verifier) {
+  auto module =
+      load_module(module_path, public_key_path, expected_application_id, expected_channel,
+                  expected_platform, expected_profile, minimum_release, signature_verifier);
   return std::unique_ptr<Runtime>(
       new Runtime(std::make_unique<Impl>(std::move(module), ui_host, capability_host)));
 }
@@ -1153,8 +1212,21 @@ std::unique_ptr<Runtime> Runtime::load_package(
     const std::string& expected_application_id, std::uint64_t minimum_release,
     UiHost& ui_host, CapabilityHost& capability_host,
     SignatureVerifier signature_verifier) {
-  auto module = parse_package(package, public_key_path, expected_application_id,
+  auto module = parse_package(package, public_key_path, expected_application_id, "", "", "",
                               minimum_release, signature_verifier);
+  return std::unique_ptr<Runtime>(
+      new Runtime(std::make_unique<Impl>(std::move(module), ui_host, capability_host)));
+}
+
+std::unique_ptr<Runtime> Runtime::load_package_bound(
+    const std::vector<std::uint8_t>& package, const std::string& public_key_path,
+    const std::string& expected_application_id, const std::string& expected_channel,
+    const std::string& expected_platform, const std::string& expected_profile,
+    std::uint64_t minimum_release, UiHost& ui_host, CapabilityHost& capability_host,
+    SignatureVerifier signature_verifier) {
+  auto module =
+      parse_package(package, public_key_path, expected_application_id, expected_channel,
+                    expected_platform, expected_profile, minimum_release, signature_verifier);
   return std::unique_ptr<Runtime>(
       new Runtime(std::make_unique<Impl>(std::move(module), ui_host, capability_host)));
 }
@@ -1173,6 +1245,7 @@ void Runtime::restore_state(const std::vector<std::uint8_t>& snapshot) {
   impl_->restore_state(snapshot);
 }
 const std::string& Runtime::application_id() const { return impl_->module.application_id; }
+const std::string& Runtime::channel() const { return impl_->module.channel; }
 std::uint64_t Runtime::release() const { return impl_->module.release; }
 const std::vector<std::string>& Runtime::capabilities() const {
   return impl_->module.capabilities;

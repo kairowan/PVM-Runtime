@@ -179,6 +179,48 @@ struct pvm_runtime {
   std::unique_ptr<pvm::Runtime> runtime;
 };
 
+namespace {
+
+pvm_runtime* create_runtime(const char* module_path, const char* public_key_path,
+                            const char* expected_application_id,
+                            const char* expected_channel, const char* expected_platform,
+                            const char* expected_profile,
+                            std::uint64_t minimum_release, pvm_host_callbacks_v2 callbacks,
+                            char* error, std::size_t error_capacity) {
+  try {
+    if (module_path == nullptr || public_key_path == nullptr || expected_application_id == nullptr ||
+        expected_channel == nullptr || expected_platform == nullptr ||
+        expected_profile == nullptr) {
+      throw pvm::RuntimeError("runtime create arguments must not be null");
+    }
+    auto handle = std::make_unique<pvm_runtime>();
+    handle->host = std::make_unique<CallbackHost>(callbacks);
+    pvm::SignatureVerifier verifier;
+    if (callbacks.on_verify_signature != nullptr) {
+      verifier = [callbacks](const std::uint8_t* payload, std::size_t payload_size,
+                             const std::uint8_t* signature, std::size_t signature_size,
+                             const std::string& public_key_path) {
+        return callbacks.on_verify_signature(callbacks.context, payload, payload_size, signature,
+                                             signature_size, public_key_path.c_str()) == 1;
+      };
+    }
+    handle->runtime = pvm::Runtime::load_bound(
+        module_path, public_key_path, expected_application_id, expected_channel,
+        expected_platform, expected_profile, minimum_release, *handle->host, *handle->host,
+        std::move(verifier));
+    set_error(error, error_capacity, "");
+    return handle.release();
+  } catch (const std::exception& exception) {
+    set_error(error, error_capacity, exception.what());
+    return nullptr;
+  } catch (...) {
+    set_error(error, error_capacity, "unknown runtime error");
+    return nullptr;
+  }
+}
+
+}  // namespace
+
 pvm_runtime* pvm_runtime_create(const char* module_path, const char* public_key_path,
                                 const char* expected_application_id, std::uint64_t minimum_release,
                                 pvm_host_callbacks callbacks, char* error,
@@ -198,33 +240,25 @@ pvm_runtime* pvm_runtime_create_v2(
     const char* module_path, const char* public_key_path, const char* expected_application_id,
     std::uint64_t minimum_release, pvm_host_callbacks_v2 callbacks, char* error,
     std::size_t error_capacity) {
-  try {
-    if (module_path == nullptr || public_key_path == nullptr || expected_application_id == nullptr) {
-      throw pvm::RuntimeError("runtime create arguments must not be null");
-    }
-    auto handle = std::make_unique<pvm_runtime>();
-    handle->host = std::make_unique<CallbackHost>(callbacks);
-    pvm::SignatureVerifier verifier;
-    if (callbacks.on_verify_signature != nullptr) {
-      verifier = [callbacks](const std::uint8_t* payload, std::size_t payload_size,
-                             const std::uint8_t* signature, std::size_t signature_size,
-                             const std::string& public_key_path) {
-        return callbacks.on_verify_signature(callbacks.context, payload, payload_size, signature,
-                                             signature_size, public_key_path.c_str()) == 1;
-      };
-    }
-    handle->runtime =
-        pvm::Runtime::load(module_path, public_key_path, expected_application_id, minimum_release,
-                           *handle->host, *handle->host, std::move(verifier));
-    set_error(error, error_capacity, "");
-    return handle.release();
-  } catch (const std::exception& exception) {
-    set_error(error, error_capacity, exception.what());
-    return nullptr;
-  } catch (...) {
-    set_error(error, error_capacity, "unknown runtime error");
+  return create_runtime(module_path, public_key_path, expected_application_id, "", "", "",
+                        minimum_release, callbacks, error, error_capacity);
+}
+
+pvm_runtime* pvm_runtime_create_v3(
+    const char* module_path, const char* public_key_path, const char* expected_application_id,
+    const char* expected_channel, const char* expected_platform, const char* expected_profile,
+    std::uint64_t minimum_release, pvm_host_callbacks_v2 callbacks, char* error,
+    std::size_t error_capacity) {
+  if (expected_channel == nullptr || expected_platform == nullptr || expected_profile == nullptr ||
+      expected_channel[0] == '\0' || expected_platform[0] == '\0' ||
+      expected_profile[0] == '\0') {
+    set_error(error, error_capacity,
+              "v3 runtime requires channel, platform, and delivery profile bindings");
     return nullptr;
   }
+  return create_runtime(module_path, public_key_path, expected_application_id, expected_channel,
+                        expected_platform, expected_profile, minimum_release, callbacks, error,
+                        error_capacity);
 }
 
 int pvm_runtime_start(pvm_runtime* runtime, char* error, std::size_t error_capacity) {
@@ -314,6 +348,7 @@ std::size_t pvm_runtime_metadata_json(pvm_runtime* runtime, char* output,
     }
     std::ostringstream json;
     json << "{\"applicationId\":\"" << json_escape(runtime->runtime->application_id())
+         << "\",\"channel\":\"" << json_escape(runtime->runtime->channel())
          << "\",\"release\":" << runtime->runtime->release()
          << ",\"profile\":\"" << json_escape(runtime->runtime->delivery_profile())
          << "\",\"platform\":\"" << json_escape(runtime->runtime->target_platform()) << '"';

@@ -13,6 +13,9 @@ struct Options {
   std::string module;
   std::string public_key;
   std::string application_id;
+  std::string expected_channel{"enterprise"};
+  std::string expected_platform{"desktop"};
+  std::string expected_profile;
   std::string state_file;
   std::string verify_payload;
   std::string verify_signature;
@@ -24,6 +27,7 @@ struct Options {
 void usage(const char* program) {
   std::cerr << "Usage: " << program
             << " --module FILE --public-key FILE --app-id ID [--min-release N]"
+               " [--channel CHANNEL] [--platform PLATFORM] [--profile PROFILE]"
                " [--state-file FILE] [--tap-index N] [--validate-only]\n"
             << "       " << program
             << " --verify-payload FILE --verify-signature FILE --public-key FILE\n";
@@ -47,6 +51,12 @@ Options parse_options(int argc, char** argv) {
       options.application_id = value();
     } else if (argument == "--min-release") {
       options.minimum_release = std::stoull(value());
+    } else if (argument == "--platform") {
+      options.expected_platform = value();
+    } else if (argument == "--channel") {
+      options.expected_channel = value();
+    } else if (argument == "--profile") {
+      options.expected_profile = value();
     } else if (argument == "--state-file") {
       options.state_file = value();
     } else if (argument == "--verify-payload") {
@@ -182,8 +192,9 @@ int main(int argc, char** argv) {
       return 0;
     }
     ConsoleHost host;
-    auto runtime = pvm::Runtime::load(options.module, options.public_key, options.application_id,
-                                      options.minimum_release, host, host);
+    auto runtime = pvm::Runtime::load_bound(
+        options.module, options.public_key, options.application_id, options.expected_channel,
+        options.expected_platform, options.expected_profile, options.minimum_release, host, host);
     std::cout << "Validated " << runtime->application_id() << " release " << runtime->release()
               << '\n';
     if (options.validate_only) {

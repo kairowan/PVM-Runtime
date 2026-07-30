@@ -207,6 +207,21 @@ class ProtectedRuntimeTest(unittest.TestCase):
         )
         self.assertNotEqual(mismatch.returncode, 0)
         self.assertIn("binding mismatch", mismatch.stderr)
+        channel_mismatch = self.run_runtime(
+            None, "--channel", "other", "--validate-only"
+        )
+        self.assertNotEqual(channel_mismatch.returncode, 0)
+        self.assertIn("channel binding mismatch", channel_mismatch.stderr)
+        platform_mismatch = self.run_runtime(
+            None, "--platform", "ios", "--profile", "online_provisioned", "--validate-only"
+        )
+        self.assertNotEqual(platform_mismatch.returncode, 0)
+        self.assertIn("platform binding mismatch", platform_mismatch.stderr)
+        profile_mismatch = self.run_runtime(
+            None, "--platform", "desktop", "--profile", "offline_sealed", "--validate-only"
+        )
+        self.assertNotEqual(profile_mismatch.returncode, 0)
+        self.assertIn("profile binding mismatch", profile_mismatch.stderr)
         rollback = self.run_runtime(None, "--min-release", "6", "--validate-only")
         self.assertNotEqual(rollback.returncode, 0)
         self.assertIn("anti-rollback", rollback.stderr)
@@ -414,6 +429,13 @@ class ProtectedRuntimeTest(unittest.TestCase):
         self.assertEqual(first.returncode, 0, first.stderr)
         module_path = Path(first.stdout.strip())
         self.assertTrue(module_path.is_file())
+        wrong_binding = command.copy()
+        wrong_binding[wrong_binding.index("enterprise")] = "other"
+        rejected_fallback = subprocess.run(
+            wrong_binding, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+        )
+        self.assertNotEqual(rejected_fallback.returncode, 0)
+        self.assertNotIn("last-known-good", rejected_fallback.stderr)
         online_manifest_path = (
             repository
             / "apps/com.example.protected/enterprise/desktop/"
