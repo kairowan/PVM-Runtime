@@ -74,11 +74,13 @@ jobs:
           build/migration-studio-backend/pvm_migration_backend/pvm_migration_backend \
             --self-test
           mkdir -p build/migration-studio-licenses
-          PYTHON_LICENSE="$(python -c \
-            'import sys; from pathlib import Path; print(next(p for p in (Path(sys.base_prefix)/"LICENSE.txt", Path(sys.base_prefix)/"LICENSE") if p.is_file()))')"
+          PYTHON_VERSION="$(python -c \
+            'import platform; print(platform.python_version())')"
           PYINSTALLER_LICENSE="$(python -c \
             'from importlib.metadata import distribution; d=distribution("pyinstaller"); print(next(d.locate_file(p) for p in d.files if str(p).endswith("licenses/COPYING.txt")))')"
-          cp "$PYTHON_LICENSE" build/migration-studio-licenses/PYTHON-LICENSE.txt
+          curl --fail --location --retry 3 \
+            "https://raw.githubusercontent.com/python/cpython/v$PYTHON_VERSION/LICENSE" \
+            --output build/migration-studio-licenses/PYTHON-LICENSE.txt
           cp "$PYINSTALLER_LICENSE" build/migration-studio-licenses/PYINSTALLER-COPYING.txt
       - name: Build the portable C++ runtime and Qt application
         run: |
