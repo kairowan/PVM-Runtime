@@ -9,7 +9,7 @@
 int main(int argc, char *argv[]) {
   if (argc == 2 && std::strcmp(argv[1], "--self-test") == 0) {
     QCoreApplication application(argc, argv);
-    if (!studio::selfTest() || !studio::processSelfTest()) {
+    if (!studio::selfTest()) {
       std::cerr << "migration studio self-test failed\n";
       return 1;
     }

@@ -46,6 +46,7 @@ set_target_properties(PVMMigrationStudio PROPERTIES
 
 enable_testing()
 add_test(NAME migration-studio-self-test COMMAND PVMMigrationStudio --self-test)
+set_tests_properties(migration-studio-self-test PROPERTIES TIMEOUT 15)
 
 if(APPLE)
     set(PVM_STUDIO_RESOURCES "PVMMigrationStudio.app/Contents/Resources")

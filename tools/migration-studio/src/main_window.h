@@ -23,7 +23,6 @@ QStringList splitSelectors(const QString &value);
 QString stageLabel(const QString &stage);
 bool isEditableReviewFile(const QString &name);
 bool selfTest();
-bool processSelfTest();
 
 }  // namespace studio
 

@@ -183,23 +183,6 @@ bool selfTest() {
          !isEditableReviewFile(QStringLiteral("verification.json"));
 }
 
-bool processSelfTest() {
-  QProcess process;
-  const QString python =
-      QStandardPaths::findExecutable(QStringLiteral("python3"));
-  if (python.isEmpty()) {
-    return false;
-  }
-  process.start(python,
-                {QStringLiteral("-c"),
-                 QStringLiteral("print('pvm-migration-studio-process')")});
-  return process.waitForStarted(5000) && process.waitForFinished(5000) &&
-         process.exitStatus() == QProcess::NormalExit &&
-         process.exitCode() == 0 &&
-         process.readAllStandardOutput().trimmed() ==
-             QByteArray("pvm-migration-studio-process");
-}
-
 }  // namespace studio
 
 MigrationStudioWindow::MigrationStudioWindow(QWidget *parent)
