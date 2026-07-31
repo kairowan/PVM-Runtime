@@ -25,7 +25,7 @@
 | Delivery Profile | 4 |
 | 自动交付矩阵 | 3 平台 × 4 Profile = 12 套宿主嵌入输入 |
 | Android Gradle 交付 | Debug APK/AAB、R8 smoke APK、Release AAR、本地 Maven |
-| Android SDK 坐标 | `com.protectedvm:pvm-runtime:0.5.0` |
+| Android SDK 坐标 | `com.protectedvm:pvm-runtime:0.6.0` |
 | Android 工具链 | compile/target API 36、NDK 28、双 ABI、16 KiB 对齐 |
 | Android 真机 | HONOR BRP-AN00、API 35 交互与状态恢复通过 |
 | iOS SDK 交付 | Swift Package、`@MainActor PVMHost`、Privacy Manifest、完整二进制 XCFramework 门禁 |
@@ -34,8 +34,8 @@
 | HarmonyOS SDK 交付 | DevEco API 24 工程（兼容 API 23）、Runtime HAR、unsigned Emulator HAP |
 | HarmonyOS Native ABI | arm64-v8a、x86_64 C++17 Node-API Runtime |
 | HarmonyOS 运行证据 | HUAWEI Pura 70、HarmonyOS 6.1（API 23 兼容）；Huawei debug signed HAP 交互、恢复与截图通过 |
-| KMP SDK | commonMain/JVM/iOS Kotlin/Native；`com.protectedvm:pvm-runtime-kmp:0.5.0` |
-| SDK Release 集合 | AAR/Maven、Binary Swift Package/XCFramework、HAR、SHA-256 清单 |
+| KMP SDK | commonMain/JVM/iOS Kotlin/Native；`com.protectedvm:pvm-runtime-kmp:0.6.0` |
+| SDK Release 集合 | Demo APK、AAR/Maven、Binary Swift Package/XCFramework、HAR、SHA-256 清单 |
 | 自动化 | GitHub Actions 核心、Android、Apple、KMP、容器与显式生产签名发布工作流 |
 | 生产包 | 正式签名 APK/AAB、IPA、HAP 仍由目标工程与发布账号生成 |
 | 历史兼容矩阵 | 5 业务域 × PVBC v1/v2/v3 = 15 |
@@ -64,8 +64,8 @@
 | Demo APK | `dist/android/PVMRuntime-demo-debug.apk` | Debug 签名，可直接安装测试 |
 | Demo AAB | `dist/android/PVMRuntime-demo-debug.aab` | Debug Bundle，用于验证 AAB 打包内容 |
 | R8 smoke | `dist/android/PVMRuntime-demo-minified-smoke.apk` | minified、非 debuggable，使用测试签名；真机启动/交互通过 |
-| SDK AAR | `dist/android/pvm-runtime-0.5.0.aar` | `arm64-v8a` 与 `x86_64` |
-| 本地 Maven | `dist/android/maven/` | 坐标 `com.protectedvm:pvm-runtime:0.5.0`，POM 保留 Tink 依赖 |
+| SDK AAR | `dist/android/pvm-runtime-0.6.0.aar` | `arm64-v8a` 与 `x86_64` |
+| 本地 Maven | `dist/android/maven/` | 坐标 `com.protectedvm:pvm-runtime:0.6.0`，POM 保留 Tink 依赖 |
 | API/NDK | compileSdk/targetSdk 36，NDK `28.0.13004108` | Demo minSdk 33；Runtime minSdk 24 |
 | 16 KiB | APK/R8 APK zipalign 与 AAR 内 ELF `PT_LOAD` 检查通过 | 同时检查双 ABI |
 | 离线资源 | APK/AAB/R8 APK 内嵌相同 module、公钥和 bootstrap | Hash、PVMP/Ed25519 结构及篡改拒绝通过 |
@@ -101,7 +101,7 @@ Debug APK/AAB 与 R8 smoke APK 都是开发/测试构建；其中 APK 使用测�
 | 证据 | 结果 | 说明 |
 |---|---|---|
 | DevEco 工程 | API 24，`compatibleSdkVersion` API 23 | Runtime HAR 与 Demo HAP 两个模块 |
-| Runtime HAR | `dist/harmony/pvm-runtime-0.5.0.har` | ArkTS Host、ArkUI Renderer 与 C++17 VM |
+| Runtime HAR | `dist/harmony/pvm-runtime-0.6.0.har` | ArkTS Host、ArkUI Renderer 与 C++17 VM |
 | Demo HAP | `dist/harmony/PVMRuntime-demo-unsigned.hap` | Offline Sealed unsigned 开发产物，仅面向 Emulator |
 | Native ABI | arm64-v8a、x86_64 | 两个 ABI 都包含完整 Node-API/C++17 Runtime |
 | 离线资源 | module、公钥、bootstrap | 平台/Profile/Hash 绑定进入 HAP |

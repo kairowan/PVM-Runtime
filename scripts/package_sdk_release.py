@@ -97,13 +97,14 @@ def require(path):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--version", default="0.5.0")
+    parser.add_argument("--version", default="0.6.0")
     args = parser.parse_args()
     version = args.version
     if not version or any(character not in "0123456789." for character in version):
         fail("version must contain only digits and dots")
 
     android_aar = require(DIST / f"android/pvm-runtime-{version}.aar")
+    android_demo = require(DIST / "android/PVMRuntime-demo-debug.apk")
     android_maven = require(DIST / "android/maven")
     ios_framework = require(DIST / "ios/PVMRuntime.xcframework")
     harmony_har = require(DIST / f"harmony/pvm-runtime-{version}.har")
@@ -113,8 +114,10 @@ def main():
     OUTPUT.mkdir(parents=True)
 
     android_asset = OUTPUT / f"pvm-runtime-android-{version}.aar"
+    android_demo_asset = OUTPUT / f"PVMRuntime-demo-{version}-debug.apk"
     harmony_asset = OUTPUT / f"pvm-runtime-harmony-{version}.har"
     shutil.copy2(android_aar, android_asset)
+    shutil.copy2(android_demo, android_demo_asset)
     shutil.copy2(harmony_har, harmony_asset)
     shutil.copy2(ROOT / "LICENSE", OUTPUT / "LICENSE")
 
@@ -158,9 +161,25 @@ def main():
         )
     ):
         fail("binary Swift Package is incomplete")
+    with zipfile.ZipFile(android_demo_asset) as archive:
+        if "AndroidManifest.xml" not in archive.namelist():
+            fail("Android demo APK is incomplete")
     with tarfile.open(maven_asset, "r:gz") as archive:
-        if not any(member.name.endswith(".pom") for member in archive.getmembers()):
+        members = archive.getmembers()
+        if not any(member.name.endswith(".pom") for member in members):
             fail("Android Maven archive does not contain a POM")
+        packaged_versions = {
+            parts[4]
+            for member in members
+            if len(parts := Path(member.name).parts) > 4
+            and parts[:4] == ("maven", "com", "protectedvm", "pvm-runtime")
+            and parts[4][0].isdigit()
+        }
+        if packaged_versions != {version}:
+            fail(
+                "Android Maven archive contains unexpected versions: "
+                + ", ".join(sorted(packaged_versions))
+            )
     if len(checksums.read_text(encoding="utf-8").splitlines()) != len(assets):
         fail("checksum inventory is incomplete")
 

@@ -72,19 +72,20 @@ XCFramework/local Binary Swift Package, and HAR, then writes versioned files
 and `SHA256SUMS` under `dist/release/`. After reviewing the inventory:
 
 ```bash
-git tag -a v0.5.0 -m "PVM Runtime 0.5.0"
-git push origin v0.5.0
-gh release create v0.5.0 dist/release/* --verify-tag --generate-notes
+git tag -a v0.6.0 -m "PVM Runtime 0.6.0"
+git push origin v0.6.0
+gh release create v0.6.0 dist/release/* --verify-tag --generate-notes
 ```
 
 Publishing the GitHub Release triggers `Publish Android SDK`, which publishes
-`com.protectedvm:pvm-runtime:0.5.0` to GitHub Packages. The separate
+`com.protectedvm:pvm-runtime:0.6.0` to GitHub Packages. The separate
 `Attach Production Android Assets` workflow only appends explicitly signed
 APK/AAB files to that existing release.
 
-All repository Android targets and the platform host gate set
-`GRADLE_USER_HOME` to `build/android-gradle-home`. They do not clean or write
-another desktop project's shared Gradle cache.
+Repository Android and KMP targets keep Gradle state in
+`build/android-gradle-home` and `build/gradle-kmp-home`. KMP native compiler
+state is also isolated with `KONAN_DATA_DIR=build/konan-data`. They do not
+clean or write another desktop project's shared Gradle or Kotlin/Native cache.
 
 Android production artifacts require target-app signing secrets:
 

@@ -65,12 +65,12 @@ license and notice files.
 
 ## Downloadable packages
 
-The `v0.5.0` GitHub Release provides separate archives for Windows x64, macOS
+The `v0.6.0` GitHub Release provides separate archives for Windows x64, macOS
 Apple Silicon, and macOS Intel:
 
-- `PVM-Migration-Studio-0.5.0-Windows-x64.zip`
-- `PVM-Migration-Studio-0.5.0-macOS-arm64.zip`
-- `PVM-Migration-Studio-0.5.0-macOS-x64.zip`
+- `PVM-Migration-Studio-0.6.0-Windows-x64.zip`
+- `PVM-Migration-Studio-0.6.0-macOS-arm64.zip`
+- `PVM-Migration-Studio-0.6.0-macOS-x64.zip`
 
 Each archive contains the Qt application, a standalone migration backend,
 the OpenSSL-enabled C++17 `pvm_cli`, JSON specifications, Qt runtime libraries,

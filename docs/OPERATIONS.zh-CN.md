@@ -74,13 +74,13 @@ Package 和 HAR，然后把带版本文件与 `SHA256SUMS` 写入 `dist/release/
 审核文件清单后执行：
 
 ```bash
-git tag -a v0.5.0 -m "PVM Runtime 0.5.0"
-git push origin v0.5.0
-gh release create v0.5.0 dist/release/* --verify-tag --generate-notes
+git tag -a v0.6.0 -m "PVM Runtime 0.6.0"
+git push origin v0.6.0
+gh release create v0.6.0 dist/release/* --verify-tag --generate-notes
 ```
 
 GitHub Release 发布后会触发 `Publish Android SDK`，把
-`com.protectedvm:pvm-runtime:0.5.0` 发布到 GitHub Packages。
+`com.protectedvm:pvm-runtime:0.6.0` 发布到 GitHub Packages。
 `Attach Production Android Assets` 工作流只负责把显式正式签名的 APK/AAB
 追加到已经存在的 Release。
 
@@ -105,8 +105,10 @@ make android-demo-check
 工程中使用正式 application ID、release variant、keystore 或 Play App Signing
 生成生产 APK/AAB。
 
-仓库内所有 Android 目标和平台 Host 门禁都把 `GRADLE_USER_HOME` 固定为
-`build/android-gradle-home`，不会清理或写入其他桌面项目共享的 Gradle 缓存。
+仓库内的 Android 与 KMP 目标分别把 Gradle 状态固定在
+`build/android-gradle-home` 和 `build/gradle-kmp-home`；KMP 原生编译器状态也通过
+`KONAN_DATA_DIR=build/konan-data` 隔离。它们不会清理或写入其他桌面项目共享的
+Gradle 或 Kotlin/Native 缓存。
 
 仓库提供显式生产签名任务；四项输入缺一即失败，不会回退到 Debug keystore：
 
@@ -236,7 +238,7 @@ make kmp-packages
 
 KMP 构建固定使用仓库内 `build/gradle-kmp-home`，不会清理或覆盖其他项目的 Gradle
 缓存。Maven 目录写入 `dist/kmp/maven`，坐标为
-`com.protectedvm:pvm-runtime-kmp:0.5.0`。
+`com.protectedvm:pvm-runtime-kmp:0.6.0`。
 
 ## 编译与发布
 

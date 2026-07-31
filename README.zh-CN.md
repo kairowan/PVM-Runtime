@@ -18,6 +18,7 @@
 [项目官网](https://kairowan.github.io/PVM-Runtime/) ·
 [下载 SDK 与迁移工具](https://github.com/kairowan/PVM-Runtime/releases/latest) ·
 [快速开始](#快速开始) ·
+[0.6.0 发布说明](docs/releases/v0.6.0.zh-CN.md) ·
 [完整文档](docs/README.zh-CN.md) ·
 [参与讨论](https://github.com/kairowan/PVM-Runtime/discussions) ·
 [提交问题](https://github.com/kairowan/PVM-Runtime/issues/new/choose)
@@ -43,12 +44,13 @@ C++17 VM，UI Wire v2 再把增量补丁交给 RecyclerView、UICollectionView/S
 
 从[最新 GitHub Release](https://github.com/kairowan/PVM-Runtime/releases/latest)
 下载版本化产物，接入方不需要自行编译 PVM Runtime：
+Release 同时提供 `PVMRuntime-demo-0.6.0-debug.apk`，可直接安装并体验 Android Demo。
 
 | 平台 | 老项目接入方式 | 预编译产物 |
 |---|---|---|
-| Android | Maven 依赖或本地 AAR | `com.protectedvm:pvm-runtime:0.5.0` / `pvm-runtime-android-0.5.0.aar` |
-| iOS | Binary Swift Package 或 XCFramework | `PVMRuntimeBinaryPackage-0.5.0.zip` / `PVMRuntime-0.5.0.xcframework.zip` |
-| HarmonyOS | OHPM 本地或私有仓库依赖 | `pvm-runtime-harmony-0.5.0.har` |
+| Android | Maven 依赖或本地 AAR | `com.protectedvm:pvm-runtime:0.6.0` / `pvm-runtime-android-0.6.0.aar` |
+| iOS | Binary Swift Package 或 XCFramework | `PVMRuntimeBinaryPackage-0.6.0.zip` / `PVMRuntime-0.6.0.xcframework.zip` |
+| HarmonyOS | OHPM 本地或私有仓库依赖 | `pvm-runtime-harmony-0.6.0.har` |
 
 大型老项目可以下载 Windows/macOS 版 **PVM Migration Studio**，按单个类、多个类、
 单个模块或多个模块选择性迁移。生成的 DSL 可复核，并且只有通过源码漂移、结构、
@@ -119,9 +121,9 @@ Qt、工具缓存、构建目录、应用包和迁移结果都留在当前仓库
 
 | 平台 | 预编译依赖 | 使用方入口 |
 |---|---|---|
-| Android | `pvm-runtime-android-0.5.0.aar` 或 Maven | `com.protectedvm:pvm-runtime:0.5.0` |
-| iOS | `PVMRuntimeBinaryPackage-0.5.0.zip` 或 `PVMRuntime-0.5.0.xcframework.zip` | `import PVMRuntime` |
-| HarmonyOS | `pvm-runtime-harmony-0.5.0.har` | `import ... from '@pvm/runtime'` |
+| Android | `pvm-runtime-android-0.6.0.aar` 或 Maven | `com.protectedvm:pvm-runtime:0.6.0` |
+| iOS | `PVMRuntimeBinaryPackage-0.6.0.zip` 或 `PVMRuntime-0.6.0.xcframework.zip` | `import PVMRuntime` |
+| HarmonyOS | `pvm-runtime-harmony-0.6.0.har` | `import ... from '@pvm/runtime'` |
 
 维护者在具备三端 SDK 的机器上执行 `make sdk-release-assets`，即可构建、校验并生成
 可上传文件及 `dist/release/SHA256SUMS`。发布 GitHub Release 后，Android Maven
@@ -203,8 +205,8 @@ make android-demo-check
 | Demo Debug APK | `dist/android/PVMRuntime-demo-debug.apk` | 直接安装和联调 |
 | Demo Debug AAB | `dist/android/PVMRuntime-demo-debug.aab` | 验证 Bundle 打包 |
 | R8 smoke APK | `dist/android/PVMRuntime-demo-minified-smoke.apk` | 非 debuggable、R8/JNI 真机回归 |
-| Runtime AAR | `dist/android/pvm-runtime-0.5.0.aar` | Android Runtime Library |
-| 本地 Maven | `dist/android/maven/` | `com.protectedvm:pvm-runtime:0.5.0`，自动传递依赖 |
+| Runtime AAR | `dist/android/pvm-runtime-0.6.0.aar` | Android Runtime Library |
+| 本地 Maven | `dist/android/maven/` | `com.protectedvm:pvm-runtime:0.6.0`，自动传递依赖 |
 
 门禁验证 APK/AAB 开发签名、API 36、双 ABI、模块/公钥/bootstrap 一致性、篡改拒绝、
 Maven/独立 AAR 一致性、APK ZIP alignment，以及 AAR 内 ELF `PT_LOAD` 的 16 KiB 对齐。当前 R8 smoke APK
@@ -344,7 +346,7 @@ make kmp-check
 make kmp-packages
 ```
 
-输出为 `com.protectedvm:pvm-runtime-kmp:0.5.0` 的 JVM、metadata 和 Kotlin/Native
+输出为 `com.protectedvm:pvm-runtime-kmp:0.6.0` 的 JVM、metadata 和 Kotlin/Native
 变体。公共层通过 `PvmRuntimePort` 复用 Android/iOS/HarmonyOS Host，不创造新的
 “KMP 字节码平台”。
 

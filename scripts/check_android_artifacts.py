@@ -19,14 +19,14 @@ DIST = ROOT / "dist" / "android"
 APK = DIST / "PVMRuntime-demo-debug.apk"
 AAB = DIST / "PVMRuntime-demo-debug.aab"
 MINIFIED_APK = DIST / "PVMRuntime-demo-minified-smoke.apk"
-AAR = DIST / "pvm-runtime-0.5.0.aar"
+AAR = DIST / "pvm-runtime-0.6.0.aar"
 MAVEN_AAR = (
     DIST
-    / "maven/com/protectedvm/pvm-runtime/0.5.0/pvm-runtime-0.5.0.aar"
+    / "maven/com/protectedvm/pvm-runtime/0.6.0/pvm-runtime-0.6.0.aar"
 )
 POM = (
     DIST
-    / "maven/com/protectedvm/pvm-runtime/0.5.0/pvm-runtime-0.5.0.pom"
+    / "maven/com/protectedvm/pvm-runtime/0.6.0/pvm-runtime-0.6.0.pom"
 )
 
 
@@ -241,6 +241,10 @@ def main():
 
     badging = run([find_build_tool("aapt"), "dump", "badging", APK])
     require("package: name='com.example.protected'" in badging, "APK package name drifted")
+    require(
+        "versionCode='6'" in badging and "versionName='0.6.0'" in badging,
+        "APK release version drifted",
+    )
     require("sdkVersion:'33'" in badging and "targetSdkVersion:'36'" in badging, "APK SDK levels drifted")
     require("application-debuggable" in badging, "Demo artifact is expected to be a debug APK")
     require(

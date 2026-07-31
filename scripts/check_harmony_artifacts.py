@@ -14,7 +14,7 @@ from pathlib import Path, PurePosixPath
 
 ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "dist" / "harmony"
-HAR = DIST / "pvm-runtime-0.5.0.har"
+HAR = DIST / "pvm-runtime-0.6.0.har"
 HAP = DIST / "PVMRuntime-demo-unsigned.hap"
 DELIVERY = ROOT / "build" / "delivery" / "client" / "harmonyos" / "offline_sealed"
 DELIVERY_FILES = ("bootstrap.json", "module-public-key.pem", "module.pvm")
@@ -137,7 +137,7 @@ def read_har():
     require(required <= contents.keys(), f"HAR entries are missing: {required - contents.keys()}")
     metadata = json.loads(contents["package/oh-package.json5"])
     require(metadata.get("name") == "@pvm/runtime", "HAR package name drifted")
-    require(metadata.get("version") == "0.5.0", "HAR version drifted")
+    require(metadata.get("version") == "0.6.0", "HAR version drifted")
     require(metadata.get("compatibleSdkVersion") == 23, "HAR compatible API drifted")
     require(
         metadata.get("metadata", {}).get("debug") is False,
@@ -228,7 +228,7 @@ def check_module_metadata(hap):
     app = metadata.get("app", {})
     module = metadata.get("module", {})
     require(app.get("bundleName") == "com.example.protected", "HAP bundle name drifted")
-    require(app.get("versionName") == "0.5.0", "HAP version drifted")
+    require(app.get("versionName") == "0.6.0", "HAP version drifted")
     require(app.get("debug") is False, "HAP must be a release build")
     require(app.get("minAPIVersion") == 60100023, "HAP compatible API drifted")
     require(app.get("targetAPIVersion") == 60101024, "HAP target API drifted")

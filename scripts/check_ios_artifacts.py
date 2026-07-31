@@ -112,7 +112,7 @@ def check_framework(entry, expected):
         info = plistlib.load(stream)
     if (
         info.get("CFBundleIdentifier") != "com.protectedvm.PVMRuntime"
-        or info.get("CFBundleShortVersionString") != "0.5.0"
+        or info.get("CFBundleShortVersionString") != "0.6.0"
         or info.get("MinimumOSVersion") != "15.0"
     ):
         fail(f"invalid framework metadata for {entry['LibraryIdentifier']}")

@@ -70,7 +70,7 @@ jobs:
             dist/android/PVMRuntime-demo-debug.apk
             dist/android/PVMRuntime-demo-debug.aab
             dist/android/PVMRuntime-demo-minified-smoke.apk
-            dist/android/pvm-runtime-0.5.0.aar
+            dist/android/pvm-runtime-0.6.0.aar
 
   apple:
     runs-on: macos-15

@@ -6,6 +6,7 @@ HARMONY_DEVICE_TARGET ?=
 HARMONY_SIGNED_HAP ?=
 PVM_ANDROID_GRADLE_HOME ?= $(CURDIR)/build/android-gradle-home
 PVM_KMP_GRADLE_HOME ?= $(CURDIR)/build/gradle-kmp-home
+PVM_KONAN_DATA_DIR ?= $(CURDIR)/build/konan-data
 FUZZ_CXX := $(firstword $(wildcard /opt/homebrew/opt/llvm/bin/clang++ /usr/local/opt/llvm/bin/clang++))
 ifeq ($(FUZZ_CXX),)
 FUZZ_CXX := clang++
@@ -22,6 +23,7 @@ build:
 
 android-packages:
 	@test -n "$(ANDROID_SDK_PATH)" || (echo "Android SDK not found; set ANDROID_SDK_PATH" && exit 1)
+	$(RM) -r client/platform/android/runtime/build/repository dist/android/maven
 	ANDROID_HOME="$(ANDROID_SDK_PATH)" GRADLE_USER_HOME="$(PVM_ANDROID_GRADLE_HOME)" \
 		client/platform/android/gradlew \
 		-p client/platform/android --no-daemon \
@@ -36,12 +38,12 @@ android-packages:
 	cp client/platform/android/demo/build/outputs/apk/minified/demo-minified.apk \
 		dist/android/PVMRuntime-demo-minified-smoke.apk
 	cp client/platform/android/runtime/build/outputs/aar/runtime-release.aar \
-		dist/android/pvm-runtime-0.5.0.aar
+		dist/android/pvm-runtime-0.6.0.aar
 	cp -R client/platform/android/runtime/build/repository/. dist/android/maven/
 	@echo "APK: $(CURDIR)/dist/android/PVMRuntime-demo-debug.apk"
 	@echo "AAB: $(CURDIR)/dist/android/PVMRuntime-demo-debug.aab"
 	@echo "R8 smoke: $(CURDIR)/dist/android/PVMRuntime-demo-minified-smoke.apk"
-	@echo "AAR: $(CURDIR)/dist/android/pvm-runtime-0.5.0.aar"
+	@echo "AAR: $(CURDIR)/dist/android/pvm-runtime-0.6.0.aar"
 	@echo "Maven: $(CURDIR)/dist/android/maven"
 
 android-demo-apk: android-packages
@@ -140,12 +142,13 @@ harmony-production-check:
 	HARMONY_HAP="$(HARMONY_SIGNED_HAP)" $(PYTHON) scripts/check_harmony_release.py
 
 kmp-check:
-	GRADLE_USER_HOME="$(PVM_KMP_GRADLE_HOME)" \
+	GRADLE_USER_HOME="$(PVM_KMP_GRADLE_HOME)" KONAN_DATA_DIR="$(PVM_KONAN_DATA_DIR)" \
 		client/platform/android/gradlew -p client/platform/kmp --no-daemon \
 		compileKotlinMetadata jvmTest compileKotlinIosSimulatorArm64
 
 kmp-packages: kmp-check
-	GRADLE_USER_HOME="$(PVM_KMP_GRADLE_HOME)" \
+	$(RM) -r client/platform/kmp/build/repository dist/kmp/maven
+	GRADLE_USER_HOME="$(PVM_KMP_GRADLE_HOME)" KONAN_DATA_DIR="$(PVM_KONAN_DATA_DIR)" \
 		client/platform/android/gradlew -p client/platform/kmp --no-daemon \
 		publishAllPublicationsToBundleRepository
 	mkdir -p dist/kmp/maven
@@ -185,10 +188,10 @@ verify-contracts:
 docs-check:
 	$(PYTHON) scripts/check_docs.py
 	$(PYTHON) scripts/check_website.py
+	$(PYTHON) scripts/check_pr_policy.py --self-test
 
 website-check:
 	$(PYTHON) scripts/check_website.py
-	$(PYTHON) scripts/check_pr_policy.py --self-test
 
 release-check: test platform-check kmp-check verify-contracts docs-check delivery-matrix compatibility sanitizer-check fuzz-check
 

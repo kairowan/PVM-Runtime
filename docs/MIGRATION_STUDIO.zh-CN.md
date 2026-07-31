@@ -58,12 +58,12 @@ make migration-studio-run
 
 ## 可下载软件包
 
-`v0.5.0` GitHub Release 分别提供 Windows x64、macOS Apple Silicon 和 macOS Intel
+`v0.6.0` GitHub Release 分别提供 Windows x64、macOS Apple Silicon 和 macOS Intel
 压缩包：
 
-- `PVM-Migration-Studio-0.5.0-Windows-x64.zip`
-- `PVM-Migration-Studio-0.5.0-macOS-arm64.zip`
-- `PVM-Migration-Studio-0.5.0-macOS-x64.zip`
+- `PVM-Migration-Studio-0.6.0-Windows-x64.zip`
+- `PVM-Migration-Studio-0.6.0-macOS-arm64.zip`
+- `PVM-Migration-Studio-0.6.0-macOS-x64.zip`
 
 每个压缩包都包含 Qt 主程序、独立迁移后端、启用 OpenSSL 的 C++17 `pvm_cli`、JSON
 规范、Qt 运行库和许可说明，不要求电脑另装 Python 或 OpenSSL。软件包不会携带开发

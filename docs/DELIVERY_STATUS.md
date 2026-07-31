@@ -21,14 +21,14 @@ An engineering baseline is not a store, security, or production certification.
 | Platforms | Android, iOS, HarmonyOS, desktop reference host |
 | Delivery profiles | Four; 3 platforms × 4 profiles = 12 embedding inputs |
 | Android | Debug APK/AAB, R8 smoke APK, release AAR, local Maven |
-| Android SDK | `com.protectedvm:pvm-runtime:0.5.0`; API 36; NDK 28; two ABIs |
+| Android SDK | `com.protectedvm:pvm-runtime:0.6.0`; API 36; NDK 28; two ABIs |
 | Android device evidence | HONOR BRP-AN00, API 35 interaction and restore |
 | iOS | Source Package, `@MainActor PVMHost`, Privacy Manifest, complete binary XCFramework |
 | iOS demo evidence | iPhone 17 Pro Max Simulator, iOS 26.2 |
 | HarmonyOS | DevEco API 24/API 23-compatible HAR and unsigned emulator HAP |
 | HarmonyOS device evidence | HUAWEI Pura 70, HarmonyOS 6.1, debug-signed HAP |
-| KMP | commonMain/JVM/iOS Native; `pvm-runtime-kmp:0.5.0` |
-| SDK release set | AAR/Maven, Binary Swift Package/XCFramework, HAR, SHA-256 inventory |
+| KMP | commonMain/JVM/iOS Native; `pvm-runtime-kmp:0.6.0` |
+| SDK release set | Demo APK, AAR/Maven, Binary Swift Package/XCFramework, HAR, SHA-256 inventory |
 | Historical matrix | Five domains × PVBC v1/v2/v3 = 15 cases |
 | Production packages | Produced by target apps with their release accounts |
 
@@ -85,7 +85,7 @@ review, privacy questionnaire, or App Store decision.
 | Evidence | Result |
 |---|---|
 | Project | DevEco API 24; compatible API 23 |
-| Runtime | `dist/harmony/pvm-runtime-0.5.0.har` |
+| Runtime | `dist/harmony/pvm-runtime-0.6.0.har` |
 | Demo | unsigned Offline Sealed emulator HAP |
 | ABI | arm64-v8a and x86_64 Node-API/C++17 |
 | Assets | platform/profile/hash-bound module, key, bootstrap |

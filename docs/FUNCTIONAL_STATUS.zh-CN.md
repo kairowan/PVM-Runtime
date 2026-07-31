@@ -26,14 +26,14 @@ Sealed 模块交互、状态恢复和截图；这仍不是商业发布签名或�
 | 三端 LKG state 绑定与严格历史校验 | 已实现 | `make test platform-check`（desktop 负向回归 + 三端边界编译） |
 | Android Gradle SDK 与 Demo | 已实现 | `make android-demo-check` |
 | Android Debug APK/AAB | 已生成 | `dist/android/PVMRuntime-demo-debug.{apk,aab}` |
-| Android Release AAR/本地 Maven | 已生成 | `com.protectedvm:pvm-runtime:0.5.0` |
+| Android Release AAR/本地 Maven | 已生成 | `com.protectedvm:pvm-runtime:0.6.0` |
 | iOS Swift Package、统一 Host、Privacy Manifest | 已实现 | `make ios-sdk-check` |
 | iOS 完整二进制 XCFramework | 可重复生成 | `dist/ios/PVMRuntime.xcframework` |
 | iOS Xcode Demo | 已实现 | `make ios-demo-check` 与 iOS 26.2 Simulator 截图 |
 | HarmonyOS DevEco Runtime SDK | 已实现 | `make harmony-sdk-check` 构建 HAR、unsigned HAP 与双 ABI |
 | HarmonyOS 真机 Demo 交互 | 已验证 | Pura 70 上验证 count 0→1→2、异步存储、Alice 输入、Home/force-stop 重启恢复与截图 |
 | KMP 公共 SDK | 已实现 | `make kmp-check` 编译 commonMain/JVM/iOS Simulator ARM64 并运行生命周期测试 |
-| KMP Maven 制品 | 可重复生成 | `make kmp-packages`，坐标 `com.protectedvm:pvm-runtime-kmp:0.5.0` |
+| KMP Maven 制品 | 可重复生成 | `make kmp-packages`，坐标 `com.protectedvm:pvm-runtime-kmp:0.6.0` |
 | 三端预编译 SDK Release 集合 | 已实现 | `make sdk-release-assets` 生成 AAR/Maven、Binary Swift Package/XCFramework、HAR 与校验清单 |
 | 生产签名 APK/AAB、IPA、HAP | 目标工程负责 | 仍需正式身份、证书和商店配置 |
 
@@ -45,7 +45,7 @@ Sealed 模块交互、状态恢复和截图；这仍不是商业发布签名或�
 | 编译工具链 | compile/target API 36，NDK `28.0.13004108` | Runtime minSdk 24；Demo minSdk 33 |
 | Native ABI | `arm64-v8a`、`x86_64` | AAR、APK、AAB 均检查包含完整 VM |
 | 16 KiB 页面 | ELF `PT_LOAD` 对齐不小于 16 KiB，APK 使用 16 KiB zipalign 检查 | `scripts/check_android_artifacts.py` |
-| SDK 分发 | Release AAR 与本地 Maven 仓库 | `com.protectedvm:pvm-runtime:0.5.0` |
+| SDK 分发 | Release AAR 与本地 Maven 仓库 | `com.protectedvm:pvm-runtime:0.6.0` |
 | Demo 交付 | Debug APK、Debug AAB | 开发签名/调试产物，不是生产发布包 |
 | R8 | 非 debuggable 的 minified smoke APK | 使用测试签名；HONOR API 35 启动、交互和状态恢复通过 |
 | 包完整性 | 模块、公钥、bootstrap、双 ABI、签名、篡改拒绝自动检查 | `make android-demo-check` |

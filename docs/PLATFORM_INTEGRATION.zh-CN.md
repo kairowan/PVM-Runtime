@@ -160,8 +160,8 @@ make android-demo-check
 dist/android/PVMRuntime-demo-debug.apk
 dist/android/PVMRuntime-demo-debug.aab
 dist/android/PVMRuntime-demo-minified-smoke.apk
-dist/android/pvm-runtime-0.5.0.aar
-dist/android/maven/com/protectedvm/pvm-runtime/0.5.0/
+dist/android/pvm-runtime-0.6.0.aar
+dist/android/maven/com/protectedvm/pvm-runtime/0.6.0/
 ```
 
 前两个 Demo 产物和 R8 smoke APK 使用 Android Debug keystore。smoke APK 虽然是
@@ -191,7 +191,7 @@ dependencyResolutionManagement {
 }
 ```
 
-发布 `v0.5.0` 后，独立项目通过 GitHub Packages 引入预编译 AAR：
+发布 `v0.6.0` 后，独立项目通过 GitHub Packages 引入预编译 AAR：
 
 ```kotlin
 maven {
@@ -206,7 +206,7 @@ maven {
 ```kotlin
 // app/build.gradle.kts
 dependencies {
-    implementation("com.protectedvm:pvm-runtime:0.5.0")
+    implementation("com.protectedvm:pvm-runtime:0.6.0")
 }
 ```
 
@@ -214,7 +214,7 @@ dependencies {
 
 ```kotlin
 dependencies {
-    implementation(files("libs/pvm-runtime-0.5.0.aar"))
+    implementation(files("libs/pvm-runtime-0.6.0.aar"))
     implementation("com.google.crypto.tink:tink-android:1.23.0")
 }
 ```
@@ -371,7 +371,7 @@ slice，最低 iOS 15。门禁检查：
 
 ### 在目标 App 中引入预编译 iOS SDK
 
-下载并解压 `PVMRuntimeBinaryPackage-0.5.0.zip`，在 Xcode 中选择
+下载并解压 `PVMRuntimeBinaryPackage-0.6.0.zip`，在 Xcode 中选择
 **File → Add Package Dependencies → Add Local**，选择解压后的
 `PVMRuntimeBinaryPackage` 目录。产品名为 `PVMRuntime`：
 
@@ -419,7 +419,7 @@ make harmony-sdk-check
 ```json5
 {
   "dependencies": {
-    "@pvm/runtime": "file:./libs/pvm-runtime-0.5.0.har"
+    "@pvm/runtime": "file:./libs/pvm-runtime-0.6.0.har"
   }
 }
 ```
@@ -430,7 +430,7 @@ make harmony-sdk-check
 import { PvmRuntimeSession, PvmRuntimeTree } from '@pvm/runtime'
 ```
 
-会构建并检查 `dist/harmony/pvm-runtime-0.5.0.har` 和
+会构建并检查 `dist/harmony/pvm-runtime-0.6.0.har` 和
 `dist/harmony/PVMRuntime-demo-unsigned.hap`。后者是 Emulator/开发联调产物，不具备
 华为商业真机或应用市场要求的正式签名。
 
@@ -489,7 +489,7 @@ Store、完整 Capability，以及更多设备的生命周期、性能和设备�
 `client/platform/kmp` 现在提供可发布的 `commonMain` API：`PvmRuntimePort`、
 `PvmRuntimeClient`、启动绑定、事件和快照模型。`make kmp-check` 会编译 JVM 与 iOS
 Simulator ARM64 并运行生命周期测试，`make kmp-packages` 生成
-`com.protectedvm:pvm-runtime-kmp:0.5.0` Maven 变体。
+`com.protectedvm:pvm-runtime-kmp:0.6.0` Maven 变体。
 
 `compose/PvmComposeRenderer.kt` 和 `platform/kuikly/PvmKuiklyRenderer.kt` 仍是中立树
 与事件 Port；它们没有锁定具体 Compose Multiplatform/Kuikly SDK 版本。因此公共

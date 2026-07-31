@@ -1,6 +1,6 @@
 {
   "name": "libpvm_harmony.so",
   "types": "./Index.d.ts",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "PVM Runtime HarmonyOS Node-API bridge"
 }

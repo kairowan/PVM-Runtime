@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "client" / "platform" / "harmony"
 DELIVERY = ROOT / "build" / "delivery" / "client" / "harmonyos" / "offline_sealed"
 DIST = ROOT / "dist" / "harmony"
-HAR = DIST / "pvm-runtime-0.5.0.har"
+HAR = DIST / "pvm-runtime-0.6.0.har"
 HAP = DIST / "PVMRuntime-demo-unsigned.hap"
 DELIVERY_FILES = ("bootstrap.json", "module-public-key.pem", "module.pvm")
 

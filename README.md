@@ -24,6 +24,7 @@ versioned `Capability Host`.
 [Website](https://kairowan.github.io/PVM-Runtime/) ·
 [Download SDKs and Migration Studio](https://github.com/kairowan/PVM-Runtime/releases/latest) ·
 [Quick start](#quick-start) ·
+[0.6.0 release notes](docs/releases/v0.6.0.md) ·
 [Documentation](docs/README.md) ·
 [Discussions](https://github.com/kairowan/PVM-Runtime/discussions) ·
 [Report an issue](https://github.com/kairowan/PVM-Runtime/issues/new/choose)
@@ -50,12 +51,14 @@ incremental patches to RecyclerView, UICollectionView/SwiftUI, and ArkUI hosts.
 Download versioned artifacts from the
 [latest GitHub Release](https://github.com/kairowan/PVM-Runtime/releases/latest);
 consumer applications do not need to build PVM Runtime itself.
+The release also contains `PVMRuntime-demo-0.6.0-debug.apk` for direct Android
+installation and evaluation.
 
 | Platform | Add to an existing app | Prebuilt artifact |
 |---|---|---|
-| Android | Maven dependency or local AAR | `com.protectedvm:pvm-runtime:0.5.0` / `pvm-runtime-android-0.5.0.aar` |
-| iOS | Binary Swift Package or XCFramework | `PVMRuntimeBinaryPackage-0.5.0.zip` / `PVMRuntime-0.5.0.xcframework.zip` |
-| HarmonyOS | OHPM dependency from a local or private registry | `pvm-runtime-harmony-0.5.0.har` |
+| Android | Maven dependency or local AAR | `com.protectedvm:pvm-runtime:0.6.0` / `pvm-runtime-android-0.6.0.aar` |
+| iOS | Binary Swift Package or XCFramework | `PVMRuntimeBinaryPackage-0.6.0.zip` / `PVMRuntime-0.6.0.xcframework.zip` |
+| HarmonyOS | OHPM dependency from a local or private registry | `pvm-runtime-harmony-0.6.0.har` |
 
 Existing applications can migrate one class, several selected classes, or one
 or more modules with the downloadable Windows/macOS **PVM Migration Studio**.
@@ -139,9 +142,9 @@ SDK release contains:
 
 | Platform | Precompiled dependency | Consumer entry |
 |---|---|---|
-| Android | `pvm-runtime-android-0.5.0.aar` or Maven | `com.protectedvm:pvm-runtime:0.5.0` |
-| iOS | `PVMRuntimeBinaryPackage-0.5.0.zip` or `PVMRuntime-0.5.0.xcframework.zip` | `import PVMRuntime` |
-| HarmonyOS | `pvm-runtime-harmony-0.5.0.har` | `import ... from '@pvm/runtime'` |
+| Android | `pvm-runtime-android-0.6.0.aar` or Maven | `com.protectedvm:pvm-runtime:0.6.0` |
+| iOS | `PVMRuntimeBinaryPackage-0.6.0.zip` or `PVMRuntime-0.6.0.xcframework.zip` | `import PVMRuntime` |
+| HarmonyOS | `pvm-runtime-harmony-0.6.0.har` | `import ... from '@pvm/runtime'` |
 
 Maintainers with all three SDK toolchains run `make sdk-release-assets`; the
 command builds, validates, and writes immutable upload inputs plus
@@ -227,8 +230,8 @@ make android-demo-check
 | Debug APK | `dist/android/PVMRuntime-demo-debug.apk` | Direct installation and integration |
 | Debug AAB | `dist/android/PVMRuntime-demo-debug.aab` | Bundle packaging validation |
 | R8 smoke APK | `dist/android/PVMRuntime-demo-minified-smoke.apk` | Non-debuggable R8/JNI device regression |
-| Runtime AAR | `dist/android/pvm-runtime-0.5.0.aar` | Android runtime library |
-| Maven repository | `dist/android/maven/` | `com.protectedvm:pvm-runtime:0.5.0` |
+| Runtime AAR | `dist/android/pvm-runtime-0.6.0.aar` | Android runtime library |
+| Maven repository | `dist/android/maven/` | `com.protectedvm:pvm-runtime:0.6.0` |
 
 The gate checks development signatures, API 36, both ABIs, embedded
 module/key/bootstrap consistency, tamper rejection, Maven/AAR consistency, APK

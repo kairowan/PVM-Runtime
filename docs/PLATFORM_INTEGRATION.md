@@ -99,7 +99,7 @@ Outputs:
 dist/android/PVMRuntime-demo-debug.apk
 dist/android/PVMRuntime-demo-debug.aab
 dist/android/PVMRuntime-demo-minified-smoke.apk
-dist/android/pvm-runtime-0.5.0.aar
+dist/android/pvm-runtime-0.6.0.aar
 dist/android/maven/
 ```
 
@@ -124,7 +124,7 @@ dependencyResolutionManagement {
 }
 ```
 
-After publishing `v0.5.0`, independent projects use the precompiled package:
+After publishing `v0.6.0`, independent projects use the precompiled package:
 
 ```kotlin
 maven {
@@ -139,7 +139,7 @@ maven {
 ```kotlin
 // app/build.gradle.kts
 dependencies {
-    implementation("com.protectedvm:pvm-runtime:0.5.0")
+    implementation("com.protectedvm:pvm-runtime:0.6.0")
 }
 ```
 
@@ -225,7 +225,7 @@ decision.
 
 ### Consume the precompiled iOS SDK
 
-Download and expand `PVMRuntimeBinaryPackage-0.5.0.zip`, then use
+Download and expand `PVMRuntimeBinaryPackage-0.6.0.zip`, then use
 **File → Add Package Dependencies → Add Local** and select the extracted
 `PVMRuntimeBinaryPackage` directory. The product is `PVMRuntime`:
 
@@ -260,7 +260,7 @@ To consume the precompiled HAR, copy it to `entry/libs/` and declare:
 ```json5
 {
   "dependencies": {
-    "@pvm/runtime": "file:./libs/pvm-runtime-0.5.0.har"
+    "@pvm/runtime": "file:./libs/pvm-runtime-0.6.0.har"
   }
 }
 ```

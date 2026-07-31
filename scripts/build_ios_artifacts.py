@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 BUILD = ROOT / "build" / "ios-sdk"
 OUTPUT = ROOT / "dist" / "ios" / "PVMRuntime.xcframework"
 LEGACY_OUTPUT = ROOT / "dist" / "ios" / "PVMBridge.xcframework"
-VERSION = "0.5.0"
+VERSION = "0.6.0"
 SOURCES = (
     ("runtime", "client/src/runtime.cpp", False),
     ("c_api", "client/src/c_api.cpp", False),

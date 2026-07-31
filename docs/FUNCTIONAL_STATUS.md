@@ -36,7 +36,7 @@ device acceptance.
 | SDK | compile/target 36, NDK 28 | Runtime min 24; demo min 33 |
 | ABI | arm64-v8a and x86_64 | checked in AAR/APK/AAB |
 | 16 KiB | ELF and ZIP alignment checks | artifact checker |
-| Distribution | release AAR and local Maven | `pvm-runtime:0.5.0` |
+| Distribution | release AAR and local Maven | `pvm-runtime:0.6.0` |
 | Demo | debug APK/AAB and minified R8 smoke APK | development/test signing |
 | Device | HONOR BRP-AN00, API 35 | one-device smoke only |
 
