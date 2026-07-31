@@ -93,4 +93,7 @@ qt_generate_deploy_app_script(
     OUTPUT_SCRIPT deploy_script
     NO_UNSUPPORTED_PLATFORM_ERROR
 )
+if(WIN32)
+    install(CODE "set(QT_DEPLOY_BIN_DIR \".\")")
+endif()
 install(SCRIPT "${deploy_script}")

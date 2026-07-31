@@ -226,19 +226,27 @@ jobs:
           $installPrefix = Join-Path $pwd "dist/desktop"
           cmake --install build/migration-studio --config Release --prefix $installPrefix
       - name: Verify and archive the Windows package
+        timeout-minutes: 10
         shell: pwsh
         env:
           VERSION: ${{ needs.validate.outputs.version }}
         run: |
           $package = Resolve-Path dist/desktop
           $studio = Start-Process -FilePath "$package/PVMMigrationStudio.exe" `
-            -ArgumentList "--self-test" -Wait -PassThru
+            -ArgumentList "--self-test" -PassThru
+          if (!$studio.WaitForExit(15000)) {
+            Stop-Process -Id $studio.Id -Force
+            throw "Migration Studio self-test timed out"
+          }
           if ($studio.ExitCode -ne 0) { throw "Migration Studio self-test failed" }
           & "$package/bin/pvm_migration_backend.exe" --self-test
           & "$package/bin/pvm_migration_backend.exe" -m pvm_server.migrate --help | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "embedded migration backend failed" }
           @(
             "$package/bin/pvm_cli.exe",
+            "$package/Qt6Core.dll",
+            "$package/Qt6Widgets.dll",
+            "$package/plugins/platforms/qwindows.dll",
             "$package/spec/host_idl.json",
             "$package/licenses/qt/LGPL-3.0-only.txt",
             "$package/licenses/runtime/PYTHON-LICENSE.txt",
