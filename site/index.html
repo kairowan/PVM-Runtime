@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="PVM Runtime：使用私有 DSL、签名字节码与 C++17 VM，为 Android、iOS 和 HarmonyOS 交付原生 UI。">
+  <meta name="theme-color" content="#07111f">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="PVM Runtime · Protected cross-platform native runtime">
+  <meta property="og:description" content="Private DSL · Signed bytecode · C++17 VM · Native UI on Android, iOS and HarmonyOS">
+  <meta property="og:url" content="https://kairowan.github.io/PVM-Runtime/">
+  <meta property="og:image" content="https://raw.githubusercontent.com/kairowan/PVM-Runtime/main/docs/assets/social-preview.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://kairowan.github.io/PVM-Runtime/">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%2307111f'/%3E%3Cpath d='M20 48V16h14c9 0 15 5 15 13S43 42 34 42h-6v6zm8-14h6c4 0 7-2 7-5s-3-5-7-5h-6z' fill='%235ee8f7'/%3E%3C/svg%3E">
+  <title>PVM Runtime · 通用受保护 App Runtime</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #07111f;
+      --panel: #0d1b2d;
+      --panel-soft: #10233a;
+      --line: #213b59;
+      --text: #f4f8ff;
+      --muted: #a8b9cf;
+      --cyan: #5ee8f7;
+      --blue: #7ea2ff;
+      --purple: #c394ff;
+      font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 80% -10%, #293c8d66, transparent 32rem),
+        radial-gradient(circle at 8% 28%, #086a7a33, transparent 28rem),
+        var(--bg);
+      line-height: 1.65;
+    }
+    a { color: inherit; }
+    img { display: block; max-width: 100%; }
+    .wrap { width: min(1120px, calc(100% - 40px)); margin: auto; }
+    nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      padding: 24px 0;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; font-weight: 800; }
+    .mark {
+      display: grid;
+      place-items: center;
+      width: 38px;
+      height: 38px;
+      border: 1px solid #67e8f980;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #0891b244, #6366f144);
+      color: var(--cyan);
+    }
+    .links { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 22px; }
+    .links a { color: var(--muted); text-decoration: none; }
+    .links a:hover, .links a:focus-visible { color: var(--text); }
+    .hero { display: grid; grid-template-columns: 1.2fr .8fr; gap: 48px; align-items: center; padding: 72px 0 84px; }
+    .eyebrow { color: var(--cyan); font-size: .82rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+    h1 { max-width: 820px; margin: 18px 0 22px; font-size: clamp(3rem, 7vw, 6rem); line-height: .98; letter-spacing: -.055em; }
+    h1 span { color: transparent; background: linear-gradient(90deg, var(--cyan), var(--blue), var(--purple)); background-clip: text; }
+    .lead { max-width: 700px; color: #cad7e8; font-size: clamp(1.08rem, 2vw, 1.3rem); }
+    .en { color: var(--muted); font-size: .92em; }
+    .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px; }
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      padding: 0 20px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #101f33;
+      text-decoration: none;
+      font-weight: 750;
+    }
+    .button.primary { color: #06131d; border: 0; background: linear-gradient(90deg, var(--cyan), #88a8ff); }
+    .button:hover, .button:focus-visible { transform: translateY(-1px); filter: brightness(1.08); }
+    .terminal {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: #06101d;
+      box-shadow: 0 24px 70px #0007;
+    }
+    .terminal-head { display: flex; gap: 7px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: #36506d; }
+    pre { margin: 0; padding: 24px; overflow: auto; color: #d8e7f8; font: 500 .85rem/1.8 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    code b { color: var(--cyan); }
+    .facts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: var(--line); }
+    .fact { padding: 24px; background: #0a1728cc; }
+    .fact strong { display: block; font-size: 1.15rem; }
+    .fact span { color: var(--muted); font-size: .9rem; }
+    section { padding: 88px 0; }
+    .section-head { display: flex; justify-content: space-between; gap: 40px; align-items: end; margin-bottom: 34px; }
+    h2 { margin: 0; font-size: clamp(2rem, 4vw, 3.2rem); line-height: 1.1; letter-spacing: -.035em; }
+    .section-head p { max-width: 560px; margin: 0; color: var(--muted); }
+    .platforms { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    .phone {
+      overflow: hidden;
+      min-height: 500px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: linear-gradient(180deg, #12253c, #091625);
+    }
+    .phone-copy { padding: 22px 22px 18px; }
+    .phone-copy strong { display: block; font-size: 1.1rem; }
+    .phone-copy span { color: var(--muted); font-size: .88rem; }
+    .phone img { width: 74%; margin: 0 auto -78%; filter: drop-shadow(0 24px 25px #0008); }
+    .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    .card { padding: 28px; border: 1px solid var(--line); border-radius: 18px; background: #0d1b2dcc; }
+    .card .num { color: var(--cyan); font: 800 .8rem ui-monospace, monospace; letter-spacing: .12em; }
+    .card h3 { margin: 16px 0 10px; font-size: 1.22rem; }
+    .card p { margin: 0; color: var(--muted); }
+    .artifact { margin-top: 16px; color: #dbe8f7; font: 600 .8rem ui-monospace, monospace; word-break: break-word; }
+    .architecture { display: grid; grid-template-columns: .85fr 1.15fr; align-items: center; gap: 34px; }
+    .architecture img { border: 1px solid var(--line); border-radius: 18px; background: #091624; }
+    .checklist { display: grid; gap: 15px; margin: 28px 0 0; padding: 0; list-style: none; }
+    .checklist li { color: #d2dfef; }
+    .checklist li::before { content: "✓"; margin-right: 11px; color: var(--cyan); font-weight: 900; }
+    .cta {
+      margin: 70px 0;
+      padding: clamp(32px, 7vw, 70px);
+      border: 1px solid #4d6692;
+      border-radius: 24px;
+      background: linear-gradient(135deg, #122a45, #1e2554 60%, #352054);
+      text-align: center;
+    }
+    .cta p { max-width: 700px; margin: 20px auto 28px; color: #c8d6e8; }
+    .cta .actions { justify-content: center; }
+    footer { display: flex; justify-content: space-between; gap: 30px; padding: 32px 0 46px; border-top: 1px solid var(--line); color: var(--muted); font-size: .9rem; }
+    footer a { color: #dce8f8; }
+    @media (max-width: 820px) {
+      .links { display: none; }
+      .hero, .architecture { grid-template-columns: 1fr; }
+      .hero { padding-top: 48px; }
+      .facts { grid-template-columns: repeat(2, 1fr); }
+      .platforms, .cards { grid-template-columns: 1fr; }
+      .phone { min-height: 620px; }
+      .phone img { width: min(72%, 330px); }
+      .section-head, footer { align-items: start; flex-direction: column; }
+    }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  </style>
+</head>
+<body>
+  <header class="wrap">
+    <nav aria-label="主要导航 / Main navigation">
+      <a class="brand" href="https://github.com/kairowan/PVM-Runtime" aria-label="PVM Runtime on GitHub"><span class="mark">P</span>PVM Runtime</a>
+      <div class="links">
+        <a href="#platforms">三端效果 / Platforms</a>
+        <a href="#sdk">接入 / SDKs</a>
+        <a href="https://github.com/kairowan/PVM-Runtime/tree/main/docs">文档 / Docs</a>
+        <a href="https://github.com/kairowan/PVM-Runtime/discussions">讨论 / Discussions</a>
+      </div>
+    </nav>
+  </header>
+
+  <main>
+    <div class="wrap hero">
+      <div>
+        <div class="eyebrow">Private DSL · Signed Bytecode · C++17 VM</div>
+        <h1>业务只写一次，<span>三端原生运行</span></h1>
+        <p class="lead">把业务页面、状态和流程编译成平台绑定的签名字节码，在 Android、iOS 与 HarmonyOS 上交给同一套 VM 验证执行，UI 仍由每个平台的原生控件渲染。</p>
+        <p class="en">Build protected business experiences once. Keep native rendering, signed delivery, selective legacy migration, and one verifiable runtime contract.</p>
+        <div class="actions">
+          <a class="button primary" href="https://github.com/kairowan/PVM-Runtime/releases/latest">下载预编译包 / Download</a>
+          <a class="button" href="https://github.com/kairowan/PVM-Runtime">查看 GitHub 源码</a>
+        </div>
+      </div>
+      <div class="terminal" aria-label="PVM Runtime quick start example">
+        <div class="terminal-head" aria-hidden="true"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+        <pre><code><b># Run the verified desktop demo</b>
+$ make demo
+
+✓ DSL linted
+✓ PVBC v5 compiled
+✓ Ed25519 signature verified
+✓ platform/profile binding accepted
+✓ native UI tree rendered
+
+<b># Or download ready-made SDKs</b>
+Android   .aar / Maven
+iOS       .xcframework / Swift Package
+HarmonyOS .har</code></pre>
+      </div>
+    </div>
+
+    <div class="wrap facts" aria-label="Project facts">
+      <div class="fact"><strong>Apache-2.0</strong><span>可商用 / Commercial use</span></div>
+      <div class="fact"><strong>PVBC v5</strong><span>确定性签名字节码</span></div>
+      <div class="fact"><strong>UI Wire v2</strong><span>增量原生渲染</span></div>
+      <div class="fact"><strong>3 platforms</strong><span>Android · iOS · HarmonyOS</span></div>
+    </div>
+
+    <section id="platforms" class="wrap">
+      <div class="section-head">
+        <h2>同一份业务语义，三套原生界面</h2>
+        <p>计数、异步状态和输入值都沿着“原生控件 → Host → C++17 VM → 原生增量重绘”执行，不是静态效果图。</p>
+      </div>
+      <div class="platforms">
+        <article class="phone"><div class="phone-copy"><strong>Android</strong><span>RecyclerView · HONOR physical device</span></div><img src="https://raw.githubusercontent.com/kairowan/PVM-Runtime/main/docs/assets/android-demo.png" alt="PVM Runtime Android demo on HONOR physical device"></article>
+        <article class="phone"><div class="phone-copy"><strong>iOS</strong><span>UIKit / SwiftUI · iPhone Simulator</span></div><img src="https://raw.githubusercontent.com/kairowan/PVM-Runtime/main/docs/assets/ios-demo.png" alt="PVM Runtime iOS demo in iPhone Simulator"></article>
+        <article class="phone"><div class="phone-copy"><strong>HarmonyOS</strong><span>ArkUI · HUAWEI physical device</span></div><img src="https://raw.githubusercontent.com/kairowan/PVM-Runtime/main/docs/assets/harmony-demo.png" alt="PVM Runtime HarmonyOS demo on HUAWEI physical device"></article>
+      </div>
+    </section>
+
+    <section id="sdk" class="wrap">
+      <div class="section-head">
+        <h2>老项目也能渐进接入</h2>
+        <p>使用预编译 SDK，不要求业务团队先编译 Runtime；从单个类、多个类或模块开始迁移，不需要一次重写整个应用。</p>
+      </div>
+      <div class="cards">
+        <article class="card"><span class="num">ANDROID</span><h3>Maven / AAR</h3><p>依赖现有 Gradle 工程，由 JNI Host 接入 C++17 VM 和增量原生 Renderer。</p><div class="artifact">com.protectedvm:pvm-runtime:0.5.0</div></article>
+        <article class="card"><span class="num">IOS</span><h3>Swift Package / XCFramework</h3><p>加入现有 Xcode 工程，使用 Swift Host、UIKit/SwiftUI Renderer 与 Objective-C++ Bridge。</p><div class="artifact">PVMRuntime-0.5.0.xcframework.zip</div></article>
+        <article class="card"><span class="num">HARMONYOS</span><h3>OHPM / HAR</h3><p>加入现有 DevEco 工程，使用 ArkTS Host、ArkUI Renderer 与 C++ Node-API Bridge。</p><div class="artifact">pvm-runtime-harmony-0.5.0.har</div></article>
+      </div>
+    </section>
+
+    <section class="wrap architecture">
+      <div>
+        <div class="eyebrow">One verifiable contract</div>
+        <h2>交付链路有明确边界</h2>
+        <ul class="checklist">
+          <li>构建端执行 DSL 检查、确定性编译与远程签名</li>
+          <li>交付端使用内容寻址、签名 Manifest、灰度与审计</li>
+          <li>设备端完成验签、防回滚、LKG 恢复与原生渲染</li>
+          <li>高权限系统能力留在版本化 Capability Host 中</li>
+        </ul>
+        <div class="actions"><a class="button" href="https://github.com/kairowan/PVM-Runtime/blob/main/docs/ARCHITECTURE.zh-CN.md">阅读完整架构 / Architecture</a></div>
+      </div>
+      <img src="https://raw.githubusercontent.com/kairowan/PVM-Runtime/main/docs/assets/system-architecture.svg" alt="PVM Runtime build, delivery and device architecture">
+    </section>
+
+    <section class="wrap">
+      <div class="section-head">
+        <h2>PVM Migration Studio</h2>
+        <p>Windows 与 macOS 桌面工具提供扫描、转换、复核、结构验证和严格验证；生成内容写入新目录，不直接修改旧工程。</p>
+      </div>
+      <img src="https://raw.githubusercontent.com/kairowan/PVM-Runtime/main/docs/assets/migration-studio.png" alt="PVM Migration Studio desktop application" style="width:100%;border:1px solid var(--line);border-radius:20px">
+    </section>
+
+    <div class="wrap cta">
+      <div class="eyebrow">Open source · Apache-2.0</div>
+      <h2>从一个真实模块开始验证</h2>
+      <p>下载 Release 中的 SDK 或桌面迁移工具，运行仓库内的完整 Demo；遇到接入问题可以直接在 GitHub Discussions 提问。</p>
+      <div class="actions">
+        <a class="button primary" href="https://github.com/kairowan/PVM-Runtime/releases/latest">查看 GitHub Release</a>
+        <a class="button" href="https://github.com/kairowan/PVM-Runtime/discussions">进入 Discussions</a>
+        <a class="button" href="https://github.com/kairowan/PVM-Runtime/issues/new/choose">提交 Issue</a>
+      </div>
+    </div>
+  </main>
+
+  <footer class="wrap">
+    <span>© PVM Runtime contributors · Apache License 2.0</span>
+    <span><a href="https://github.com/kairowan/PVM-Runtime">Source</a> · <a href="https://github.com/kairowan/PVM-Runtime/tree/main/docs">Docs</a> · <a href="https://github.com/kairowan/PVM-Runtime/blob/main/SECURITY.md">Security</a></span>
+  </footer>
+</body>
+</html>

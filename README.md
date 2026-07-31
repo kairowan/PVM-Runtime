@@ -4,11 +4,13 @@
 
 # PVM Runtime
 
+[![CI](https://github.com/kairowan/PVM-Runtime/actions/workflows/ci.yml/badge.svg)](https://github.com/kairowan/PVM-Runtime/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/kairowan/PVM-Runtime)](https://github.com/kairowan/PVM-Runtime/releases/latest)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-> A protected, cross-platform application runtime: describe business screens,
-> state, and flows in a private DSL; compile them into signed bytecode; then
-> verify and execute them with one C++17 VM on Android, iOS, and HarmonyOS.
+> Build protected business screens once, compile them into signed bytecode, and
+> execute them with one C++17 VM while Android, iOS, and HarmonyOS keep rendering
+> real native UI.
 
 PVM Runtime targets applications that need cross-platform delivery, native user
 experience, and stronger business-logic protection. Kotlin, Swift, ArkTS, and
@@ -18,6 +20,47 @@ versioned `Capability Host`.
 
 `Runtime 5` · `PVBC v5` · `C++17` · `Ed25519` ·
 `Android / iOS / HarmonyOS`
+
+[Website](https://kairowan.github.io/PVM-Runtime/) ·
+[Download SDKs and Migration Studio](https://github.com/kairowan/PVM-Runtime/releases/latest) ·
+[Quick start](#quick-start) ·
+[Documentation](docs/README.md) ·
+[Discussions](https://github.com/kairowan/PVM-Runtime/discussions) ·
+[Report an issue](https://github.com/kairowan/PVM-Runtime/issues/new/choose)
+
+<table>
+  <tr>
+    <th>Android · HONOR physical device</th>
+    <th>iOS · iPhone 17 Pro Max Simulator</th>
+    <th>HarmonyOS · HUAWEI Pura 70 physical device</th>
+  </tr>
+  <tr>
+    <td><img src="docs/assets/android-demo.png" width="280" alt="PVM Android demo on a physical device"></td>
+    <td><img src="docs/assets/ios-demo.png" width="280" alt="PVM iOS demo in Simulator"></td>
+    <td><img src="docs/assets/harmony-demo.png" width="280" alt="PVM HarmonyOS demo on a physical device"></td>
+  </tr>
+</table>
+
+All three hosts execute platform-bound builds of the same Counter DSL. Native
+control events travel through the host into the C++17 VM, and UI Wire v2 returns
+incremental patches to RecyclerView, UICollectionView/SwiftUI, and ArkUI hosts.
+
+## Use the prebuilt SDKs
+
+Download versioned artifacts from the
+[latest GitHub Release](https://github.com/kairowan/PVM-Runtime/releases/latest);
+consumer applications do not need to build PVM Runtime itself.
+
+| Platform | Add to an existing app | Prebuilt artifact |
+|---|---|---|
+| Android | Maven dependency or local AAR | `com.protectedvm:pvm-runtime:0.5.0` / `pvm-runtime-android-0.5.0.aar` |
+| iOS | Binary Swift Package or XCFramework | `PVMRuntimeBinaryPackage-0.5.0.zip` / `PVMRuntime-0.5.0.xcframework.zip` |
+| HarmonyOS | OHPM dependency from a local or private registry | `pvm-runtime-harmony-0.5.0.har` |
+
+Existing applications can migrate one class, several selected classes, or one
+or more modules with the downloadable Windows/macOS **PVM Migration Studio**.
+Generated DSL stays reviewable and must pass source-drift, structure, behavior,
+capability, signature, and C++17 runtime checks before it can be accepted.
 
 ## What it solves
 
@@ -191,20 +234,7 @@ The gate checks development signatures, API 36, both ABIs, embedded
 module/key/bootstrap consistency, tamper rejection, Maven/AAR consistency, APK
 ZIP alignment, and 16 KiB ELF `PT_LOAD` alignment.
 
-<table>
-  <tr>
-    <th>Android · HONOR physical device</th>
-    <th>iOS · iPhone 17 Pro Max Simulator</th>
-    <th>HarmonyOS · HUAWEI Pura 70 physical device</th>
-  </tr>
-  <tr>
-    <td><img src="docs/assets/android-demo.png" width="300" alt="PVM Android demo on a physical device"></td>
-    <td><img src="docs/assets/ios-demo.png" width="300" alt="PVM iOS demo in Simulator"></td>
-    <td><img src="docs/assets/harmony-demo.png" width="300" alt="PVM HarmonyOS demo on a physical device"></td>
-  </tr>
-</table>
-
-All three run platform-bound builds of the same Counter DSL. Counter changes,
+Counter changes,
 asynchronous storage, and input values travel through native control → host →
 C++17 VM → native redraw; they are not static mocks. Android and HarmonyOS
 images are physical-device smoke evidence. The iOS image is simulator evidence.

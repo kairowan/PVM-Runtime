@@ -4,13 +4,55 @@
 
 # PVM Runtime
 
+[![CI](https://github.com/kairowan/PVM-Runtime/actions/workflows/ci.yml/badge.svg)](https://github.com/kairowan/PVM-Runtime/actions/workflows/ci.yml)
+[![最新版本](https://img.shields.io/github/v/release/kairowan/PVM-Runtime)](https://github.com/kairowan/PVM-Runtime/releases/latest)
 [![开源协议：Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-> 通用受保护 App Runtime：用私有 DSL 描述业务页面、状态和流程，编译成签名字节码，再由同一套 C++17 VM 在 Android、iOS 与 HarmonyOS 上验证和执行。
+> 一次描述受保护业务页面，编译成签名字节码，再由同一套 C++17 VM 在
+> Android、iOS 与 HarmonyOS 上执行，同时保留各端真正的原生 UI 渲染。
 
 `PVM Runtime` 面向需要跨端交付、原生体验和业务逻辑保护的应用。业务不会以 Kotlin、Swift、ArkTS 或 JavaScript 源码进入生产包；VM 只通过受限的 `UIHost` 和版本化 `Capability Host` 使用原生 UI 与系统能力。
 
 `Runtime 5` · `PVBC v5` · `C++17` · `Ed25519` · `Android / iOS / HarmonyOS`
+
+[项目官网](https://kairowan.github.io/PVM-Runtime/) ·
+[下载 SDK 与迁移工具](https://github.com/kairowan/PVM-Runtime/releases/latest) ·
+[快速开始](#快速开始) ·
+[完整文档](docs/README.zh-CN.md) ·
+[参与讨论](https://github.com/kairowan/PVM-Runtime/discussions) ·
+[提交问题](https://github.com/kairowan/PVM-Runtime/issues/new/choose)
+
+<table>
+  <tr>
+    <th>Android · HONOR 真机</th>
+    <th>iOS · iPhone 17 Pro Max 模拟器</th>
+    <th>HarmonyOS · HUAWEI Pura 70 真机</th>
+  </tr>
+  <tr>
+    <td><img src="docs/assets/android-demo.png" width="280" alt="PVM Runtime Android 真机演示"></td>
+    <td><img src="docs/assets/ios-demo.png" width="280" alt="PVM Runtime iOS 模拟器演示"></td>
+    <td><img src="docs/assets/harmony-demo.png" width="280" alt="PVM Runtime HarmonyOS 真机演示"></td>
+  </tr>
+</table>
+
+三端执行的是同一份 Counter DSL 按平台绑定后的模块。原生控件事件经过 Host 进入
+C++17 VM，UI Wire v2 再把增量补丁交给 RecyclerView、UICollectionView/SwiftUI
+与 ArkUI 宿主渲染。
+
+## 直接使用预编译 SDK
+
+从[最新 GitHub Release](https://github.com/kairowan/PVM-Runtime/releases/latest)
+下载版本化产物，接入方不需要自行编译 PVM Runtime：
+
+| 平台 | 老项目接入方式 | 预编译产物 |
+|---|---|---|
+| Android | Maven 依赖或本地 AAR | `com.protectedvm:pvm-runtime:0.5.0` / `pvm-runtime-android-0.5.0.aar` |
+| iOS | Binary Swift Package 或 XCFramework | `PVMRuntimeBinaryPackage-0.5.0.zip` / `PVMRuntime-0.5.0.xcframework.zip` |
+| HarmonyOS | OHPM 本地或私有仓库依赖 | `pvm-runtime-harmony-0.5.0.har` |
+
+大型老项目可以下载 Windows/macOS 版 **PVM Migration Studio**，按单个类、多个类、
+单个模块或多个模块选择性迁移。生成的 DSL 可复核，并且只有通过源码漂移、结构、
+行为、Capability、签名和 C++17 Runtime 验证后才能被接收。
 
 ## 它解决什么
 
@@ -169,20 +211,7 @@ Maven/独立 AAR 一致性、APK ZIP alignment，以及 AAR 内 ELF `PT_LOAD` �
 已在 HONOR BRP-AN00（API 35）完成启动、点击、异步 Capability、连续文本输入和状态
 恢复验证。
 
-<table>
-  <tr>
-    <th>Android · HONOR 真机</th>
-    <th>iOS · iPhone 17 Pro Max Simulator</th>
-    <th>HarmonyOS · HUAWEI Pura 70 真机</th>
-  </tr>
-  <tr>
-    <td><img src="docs/assets/android-demo.png" width="300" alt="PVM Runtime Android demo running signed bytecode on a physical device"></td>
-    <td><img src="docs/assets/ios-demo.png" width="300" alt="PVM Runtime iOS demo running signed bytecode in the iOS Simulator"></td>
-    <td><img src="docs/assets/harmony-demo.png" width="300" alt="PVM Runtime HarmonyOS demo running signed bytecode on a HUAWEI Pura 70 physical device"></td>
-  </tr>
-</table>
-
-三端运行的是同一份 Counter DSL 的平台绑定模块；图中的计数、异步存储状态与输入值都
+图中的计数、异步存储状态与输入值都
 经过原生控件事件 → Host → C++17 VM → 原生重绘链路，不是静态 Mock。Android 是一台
 HONOR 物理设备的 smoke 证据，iOS 是 Simulator 证据，HarmonyOS 是 HUAWEI Pura 70
 ADY-AL10（HarmonyOS 6.1、API 23 兼容）的物理设备证据。HarmonyOS 自动交互验证了计数

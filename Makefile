@@ -11,7 +11,7 @@ ifeq ($(FUZZ_CXX),)
 FUZZ_CXX := clang++
 endif
 
-.PHONY: android-demo-apk android-demo-check android-packages android-production-packages android-render-benchmark bootstrap build compatibility delivery-matrix docs-check fuzz-check generate-host-idl harmony-demo-run harmony-demo-screenshot harmony-device-run harmony-device-screenshot harmony-packages harmony-production-check harmony-render-benchmark harmony-sdk-check host-manifest ios-demo-app ios-demo-check ios-demo-restore-check ios-demo-run ios-demo-screenshot ios-device-archive ios-packages ios-render-benchmark ios-sdk-check kmp-check kmp-packages migration-check migration-studio migration-studio-check migration-studio-package migration-studio-run publish release-check sanitizer-check sdk-release-assets serve demo platform-check test verify-contracts
+.PHONY: android-demo-apk android-demo-check android-packages android-production-packages android-render-benchmark bootstrap build compatibility delivery-matrix docs-check fuzz-check generate-host-idl harmony-demo-run harmony-demo-screenshot harmony-device-run harmony-device-screenshot harmony-packages harmony-production-check harmony-render-benchmark harmony-sdk-check host-manifest ios-demo-app ios-demo-check ios-demo-restore-check ios-demo-run ios-demo-screenshot ios-device-archive ios-packages ios-render-benchmark ios-sdk-check kmp-check kmp-packages migration-check migration-studio migration-studio-check migration-studio-package migration-studio-run publish release-check sanitizer-check sdk-release-assets serve demo platform-check test verify-contracts website-check
 
 bootstrap:
 	PYTHONPATH="$(PYTHONPATH_VALUE)" $(PYTHON) -m pvm_server.keys --directory server/var/keys
@@ -184,6 +184,10 @@ verify-contracts:
 
 docs-check:
 	$(PYTHON) scripts/check_docs.py
+	$(PYTHON) scripts/check_website.py
+
+website-check:
+	$(PYTHON) scripts/check_website.py
 	$(PYTHON) scripts/check_pr_policy.py --self-test
 
 release-check: test platform-check kmp-check verify-contracts docs-check delivery-matrix compatibility sanitizer-check fuzz-check

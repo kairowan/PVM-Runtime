@@ -1,9 +1,11 @@
 blank_issues_enabled: false
 contact_links:
+  - name: Questions and ideas / 问答与想法
+    url: https://github.com/kairowan/PVM-Runtime/discussions
+    about: Ask integration questions or propose early ideas. / 咨询接入问题或讨论早期想法。
   - name: Security report / 安全漏洞报告
     url: https://github.com/kairowan/PVM-Runtime/security/advisories/new
     about: Report vulnerabilities privately. / 请通过私密渠道报告安全漏洞。
   - name: Contribution guide / 贡献指南
     url: https://github.com/kairowan/PVM-Runtime/blob/main/CONTRIBUTING.md
     about: Read the Issue-to-PR workflow. / 阅读从 Issue 到 PR 的协作流程。
-
