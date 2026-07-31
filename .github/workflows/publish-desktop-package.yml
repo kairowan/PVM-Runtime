@@ -220,15 +220,20 @@ jobs:
             "-DPVM_STUDIO_BACKEND_DIR=$pwd/build/migration-studio-backend/pvm_migration_backend" `
             "-DPVM_STUDIO_THIRD_PARTY_LICENSE_DIR=$pwd/build/migration-studio-licenses"
           cmake --build build/migration-studio --config Release --parallel
+          $env:PATH = "$qtPrefix/bin;$env:PATH"
           ctest --test-dir build/migration-studio -C Release --output-on-failure
-          cmake --install build/migration-studio --config Release --prefix dist/desktop
+          if ($LASTEXITCODE -ne 0) { throw "Migration Studio self-test failed" }
+          $installPrefix = Join-Path $pwd "dist/desktop"
+          cmake --install build/migration-studio --config Release --prefix $installPrefix
       - name: Verify and archive the Windows package
         shell: pwsh
         env:
           VERSION: ${{ needs.validate.outputs.version }}
         run: |
           $package = Resolve-Path dist/desktop
-          & "$package/PVMMigrationStudio.exe" --self-test
+          $studio = Start-Process -FilePath "$package/PVMMigrationStudio.exe" `
+            -ArgumentList "--self-test" -Wait -PassThru
+          if ($studio.ExitCode -ne 0) { throw "Migration Studio self-test failed" }
           & "$package/bin/pvm_migration_backend.exe" --self-test
           & "$package/bin/pvm_migration_backend.exe" -m pvm_server.migrate --help | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "embedded migration backend failed" }
