@@ -19,6 +19,8 @@ APP = (
 BUNDLE_ID = "com.example.protected"
 DEMO_IDENTITY = "com.github.kairowan.PVM-Runtime.ios-demo.v1"
 SCREENSHOT_MARKER = Path("Library/Caches/pvm-screenshot-ready")
+RESTORED_STATE_MARKER = Path("Library/Caches/pvm-state-restored")
+STATE_FILE = Path("Library/Application Support/counter.state")
 
 
 def run(command):
@@ -80,6 +82,30 @@ def require_repository_demo(app, description):
         )
 
 
+def wait_for_token(path, token, description):
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        try:
+            if path.read_text(encoding="utf-8") == token:
+                return
+        except OSError:
+            pass
+        time.sleep(0.1)
+    raise SystemExit(f"Timed out waiting for {description}")
+
+
+def wait_for_state(path):
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        try:
+            if path.stat().st_size > 0:
+                return
+        except OSError:
+            pass
+        time.sleep(0.1)
+    raise SystemExit("Timed out waiting for sceneDidEnterBackground state persistence")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--device", help="booted Simulator UDID; defaults to the only booted device")
@@ -89,8 +115,15 @@ def main():
         action="store_true",
         help="drive VM events to count=2, Status=Not set, and Alice",
     )
+    parser.add_argument(
+        "--verify-state-restore",
+        action="store_true",
+        help="background, terminate, relaunch, and verify VM state restoration",
+    )
     parser.add_argument("--screenshot", type=Path, help="write a PNG after launch")
     args = parser.parse_args()
+    if args.verify_state_restore and not args.reset:
+        parser.error("--verify-state-restore requires --reset")
 
     devices = booted_devices()
     if args.device:
@@ -117,6 +150,7 @@ def main():
         app_container(device["udid"], "app"),
         "newly installed Simulator app",
     )
+    data = app_container(device["udid"], "data")
     command = [
         "xcrun",
         "simctl",
@@ -126,26 +160,48 @@ def main():
         BUNDLE_ID,
     ]
     screenshot_token = None
-    if args.seed_screenshot:
+    if args.seed_screenshot or args.verify_state_restore:
         screenshot_token = uuid.uuid4().hex
         command.extend(["-PVMSeedScreenshotToken", screenshot_token])
     launch = run(command).strip()
 
+    if screenshot_token:
+        wait_for_token(data / SCREENSHOT_MARKER, screenshot_token, "VM-rendered seed state")
+    if args.verify_state_restore:
+        run(
+            [
+                "xcrun",
+                "simctl",
+                "launch",
+                "--terminate-running-process",
+                device["udid"],
+                "com.apple.mobilesafari",
+            ]
+        )
+        wait_for_state(data / STATE_FILE)
+        run(["xcrun", "simctl", "terminate", device["udid"], BUNDLE_ID])
+        restored_token = uuid.uuid4().hex
+        launch = run(
+            [
+                "xcrun",
+                "simctl",
+                "launch",
+                device["udid"],
+                BUNDLE_ID,
+                "-PVMVerifyRestoredStateToken",
+                restored_token,
+            ]
+        ).strip()
+        wait_for_token(
+            data / RESTORED_STATE_MARKER,
+            restored_token,
+            "restored VM-rendered state",
+        )
+        print("State restore: PASS (background persistence, termination, relaunch)")
+    elif not screenshot_token:
+        time.sleep(1)
+
     if args.screenshot:
-        if screenshot_token:
-            marker = app_container(device["udid"], "data") / SCREENSHOT_MARKER
-            deadline = time.monotonic() + 10
-            while time.monotonic() < deadline:
-                try:
-                    if marker.read_text(encoding="utf-8") == screenshot_token:
-                        break
-                except OSError:
-                    pass
-                time.sleep(0.1)
-            else:
-                raise SystemExit("Timed out waiting for the VM-rendered screenshot state")
-        else:
-            time.sleep(1)
         destination = args.screenshot
         if not destination.is_absolute():
             destination = ROOT / destination

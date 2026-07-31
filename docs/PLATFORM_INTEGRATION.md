@@ -195,12 +195,16 @@ through the Objective-C++ bridge and returns binding metadata before activation.
 ```bash
 make ios-demo-check
 make ios-demo-run
+make ios-demo-restore-check
 make ios-demo-screenshot
 ```
 
 The demo uses the local Swift Package and embeds only the iOS
 `offline_sealed` inputs. The screenshot command resets demo state before
-deterministic interaction.
+deterministic interaction. The restore gate uses the system browser to move the
+Demo through the real SceneDelegate background callback, then terminates and
+relaunches it and requires the VM-rendered count, storage result, and input to
+match.
 
 ### Build and validate the SDK
 

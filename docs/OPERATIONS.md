@@ -51,10 +51,13 @@ Run platform artifact gates in their SDK environments:
 
 ```bash
 make android-demo-check
-make ios-sdk-check ios-demo-check
+make ios-sdk-check ios-demo-check ios-demo-restore-check
 make harmony-sdk-check
 make kmp-check
 ```
+
+The iOS restore gate uses a booted Simulator and verifies SceneDelegate
+background persistence followed by process termination and VM state recovery.
 
 ## Publish precompiled SDKs
 

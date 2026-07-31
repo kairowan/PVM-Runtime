@@ -320,12 +320,15 @@ Store 拒绝重定向，按流式大小上限读取响应，并在任何切换�
 ```bash
 make ios-demo-check
 make ios-demo-run
+make ios-demo-restore-check
 ```
 
 `ios-demo-check` 使用本地 `PVMRuntime` Swift Package 构建 arm64 Simulator App，检查
 ad-hoc 签名、iOS 15 deployment target、Privacy Manifest，以及 App 内
 `bootstrap.json`、公钥和 `.pvm` 与交付矩阵完全一致。`ios-demo-run` 要求恰好有一个
 已启动 Simulator；它安装并运行 `com.example.protected`，不会生成 IPA。
+`ios-demo-restore-check` 使用系统浏览器让 Demo 真实触发 SceneDelegate 后台回调，
+等待原子状态快照，再终止并重启进程，要求 VM 渲染恢复后的计数、异步存储结果和输入值。
 
 需要复现项目首页的验证状态和截图时执行：
 

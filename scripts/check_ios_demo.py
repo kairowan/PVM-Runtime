@@ -56,6 +56,25 @@ def main():
         != "com.github.kairowan.PVM-Runtime.ios-demo.v1"
     ):
         fail("bundle identity, platform, or minimum iOS version is incorrect")
+    scene_manifest = info.get("UIApplicationSceneManifest", {})
+    scene_configurations = scene_manifest.get("UISceneConfigurations", {}).get(
+        "UIWindowSceneSessionRoleApplication", []
+    )
+    if (
+        scene_manifest.get("UIApplicationSupportsMultipleScenes") is not False
+        or len(scene_configurations) != 1
+        or scene_configurations[0].get("UISceneDelegateClassName")
+        != "PVMRuntimeDemo.SceneDelegate"
+    ):
+        fail("UIScene lifecycle is not configured for the demo")
+    ipad_orientations = set(info.get("UISupportedInterfaceOrientations~ipad", []))
+    if ipad_orientations != {
+        "UIInterfaceOrientationPortrait",
+        "UIInterfaceOrientationPortraitUpsideDown",
+        "UIInterfaceOrientationLandscapeLeft",
+        "UIInterfaceOrientationLandscapeRight",
+    }:
+        fail("iPad must support every interface orientation")
     if "arm64" not in set(run(["xcrun", "lipo", "-archs", executable]).split()):
         fail("demo executable does not contain an arm64 Simulator slice")
     run(["codesign", "--verify", "--deep", "--strict", APP])

@@ -48,6 +48,7 @@ make release-check
 | `make android-demo-check` | Android Demo APK/AAB、Runtime AAR/Maven、R8 smoke 与安装包安全属性 |
 | `make ios-sdk-check` | iOS 15 完整二进制 XCFramework、Swift 6 consumer 与产物安全属性 |
 | `make ios-demo-check` | iOS Simulator App、签名离线模块、Privacy Manifest 与 Package 接入 |
+| `make ios-demo-restore-check` | SceneDelegate 后台持久化、进程终止与 VM 状态恢复 |
 | `make harmony-sdk-check` | DevEco API 24 Runtime HAR、兼容 API 23 的 unsigned HAP、双 ABI 与离线资源 |
 | `make kmp-check` | commonMain/JVM/iOS Simulator ARM64 编译与共享生命周期测试 |
 | `make compatibility` | 五业务域 × PVBC v1/v2/v3 |
@@ -56,7 +57,7 @@ make release-check
 
 这些门禁不能替代 `externalRequired` 中的 HSM、商店、真机、支付沙箱和红队证据。
 
-`android-demo-check`、`ios-sdk-check`、`ios-demo-check` 和
+`android-demo-check`、`ios-sdk-check`、`ios-demo-check`、`ios-demo-restore-check` 和
 `harmony-sdk-check` 是需要各自平台 SDK 的独立自动门禁，不并入可跨平台运行的
 `release-check` 聚合命令。
 
@@ -144,12 +145,14 @@ Simulator 示例接入还必须执行：
 ```bash
 make ios-demo-check
 make ios-demo-run
+make ios-demo-restore-check
 ```
 
 前者构建并校验 `PVMRuntimeDemo.app`；后者要求唯一已启动的 Simulator，安装并运行
-该 App。需要复现 README 截图时使用 `make ios-demo-screenshot`，它只重置
-`com.example.protected` Demo 的 Simulator 沙盒。该证据不能替代物理 iPhone、
-`.xcarchive`、Apple Distribution codesign 或 IPA。
+该 App。恢复门禁使用系统浏览器触发真实 SceneDelegate 后台回调，等待原子状态快照，
+再终止并重启进程验证 VM 状态。需要复现 README 截图时使用
+`make ios-demo-screenshot`，它只重置 `com.example.protected` Demo 的 Simulator
+沙盒。该证据不能替代物理 iPhone、`.xcarchive`、Apple Distribution codesign 或 IPA。
 
 有正式 Team、Distribution Identity 和 Provisioning Profile 时，可生成并严格验证
 物理设备 Archive：

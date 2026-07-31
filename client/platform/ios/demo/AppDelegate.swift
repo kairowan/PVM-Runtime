@@ -4,29 +4,46 @@ import UIKit
 @main
 @MainActor
 final class AppDelegate: UIResponder, UIApplicationDelegate {
+    func application(
+        _ application: UIApplication,
+        configurationForConnecting connectingSceneSession: UISceneSession,
+        options: UIScene.ConnectionOptions
+    ) -> UISceneConfiguration {
+        UISceneConfiguration(
+            name: "Default Configuration",
+            sessionRole: connectingSceneSession.role
+        )
+    }
+}
+
+@MainActor
+final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     var window: UIWindow?
     private var demo: DemoViewController?
 
-    func application(
-        _ application: UIApplication,
-        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
-    ) -> Bool {
-        let window = UIWindow(frame: UIScreen.main.bounds)
+    func scene(
+        _ scene: UIScene,
+        willConnectTo session: UISceneSession,
+        options connectionOptions: UIScene.ConnectionOptions
+    ) {
+        guard let windowScene = scene as? UIWindowScene else { return }
+        let window = UIWindow(windowScene: windowScene)
         let demo = DemoViewController()
         window.rootViewController = demo
         window.makeKeyAndVisible()
         self.window = window
         self.demo = demo
-        return true
     }
 
-    func applicationDidEnterBackground(_ application: UIApplication) {
+    func sceneDidEnterBackground(_ scene: UIScene) {
         demo?.persistState()
     }
 
-    func applicationWillTerminate(_ application: UIApplication) {
+    func sceneDidDisconnect(_ scene: UIScene) {
         demo?.persistState()
         demo?.close()
+        demo = nil
+        window = nil
     }
 }
 
@@ -102,6 +119,9 @@ final class DemoViewController: UIViewController {
             UserDefaults.standard.removeObject(forKey: "status")
             try? FileManager.default.removeItem(at: screenshotMarkerURL)
         }
+        if restoredStateToken != nil {
+            try? FileManager.default.removeItem(at: restoredStateMarkerURL)
+        }
 
         let registry = PVMCapabilityRegistry()
         let pushInbox = PVMBasicCapabilities.install(registry: registry, presenting: self)
@@ -129,6 +149,7 @@ final class DemoViewController: UIViewController {
             self.host = host
             self.pushInbox = pushInbox
             seedScreenshotStateIfRequested()
+            verifyRestoredStateIfRequested()
         } catch {
             host.close()
             throw error
@@ -193,10 +214,27 @@ final class DemoViewController: UIViewController {
 
     @objc private func seedAsyncStorage() {
         guard let screenshotToken, tapButton("Load async storage") else { return }
-        waitForScreenshotState(token: screenshotToken, attemptsRemaining: 100)
+        waitForExpectedState(
+            token: screenshotToken,
+            markerURL: screenshotMarkerURL,
+            attemptsRemaining: 100
+        )
     }
 
-    private func waitForScreenshotState(token: String, attemptsRemaining: Int) {
+    private func verifyRestoredStateIfRequested() {
+        guard let restoredStateToken else { return }
+        waitForExpectedState(
+            token: restoredStateToken,
+            markerURL: restoredStateMarkerURL,
+            attemptsRemaining: 100
+        )
+    }
+
+    private func waitForExpectedState(
+        token: String,
+        markerURL: URL,
+        attemptsRemaining: Int
+    ) {
         guard attemptsRemaining > 0 else { return }
         let descendants = runtimeView.pvmDescendants
         let labels = Set(descendants.compactMap { ($0 as? UILabel)?.text })
@@ -204,17 +242,29 @@ final class DemoViewController: UIViewController {
         if labels.contains("Protected counter: 2"),
            labels.contains("Status: Not set"),
            name == "Alice" {
-            try? Data(token.utf8).write(to: screenshotMarkerURL, options: .atomic)
+            try? Data(token.utf8).write(to: markerURL, options: .atomic)
             return
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-            self?.waitForScreenshotState(token: token, attemptsRemaining: attemptsRemaining - 1)
+            self?.waitForExpectedState(
+                token: token,
+                markerURL: markerURL,
+                attemptsRemaining: attemptsRemaining - 1
+            )
         }
     }
 
     private var screenshotToken: String? {
+        processArgument(after: "-PVMSeedScreenshotToken")
+    }
+
+    private var restoredStateToken: String? {
+        processArgument(after: "-PVMVerifyRestoredStateToken")
+    }
+
+    private func processArgument(after flag: String) -> String? {
         let arguments = ProcessInfo.processInfo.arguments
-        guard let index = arguments.firstIndex(of: "-PVMSeedScreenshotToken"),
+        guard let index = arguments.firstIndex(of: flag),
               arguments.indices.contains(index + 1),
               !arguments[index + 1].isEmpty
         else {
@@ -226,6 +276,11 @@ final class DemoViewController: UIViewController {
     private var screenshotMarkerURL: URL {
         FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("pvm-screenshot-ready")
+    }
+
+    private var restoredStateMarkerURL: URL {
+        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("pvm-state-restored")
     }
 
     @discardableResult

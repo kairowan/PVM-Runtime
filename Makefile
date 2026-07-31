@@ -11,7 +11,7 @@ ifeq ($(FUZZ_CXX),)
 FUZZ_CXX := clang++
 endif
 
-.PHONY: android-demo-apk android-demo-check android-packages android-production-packages android-render-benchmark bootstrap build compatibility delivery-matrix docs-check fuzz-check generate-host-idl harmony-demo-run harmony-demo-screenshot harmony-device-run harmony-device-screenshot harmony-packages harmony-production-check harmony-render-benchmark harmony-sdk-check host-manifest ios-demo-app ios-demo-check ios-demo-run ios-demo-screenshot ios-device-archive ios-packages ios-render-benchmark ios-sdk-check kmp-check kmp-packages migration-check migration-studio migration-studio-check migration-studio-package migration-studio-run publish release-check sanitizer-check sdk-release-assets serve demo platform-check test verify-contracts
+.PHONY: android-demo-apk android-demo-check android-packages android-production-packages android-render-benchmark bootstrap build compatibility delivery-matrix docs-check fuzz-check generate-host-idl harmony-demo-run harmony-demo-screenshot harmony-device-run harmony-device-screenshot harmony-packages harmony-production-check harmony-render-benchmark harmony-sdk-check host-manifest ios-demo-app ios-demo-check ios-demo-restore-check ios-demo-run ios-demo-screenshot ios-device-archive ios-packages ios-render-benchmark ios-sdk-check kmp-check kmp-packages migration-check migration-studio migration-studio-check migration-studio-package migration-studio-run publish release-check sanitizer-check sdk-release-assets serve demo platform-check test verify-contracts
 
 bootstrap:
 	PYTHONPATH="$(PYTHONPATH_VALUE)" $(PYTHON) -m pvm_server.keys --directory server/var/keys
@@ -92,6 +92,9 @@ ios-demo-check: build ios-demo-app
 
 ios-demo-run: ios-demo-check
 	$(PYTHON) scripts/run_ios_demo.py
+
+ios-demo-restore-check: ios-demo-check
+	$(PYTHON) scripts/run_ios_demo.py --reset --verify-state-restore
 
 ios-demo-screenshot: ios-demo-check
 	$(PYTHON) scripts/run_ios_demo.py \

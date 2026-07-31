@@ -220,14 +220,16 @@ Registry 与 `PrivacyInfo.xcprivacy`。
 ```bash
 make ios-demo-check       # 构建并检查签名 Offline Sealed Demo
 make ios-demo-run         # 安装并启动到唯一已 Boot 的 Simulator
+make ios-demo-restore-check # 后台持久化、终止并重启验证状态恢复
 make ios-demo-screenshot  # 重置 Demo 状态并复现 README 中的 iOS 截图
 ```
 
 Demo 通过本地 Swift Package 接入完整 Runtime，构建阶段只嵌入 iOS
 `offline_sealed` 的 `module.pvm`、公钥和 bootstrap。当前已在 iPhone 17 Pro Max
-Simulator（iOS 26.2）完成启动、按钮、异步 Capability 和文本输入验证。它仍不是 IPA
-或真机发布证据：目标 App 还需完成物理设备生命周期、archive/codesign、entitlement
-和商店审核。
+Simulator（iOS 26.2）完成启动、按钮、异步 Capability、文本输入，以及通过
+SceneDelegate 进入后台、原子保存、终止进程和重启恢复验证。它仍不是 IPA 或真机
+发布证据：目标 App 还需完成物理设备生命周期、archive/codesign、entitlement 和
+商店审核。
 
 iOS 产品默认建议使用 `offline_sealed`，由目标 App 在审核包内携带签名业务模块。
 如果产品选择在线字节码交付，必须针对实际功能和更新行为逐项评估

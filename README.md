@@ -222,6 +222,7 @@ On macOS with full Xcode:
 make ios-sdk-check
 make ios-demo-check
 make ios-demo-run
+make ios-demo-restore-check
 make ios-demo-screenshot
 ```
 
@@ -233,6 +234,9 @@ a real binary Swift consumer, and the absence of private keys or local paths.
 
 The repository includes
 [`PVMRuntimeDemo.xcodeproj`](client/platform/ios/demo/PVMRuntimeDemo.xcodeproj).
+`ios-demo-restore-check` backgrounds the Demo through the Simulator system
+browser, verifies the SceneDelegate snapshot, terminates the process, and
+requires the relaunched VM-rendered state to match.
 Current evidence covers an iPhone 17 Pro Max Simulator on iOS 26.2. A target app
 still needs physical-device lifecycle, archive/codesign, entitlements, and App
 Store review evidence.
