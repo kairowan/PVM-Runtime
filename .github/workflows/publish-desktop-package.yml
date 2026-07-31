@@ -295,4 +295,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ needs.validate.outputs.tag }}
-        run: gh release upload "$RELEASE_TAG" release-assets/* --clobber
+        run: >-
+          gh release upload "$RELEASE_TAG" release-assets/* --clobber
+          --repo "$GITHUB_REPOSITORY"
