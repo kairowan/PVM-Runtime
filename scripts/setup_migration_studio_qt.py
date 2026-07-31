@@ -18,7 +18,7 @@ QT_ROOT = ROOT / "third_party" / "qt"
 QT_LICENSES = QT_ROOT / "licenses"
 PREFIX_FILE = TOOLS / "qt-prefix.txt"
 AQT_VERSION = "3.3.0"
-DEFAULT_QT_VERSION = "6.12.0"
+DEFAULT_QT_VERSION = "6.10.3"
 QT_LICENSE_REF = "617242bba272518b57f7c201d63af299abcb877b"
 LICENSE_URLS = {
     "GPL-3.0-only.txt": (
@@ -96,6 +96,8 @@ def install(version):
             "--archive-dest",
             str(archives),
             "--internal",
+            "--timeout",
+            "30",
             "--archives",
             "qtbase",
         ],
@@ -109,7 +111,7 @@ def install(version):
     return prefix
 
 
-def ensure_licenses():
+def ensure_licenses(version):
     QT_LICENSES.mkdir(parents=True, exist_ok=True)
     for name, url in LICENSE_URLS.items():
         target_path = QT_LICENSES / name
@@ -149,7 +151,7 @@ def ensure_licenses():
             raise SystemExit(f"unexpected Qt license response: {url}")
         os.replace(temporary, target_path)
     (QT_LICENSES / "NOTICE.txt").write_text(
-        "PVM Migration Studio dynamically links Qt 6.12.0.\n"
+        f"PVM Migration Studio dynamically links Qt {version}.\n"
         "Qt is copyright The Qt Company Ltd. and other contributors and is "
         "available under commercial and open-source license terms.\n"
         "This development package uses the LGPL-3.0-only option. See the "
@@ -167,7 +169,7 @@ def main():
     )
     args = parser.parse_args()
     prefix = install(args.version).resolve()
-    ensure_licenses()
+    ensure_licenses(args.version)
     TOOLS.mkdir(parents=True, exist_ok=True)
     PREFIX_FILE.write_text(str(prefix) + "\n", encoding="utf-8")
     print(prefix)

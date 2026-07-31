@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(Qt6 6.12 REQUIRED COMPONENTS Widgets)
+find_package(Qt6 6.10 REQUIRED COMPONENTS Widgets)
 qt_standard_project_setup()
 
 get_filename_component(PVM_REPO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)

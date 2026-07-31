@@ -84,6 +84,7 @@ jobs:
           cp "$PYINSTALLER_LICENSE" build/migration-studio-licenses/PYINSTALLER-COPYING.txt
       - name: Build the portable C++ runtime and Qt application
         run: |
+          brew install openssl@3
           OPENSSL_ROOT="$(brew --prefix openssl@3)"
           OPENSSL_LICENSE="$(find "$OPENSSL_ROOT" -type f -iname 'license*' -print -quit)"
           test -n "$OPENSSL_LICENSE"

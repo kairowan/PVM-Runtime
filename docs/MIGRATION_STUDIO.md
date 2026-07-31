@@ -52,7 +52,7 @@ All downloads, source, build caches, and outputs remain under this repository:
 | Path | Purpose |
 |---|---|
 | `tools/migration-studio/` | C++17/Qt application source |
-| `third_party/qt/6.12.0/` | Repository-local pinned Qt SDK |
+| `third_party/qt/6.10.3/` | Repository-local pinned Qt SDK |
 | `build/migration-studio-tools/` | Repository-local `aqtinstall` and archives |
 | `build/migration-studio/` | CMake build tree |
 | `dist/desktop/PVMMigrationStudio.app` | Relocatable macOS development package |

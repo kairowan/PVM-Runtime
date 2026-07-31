@@ -46,7 +46,7 @@ make migration-studio-run
 | 路径 | 用途 |
 |---|---|
 | `tools/migration-studio/` | C++17/Qt 应用源码 |
-| `third_party/qt/6.12.0/` | 仓库内固定版本的 Qt SDK |
+| `third_party/qt/6.10.3/` | 仓库内固定版本的 Qt SDK |
 | `build/migration-studio-tools/` | 仓库内的 `aqtinstall` 与下载归档 |
 | `build/migration-studio/` | CMake 构建目录 |
 | `dist/desktop/PVMMigrationStudio.app` | 可移动的 macOS 开发包 |
