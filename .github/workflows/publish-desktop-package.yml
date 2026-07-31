@@ -82,19 +82,26 @@ jobs:
             "https://raw.githubusercontent.com/python/cpython/v$PYTHON_VERSION/LICENSE" \
             --output build/migration-studio-licenses/PYTHON-LICENSE.txt
           cp "$PYINSTALLER_LICENSE" build/migration-studio-licenses/PYINSTALLER-COPYING.txt
-      - name: Build the portable C++ runtime and Qt application
+      - name: Build the portable C++ runtime
+        timeout-minutes: 10
         run: |
-          brew install openssl@3
           OPENSSL_ROOT="$(brew --prefix openssl@3)"
-          OPENSSL_LICENSE="$(find "$OPENSSL_ROOT" -type f -iname 'license*' -print -quit)"
-          test -n "$OPENSSL_LICENSE"
-          cp "$OPENSSL_LICENSE" build/migration-studio-licenses/OPENSSL-LICENSE.txt
+          OPENSSL_VERSION="$("$OPENSSL_ROOT/bin/openssl" version | awk '{print $2}')"
+          curl --fail --location --retry 3 \
+            "https://raw.githubusercontent.com/openssl/openssl/openssl-$OPENSSL_VERSION/LICENSE.txt" \
+            --output build/migration-studio-licenses/OPENSSL-LICENSE.txt
           cmake -S client -B build/client \
             -DCMAKE_BUILD_TYPE=Release \
             -DOPENSSL_ROOT_DIR="$OPENSSL_ROOT" \
             -DOPENSSL_USE_STATIC_LIBS=TRUE
           cmake --build build/client -j
+      - name: Install the Qt SDK
+        timeout-minutes: 15
+        run: |
           python scripts/setup_migration_studio_qt.py
+      - name: Build and install the Qt application
+        timeout-minutes: 10
+        run: |
           cmake -S tools/migration-studio -B build/migration-studio \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_PREFIX_PATH="$(cat build/migration-studio-tools/qt-prefix.txt)" \
@@ -183,7 +190,8 @@ jobs:
             build/migration-studio-licenses/PYTHON-LICENSE.txt
           Copy-Item $pyinstallerLicense `
             build/migration-studio-licenses/PYINSTALLER-COPYING.txt
-      - name: Build the portable C++ runtime and Qt application
+      - name: Build the portable C++ runtime
+        timeout-minutes: 15
         shell: pwsh
         run: |
           vcpkg install openssl:x64-windows-static
@@ -195,7 +203,16 @@ jobs:
             -DVCPKG_TARGET_TRIPLET=x64-windows-static `
             -DOPENSSL_USE_STATIC_LIBS=TRUE
           cmake --build build/client --config Release --parallel
+      - name: Install the Qt SDK
+        timeout-minutes: 15
+        shell: pwsh
+        run: |
           python scripts/setup_migration_studio_qt.py
+          if ($LASTEXITCODE -ne 0) { throw "Qt SDK installation failed" }
+      - name: Build and install the Qt application
+        timeout-minutes: 10
+        shell: pwsh
+        run: |
           $qtPrefix = Get-Content build/migration-studio-tools/qt-prefix.txt
           cmake -S tools/migration-studio -B build/migration-studio -A x64 `
             "-DCMAKE_PREFIX_PATH=$qtPrefix" `
