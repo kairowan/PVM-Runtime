@@ -754,6 +754,88 @@ void append_u64(std::vector<std::uint8_t>& output, std::uint64_t value) {
   }
 }
 
+bool same_local_data(const UiNodeSnapshot& left, const UiNodeSnapshot& right) {
+  if (left.properties.size() != right.properties.size() ||
+      left.events.size() != right.events.size()) {
+    return false;
+  }
+  for (std::size_t index = 0; index < left.properties.size(); ++index) {
+    if (left.properties[index].key != right.properties[index].key ||
+        left.properties[index].value != right.properties[index].value) {
+      return false;
+    }
+  }
+  for (std::size_t index = 0; index < left.events.size(); ++index) {
+    if (left.events[index].event != right.events[index].event ||
+        left.events[index].handler != right.events[index].handler) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool same_child_identity(const UiNodeSnapshot& left, const UiNodeSnapshot& right) {
+  if (left.children.size() != right.children.size()) {
+    return false;
+  }
+  for (std::size_t index = 0; index < left.children.size(); ++index) {
+    if (left.children[index].type != right.children[index].type ||
+        left.children[index].id != right.children[index].id) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool same_node_data(const UiNodeSnapshot& left, const UiNodeSnapshot& right) {
+  if (left.type != right.type || !same_local_data(left, right) ||
+      !same_child_identity(left, right)) {
+    return false;
+  }
+  for (std::size_t index = 0; index < left.children.size(); ++index) {
+    if (left.children[index].revision != right.children[index].revision) {
+      return false;
+    }
+  }
+  return true;
+}
+
+void index_snapshot(
+    const UiNodeSnapshot& node,
+    std::unordered_map<std::uint32_t, const UiNodeSnapshot*>& nodes_by_id) {
+  nodes_by_id.emplace(node.id, &node);
+  for (const auto& child : node.children) {
+    index_snapshot(child, nodes_by_id);
+  }
+}
+
+void assign_revisions(
+    UiNodeSnapshot& node,
+    const std::unordered_map<std::uint32_t, const UiNodeSnapshot*>& previous_by_id) {
+  for (auto& child : node.children) {
+    assign_revisions(child, previous_by_id);
+  }
+  const auto found = previous_by_id.find(node.id);
+  if (found == previous_by_id.end() || found->second->type != node.type) {
+    node.revision = 1;
+    return;
+  }
+  const auto& previous = *found->second;
+  node.local_changed = !same_local_data(previous, node);
+  node.structure_changed =
+      !same_child_identity(previous, node) ||
+      (node.type == NodeType::NativeSurface && node.local_changed);
+  node.changed = !same_node_data(previous, node);
+  if (!node.changed) {
+    node.revision = previous.revision;
+    return;
+  }
+  if (previous.revision == std::numeric_limits<std::uint64_t>::max()) {
+    throw RuntimeError("UI node revision exhausted");
+  }
+  node.revision = previous.revision + 1;
+}
+
 }  // namespace
 
 void verify_detached_signature(const std::uint8_t* payload, std::size_t payload_size,
@@ -1151,7 +1233,8 @@ class Runtime::Impl {
   }
 
   UiNodeSnapshot snapshot(const UiNode& node) const {
-    UiNodeSnapshot result{node.type, node.id, {}, node.events, {}};
+    UiNodeSnapshot result{
+        node.type, node.id, 0, true, true, true, {}, node.events, {}};
     result.properties.reserve(node.properties.size());
     for (const auto& property : node.properties) {
       result.properties.push_back({property.key, evaluate(property)});
@@ -1165,13 +1248,26 @@ class Runtime::Impl {
 
   void render(std::uint16_t page) {
     current_page = page;
-    ui_host.replace_tree(snapshot(module.pages.at(page)));
+    auto next = snapshot(module.pages.at(page));
+    std::unordered_map<std::uint32_t, const UiNodeSnapshot*> previous_by_id;
+    if (last_snapshot) {
+      previous_by_id.reserve(module.limits.max_ui_nodes);
+      index_snapshot(*last_snapshot, previous_by_id);
+    }
+    assign_revisions(next, previous_by_id);
+    if (last_snapshot && last_snapshot->type == next.type &&
+        last_snapshot->id == next.id && last_snapshot->revision == next.revision) {
+      return;
+    }
+    ui_host.replace_tree(next);
+    last_snapshot = std::move(next);
   }
 
   std::vector<Value> state;
   UiHost& ui_host;
   CapabilityHost& capability_host;
   std::uint16_t current_page{0};
+  std::optional<UiNodeSnapshot> last_snapshot;
   bool started{false};
   std::uint64_t next_task_id{1};
   std::unordered_map<std::uint64_t, Frame> tasks;

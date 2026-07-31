@@ -36,6 +36,11 @@ let package = Package(
                 .copy("PrivacyInfo.xcprivacy"),
             ]
         ),
+        .testTarget(
+            name: "PVMRuntimeTests",
+            dependencies: ["PVMRuntime"],
+            path: "client/platform/ios/tests"
+        ),
     ],
     cxxLanguageStandard: .cxx17
 )

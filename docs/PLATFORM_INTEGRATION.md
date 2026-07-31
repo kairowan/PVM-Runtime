@@ -26,7 +26,7 @@ sequenceDiagram
     Store->>VM: preload candidate with public key and binding
     VM-->>Store: metadata and release
     Store->>Store: atomic activate
-    App->>VM: create with C ABI v3 binding
+    App->>VM: create with C ABI v4 binding + UI Wire v2
     App->>VM: optional restore, then start once
     VM->>Host: UI tree / capability effect
     Host->>VM: event / async completion
@@ -56,7 +56,7 @@ signature, hash, or release checks.
 ### Provided
 
 - Kotlin runtime host and capability registry.
-- JNI bridge and C ABI v3 module preload.
+- JNI bridge, C ABI v4 runtime host, and v3 validation-only preload.
 - Android View renderer and NativeSurface factory.
 - Tink Ed25519 verification.
 - HTTPS/bundled Module Store with atomic LKG.
@@ -306,7 +306,7 @@ added unless the product actually adopts it.
 ## C ABI lifecycle
 
 ```text
-pvm_runtime_create_bound
+pvm_runtime_create_v4(callbacks.ui_wire_version = PVM_UI_WIRE_V2)
   → optional pvm_runtime_restore_state
   → pvm_runtime_start exactly once
   → pvm_runtime_dispatch / pvm_runtime_complete_effect / snapshot
@@ -315,14 +315,55 @@ pvm_runtime_create_bound
 ```
 
 The host owns serialized entry. C strings and UI batches are copied before the
-next VM call. Effect task IDs are opaque 64-bit values.
+next VM call. Effect task IDs are opaque 64-bit values. Wire v2 sends a complete
+root for initial or structural commits and a patch containing root metadata,
+changed-node subtrees, and ancestor revisions for stable structures. Existing
+`create`, `create_v2`, and `create_v3` callers always receive complete-root Wire
+v1.
+
+### UI Wire v2
+
+An initial or structural batch uses `operation: "replace"` and includes a
+complete `root`. A stable-structure batch uses `operation: "patch"`:
+
+```json
+{
+  "wireVersion": 2,
+  "operation": "patch",
+  "structureChanged": false,
+  "rootId": 1,
+  "rootType": "Column",
+  "rootRevision": 42,
+  "changed": [7],
+  "nodes": [
+    {
+      "type": "Text",
+      "id": 7,
+      "revision": 42,
+      "props": { "text": "Updated" },
+      "events": [],
+      "children": []
+    }
+  ],
+  "revisions": [
+    { "id": 1, "revision": 42 },
+    { "id": 7, "revision": 42 }
+  ]
+}
+```
+
+`changed` order matches the top-level objects in `nodes`; a changed `List`
+carries its current item subtree. `revisions` updates ancestor render gates
+without resending their unchanged properties. Hosts reject missing or duplicate
+IDs and require a complete root whenever identity, type, or structure changes.
 
 ## UI renderer contract
 
-Renderers implement complete-tree replacement, stable numeric node identity,
-11 node types, properties, accessibility, tap/change/submit/appear, v5 event
-values, absent→present appear semantics, native surfaces, and platform-thread
-confinement. Renderer conformance is machine-readable in
+Renderers implement complete-tree structural replacement plus stable-structure
+patches, stable numeric node identity, 11 node types, properties, accessibility,
+tap/change/submit/appear, v5 event values, absent→present appear semantics,
+native surfaces, and platform-thread confinement. Renderer conformance is
+machine-readable in
 [`spec/renderer_conformance.json`](../spec/renderer_conformance.json).
 
 ## Capability contract

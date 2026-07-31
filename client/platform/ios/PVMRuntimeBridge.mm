@@ -169,10 +169,11 @@ static int PVMStandaloneSignature(void* context, const uint8_t* payload, size_t 
   _syncEffectHandler = [syncEffectHandler copy];
   _asyncEffectHandler = [asyncEffectHandler copy];
   _signatureVerifier = [signatureVerifier copy];
-  const pvm_host_callbacks_v2 callbacks{
-      (__bridge void*)self, PVMUI, PVMSyncEffect, PVMAsyncEffect, PVMSignature};
+  const pvm_host_callbacks_v3 callbacks{
+      (__bridge void*)self, PVMUI, PVMSyncEffect, PVMAsyncEffect, PVMSignature,
+      PVM_UI_WIRE_V2};
   char message[512]{};
-  _runtime = pvm_runtime_create_v3(
+  _runtime = pvm_runtime_create_v4(
       modulePath.fileSystemRepresentation, publicKeyPath.fileSystemRepresentation,
       applicationID.UTF8String, expectedChannel.UTF8String, "ios",
       expectedProfile.UTF8String, minimumRelease, callbacks, message, sizeof(message));

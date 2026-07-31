@@ -13,7 +13,8 @@ how to integrate it correctly, and what evidence counts as complete.
 
 1. [Repository README](../README.md)
 2. [Architecture and data flow](ARCHITECTURE.md)
-3. [Functional status](FUNCTIONAL_STATUS.md)
+3. [Rendering performance](PERFORMANCE.md)
+4. [Functional status](FUNCTIONAL_STATUS.md)
 
 ### Writing business modules
 
@@ -45,6 +46,7 @@ how to integrate it correctly, and what evidence counts as complete.
 | [DSL and bytecode](DSL_V1.md) | What can a module express and how does the VM validate it? |
 | [Selective migration](MIGRATION.md) | How are individual classes or existing modules converted safely? |
 | [Migration Studio](MIGRATION_STUDIO.md) | How does the desktop workflow scan, review, and verify a selection? |
+| [Rendering performance](PERFORMANCE.md) | How do large pages avoid blocking the UI thread and define device gates? |
 | [Security model](SECURITY_MODEL.md) | What is protected, from whom, and what is explicitly out of scope? |
 | [Platform integration](PLATFORM_INTEGRATION.md) | How do Android, iOS, HarmonyOS, and KMP connect? |
 | [Operations](OPERATIONS.md) | How are modules built, signed, rolled out, stopped, and audited? |
@@ -61,7 +63,7 @@ how to integrate it correctly, and what evidence counts as complete.
 | Manifest | Signed release selection and immutable module metadata |
 | Runtime | Shared C++17 verifier and interpreter |
 | Host | Platform lifecycle, renderer, Module Store, and capabilities |
-| UI Tree | Neutral whole-tree UI batch emitted by the VM |
+| UI Tree | Complete structural roots plus Wire v2 changed-node patches and ancestor revisions |
 | Capability | Versioned, declared call into native host functionality |
 | Native Surface | Host-owned native view for maps, players, camera, and similar features |
 | LKG | Last known good verified module |
@@ -71,7 +73,8 @@ how to integrate it correctly, and what evidence counts as complete.
 
 - Runtime 5 reads PVBC v1–v5.
 - The compiler emits PVBC v5 by default.
-- C ABI v3 is the required mobile binding API.
+- C ABI v4 with UI Wire v2 is the required mobile rendering API; v1–v3 remain
+  complete-tree compatibility entry points.
 - Host IDL, renderer conformance, release gates, and state persistence are
   independently versioned contracts.
 - Runtime, bytecode, platform package, and business release are related but not

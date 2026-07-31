@@ -68,10 +68,11 @@ cross-platform, or cross-profile loading.
 | UIHost | Native rendering of the neutral UI tree and event return |
 | Capability Host | Version, permission, thread, argument, and consent checks before native SDK calls |
 
-Android, iOS, and HarmonyOS share the same runtime and C ABI. C ABI v3 binds
-application/channel/platform/profile and release floor at creation. The Module
-Store also requires the VM-reported release to equal the signed manifest
-release.
+Android, iOS, and HarmonyOS share the same runtime and C ABI. C ABI v4 binds
+application/channel/platform/profile and release floor at creation and selects
+UI Wire v2. C ABI v3 remains available for complete-tree compatibility and
+validation-only loads. The Module Store also requires the VM-reported release
+to equal the signed manifest release.
 
 ## DSL-to-UI flow
 
@@ -230,11 +231,23 @@ Profiles change module origin and packaging constraints, not business semantics.
 Android `Offline Sealed` can be embedded in an APK for direct distribution or
 an AAB for Google Play. See [Operations](OPERATIONS.md).
 
-## Intentional boundaries
+## Rendering performance boundary
 
-The current runtime uses small complete modules and whole-tree replacement.
-Incremental diff should be added only after real page size and frame budgets
-show that it is necessary.
+The VM still evaluates a neutral snapshot for a changed page, assigns exact
+per-node revisions, and suppresses identical output. C ABI JSON batches carry
+`changed` node IDs and a `structureChanged` marker; Android View and UIKit commit
+those IDs directly when structure is stable. SwiftUI processes changed state
+only; ArkUI performs in-place updates through
+ID paths indexed during the first structural commit. Android, iOS, and
+HarmonyOS all decode large batches off the UI thread with latest-batch
+backpressure, and each platform uses a virtual or lazy path for `List`. See
+[Rendering performance](PERFORMANCE.md) for integration rules and device gates.
+
+C ABI v4 mobile hosts select UI Wire v2. Structural changes carry the complete
+root; stable structures carry root identity/revision, changed-node subtrees,
+and ancestor revisions only. Android View, UIKit, and ArkUI commit those models
+directly; SwiftUI copies only each changed node's stable ancestor path. Legacy
+C ABI v1–v3 hosts remain on complete-root Wire v1.
 
 Product environments still need platform secure storage, commercial capability
 adapters, iOS physical-device/archive/store evidence, HarmonyOS HUKS and

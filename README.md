@@ -124,9 +124,10 @@ their App ID, embedded business module, permissions, signing, and store package.
 
 - C++17 loader, bytecode verifier, interpreter, stack type checks, control-flow
   validation, and an instruction watchdog.
-- C ABI v3 enforces application/channel/platform/profile/release-floor binding
-  at creation and is bridged through Android JNI, iOS Objective-C++, and
-  HarmonyOS Node-API.
+- C ABI v4 enforces application/channel/platform/profile/release-floor binding,
+  selects UI Wire v2 patch delivery, and is bridged through Android JNI, iOS
+  Objective-C++, and HarmonyOS Node-API. C ABI v1–v3 retain complete-tree
+  compatibility.
 - Lifecycle: create → optional restore → one start → dispatch/complete → cancel
   → destroy. Events and async completion are rejected before start; restore and
   repeated start are rejected after start.

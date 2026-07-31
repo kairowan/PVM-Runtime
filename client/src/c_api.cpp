@@ -60,7 +60,7 @@ void write_value(std::ostringstream& output, const pvm::Value& value) {
 
 void write_node(std::ostringstream& output, const pvm::UiNodeSnapshot& node) {
   output << "{\"type\":\"" << pvm::node_type_name(node.type) << "\",\"id\":" << node.id
-         << ",\"props\":{";
+         << ",\"revision\":" << node.revision << ",\"props\":{";
   for (std::size_t i = 0; i < node.properties.size(); ++i) {
     if (i != 0) {
       output << ',';
@@ -85,16 +85,103 @@ void write_node(std::ostringstream& output, const pvm::UiNodeSnapshot& node) {
   output << "]}";
 }
 
+struct UiDelta {
+  bool structure_changed = false;
+  std::vector<const pvm::UiNodeSnapshot*> changed;
+  std::vector<const pvm::UiNodeSnapshot*> revisions;
+};
+
+bool subtree_structure_changed(const pvm::UiNodeSnapshot& node) {
+  if (node.structure_changed) {
+    return true;
+  }
+  return std::any_of(node.children.begin(), node.children.end(),
+                     subtree_structure_changed);
+}
+
+void collect_ui_delta(const pvm::UiNodeSnapshot& node, UiDelta& delta) {
+  if (node.changed) {
+    delta.revisions.push_back(&node);
+  }
+  if (node.structure_changed) {
+    delta.structure_changed = true;
+    return;
+  }
+  if (node.type == pvm::NodeType::List) {
+    if (std::any_of(node.children.begin(), node.children.end(),
+                    subtree_structure_changed)) {
+      delta.structure_changed = true;
+      return;
+    }
+    if (node.changed) {
+      delta.changed.push_back(&node);
+    }
+    return;
+  }
+  if (node.local_changed) {
+    delta.changed.push_back(&node);
+  }
+  for (const auto& child : node.children) {
+    collect_ui_delta(child, delta);
+  }
+}
+
 class CallbackHost final : public pvm::UiHost, public pvm::CapabilityHost {
  public:
-  explicit CallbackHost(pvm_host_callbacks_v2 supplied) : callbacks_(supplied) {}
+  explicit CallbackHost(pvm_host_callbacks_v3 supplied) : callbacks_(supplied) {}
 
   void replace_tree(const pvm::UiNodeSnapshot& root) override {
     if (callbacks_.on_ui_batch == nullptr) {
       throw pvm::RuntimeError("UI host callback is not installed");
     }
+    UiDelta delta;
+    collect_ui_delta(root, delta);
     std::ostringstream output;
-    output << "{\"operation\":\"replace\",\"root\":";
+    if (callbacks_.ui_wire_version == PVM_UI_WIRE_V2 && !delta.structure_changed) {
+      output << "{\"wireVersion\":2,\"operation\":\"patch\",\"structureChanged\":false"
+             << ",\"rootId\":" << root.id << ",\"rootType\":\""
+             << pvm::node_type_name(root.type) << "\",\"rootRevision\":" << root.revision
+             << ",\"changed\":[";
+      for (std::size_t index = 0; index < delta.changed.size(); ++index) {
+        if (index != 0) {
+          output << ',';
+        }
+        output << delta.changed[index]->id;
+      }
+      output << "],\"nodes\":[";
+      for (std::size_t index = 0; index < delta.changed.size(); ++index) {
+        if (index != 0) {
+          output << ',';
+        }
+        write_node(output, *delta.changed[index]);
+      }
+      output << "],\"revisions\":[";
+      for (std::size_t index = 0; index < delta.revisions.size(); ++index) {
+        if (index != 0) {
+          output << ',';
+        }
+        output << "{\"id\":" << delta.revisions[index]->id
+               << ",\"revision\":" << delta.revisions[index]->revision << '}';
+      }
+      output << "]}";
+      const auto json = output.str();
+      callbacks_.on_ui_batch(callbacks_.context, json.data(), json.size());
+      return;
+    }
+    if (callbacks_.ui_wire_version == PVM_UI_WIRE_V2) {
+      output << "{\"wireVersion\":2,";
+    } else {
+      output << '{';
+    }
+    output << "\"operation\":\"replace\",\"structureChanged\":"
+           << (delta.structure_changed ? "true" : "false") << ",\"changed\":[";
+    for (std::size_t index = 0; index < delta.changed.size(); ++index) {
+      if (index != 0) {
+        output << ',';
+      }
+      output << delta.changed[index]->id;
+    }
+    output << "],\"root\":";
     write_node(output, root);
     output << '}';
     const auto json = output.str();
@@ -145,7 +232,7 @@ class CallbackHost final : public pvm::UiHost, public pvm::CapabilityHost {
   }
 
  private:
-  pvm_host_callbacks_v2 callbacks_;
+  pvm_host_callbacks_v3 callbacks_;
 };
 
 void set_error(char* output, std::size_t capacity, const std::string& message) {
@@ -185,7 +272,7 @@ pvm_runtime* create_runtime(const char* module_path, const char* public_key_path
                             const char* expected_application_id,
                             const char* expected_channel, const char* expected_platform,
                             const char* expected_profile,
-                            std::uint64_t minimum_release, pvm_host_callbacks_v2 callbacks,
+                            std::uint64_t minimum_release, pvm_host_callbacks_v3 callbacks,
                             char* error, std::size_t error_capacity) {
   try {
     if (module_path == nullptr || public_key_path == nullptr || expected_application_id == nullptr ||
@@ -240,8 +327,16 @@ pvm_runtime* pvm_runtime_create_v2(
     const char* module_path, const char* public_key_path, const char* expected_application_id,
     std::uint64_t minimum_release, pvm_host_callbacks_v2 callbacks, char* error,
     std::size_t error_capacity) {
+  const pvm_host_callbacks_v3 upgraded{
+      callbacks.context,
+      callbacks.on_ui_batch,
+      callbacks.on_effect,
+      callbacks.on_async_effect,
+      callbacks.on_verify_signature,
+      PVM_UI_WIRE_V1,
+  };
   return create_runtime(module_path, public_key_path, expected_application_id, "", "", "",
-                        minimum_release, callbacks, error, error_capacity);
+                        minimum_release, upgraded, error, error_capacity);
 }
 
 pvm_runtime* pvm_runtime_create_v3(
@@ -254,6 +349,36 @@ pvm_runtime* pvm_runtime_create_v3(
       expected_profile[0] == '\0') {
     set_error(error, error_capacity,
               "v3 runtime requires channel, platform, and delivery profile bindings");
+    return nullptr;
+  }
+  const pvm_host_callbacks_v3 upgraded{
+      callbacks.context,
+      callbacks.on_ui_batch,
+      callbacks.on_effect,
+      callbacks.on_async_effect,
+      callbacks.on_verify_signature,
+      PVM_UI_WIRE_V1,
+  };
+  return create_runtime(module_path, public_key_path, expected_application_id, expected_channel,
+                        expected_platform, expected_profile, minimum_release, upgraded, error,
+                        error_capacity);
+}
+
+pvm_runtime* pvm_runtime_create_v4(
+    const char* module_path, const char* public_key_path, const char* expected_application_id,
+    const char* expected_channel, const char* expected_platform, const char* expected_profile,
+    std::uint64_t minimum_release, pvm_host_callbacks_v3 callbacks, char* error,
+    std::size_t error_capacity) {
+  if (expected_channel == nullptr || expected_platform == nullptr || expected_profile == nullptr ||
+      expected_channel[0] == '\0' || expected_platform[0] == '\0' ||
+      expected_profile[0] == '\0') {
+    set_error(error, error_capacity,
+              "v4 runtime requires channel, platform, and delivery profile bindings");
+    return nullptr;
+  }
+  if (callbacks.ui_wire_version != PVM_UI_WIRE_V1 &&
+      callbacks.ui_wire_version != PVM_UI_WIRE_V2) {
+    set_error(error, error_capacity, "unsupported UI wire version");
     return nullptr;
   }
   return create_runtime(module_path, public_key_path, expected_application_id, expected_channel,

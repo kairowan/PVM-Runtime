@@ -10,9 +10,10 @@
 
 1. [项目首页](../README.zh-CN.md)
 2. [架构与数据流](ARCHITECTURE.zh-CN.md)
-3. [安全模型](SECURITY_MODEL.zh-CN.md)
-4. [功能完成度](FUNCTIONAL_STATUS.zh-CN.md)
-5. [交付状态](DELIVERY_STATUS.zh-CN.md)
+3. [渲染性能与大页面接入](PERFORMANCE.zh-CN.md)
+4. [安全模型](SECURITY_MODEL.zh-CN.md)
+5. [功能完成度](FUNCTIONAL_STATUS.zh-CN.md)
+6. [交付状态](DELIVERY_STATUS.zh-CN.md)
 
 ### 编写业务模块
 
@@ -50,6 +51,7 @@
 | [DSL_V1.zh-CN.md](DSL_V1.zh-CN.md) | DSL/业务开发 | 能表达什么、如何编译、怎样兼容升级 |
 | [MIGRATION.zh-CN.md](MIGRATION.zh-CN.md) | 老项目负责人、业务开发 | 怎样按类或模块选择性迁移并复核结果 |
 | [MIGRATION_STUDIO.zh-CN.md](MIGRATION_STUDIO.zh-CN.md) | 老项目负责人、业务开发 | 怎样用桌面流程完成扫描、复核和验证 |
+| [PERFORMANCE.zh-CN.md](PERFORMANCE.zh-CN.md) | 平台开发、性能负责人 | 大页面如何避免阻塞 UI 线程并建立真机门禁 |
 | [PLATFORM_INTEGRATION.zh-CN.md](PLATFORM_INTEGRATION.zh-CN.md) | Android/iOS/HarmonyOS 开发 | 怎样连接 VM、渲染器、验签和模块缓存 |
 | [OPERATIONS.zh-CN.md](OPERATIONS.zh-CN.md) | CI/CD、SRE、发布负责人 | 怎样签名、发布、灰度、止血和审计 |
 | [DELIVERY_STATUS.zh-CN.md](DELIVERY_STATUS.zh-CN.md) | 项目负责人、验收人员 | 哪些由仓库证明，哪些必须取得外部证据 |
@@ -63,7 +65,7 @@
 | PVBC | PVM 私有字节码 payload；当前默认版本为 v5 |
 | PVMP | 包含 PVBC 和 Ed25519 签名的模块容器 |
 | Manifest | 经过 Ed25519 签名的模块发布描述，绑定 application、channel、platform、profile、release 和 Hash |
-| UIHost | 把 VM 的中立 UI Tree 映射到原生 UI 框架的宿主接口 |
+| UIHost | 把完整结构 Root、Wire v2 变化节点补丁与祖先 revision 映射到原生 UI 的宿主接口 |
 | Capability Host | 承载支付、网络、存储、相机等原生能力的版本化宿主接口 |
 | LKG | Last Known Good，最后一次完整验证并原子切换成功的本地模块 |
 | Release floor | 客户端允许接受的最低单调发布序号，用于首装和升级防回滚 |

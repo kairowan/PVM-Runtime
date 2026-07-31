@@ -13,9 +13,10 @@ device acceptance.
 |---|---|---|
 | DSL types, control flow, budgets | Implemented | `make test` |
 | PVBC v1–v5, signature, binding, rollback | Implemented | `make test compatibility` |
-| C ABI v3 five-way binding | Implemented | C ABI smoke and platform hosts |
+| C ABI v4 five-way binding and UI Wire v2 patches | Implemented | v1/v3 compatibility plus v4 patch C ABI smoke and platform hosts |
 | create/restore/start/dispatch/cancel lifecycle | Implemented | negative lifecycle tests |
 | sync/async effects and cancellation | Implemented | C ABI and task-budget tests |
+| per-node revisions, exact changed IDs, structural fallback | Implemented | C ABI plus Android device, iOS Simulator, and Harmony host regression gates |
 | v4 stable state migration | Implemented | rename/add/conflict tests |
 | v5 input/switch values | Implemented | `event.value` regression |
 | manifest/download/hash/preload/atomic LKG | Implemented | HTTP/LKG and Module Stores |
@@ -43,11 +44,11 @@ device acceptance.
 
 | Backend | Available | Remaining |
 |---|---|---|
-| Android View | 11 nodes, properties, four events, values, NativeSurface factory, appear semantics | image policy, style, performance, broad devices |
+| Android View | 11 nodes, exact changed-ID commits, stable-ID reuse, `RecyclerView + ListAdapter/DiffUtil`, adaptive decode/backpressure, values, NativeSurface and appear; on HONOR API 35, a 1,000-row viewport gate passes and a 240-node single-leaf commit measured 172–187 μs p95, about 35%–39% below paired full rebind | release Macrobenchmark/scroll frame and memory SLOs, images, styling and broad devices |
 | Android Compose/CMP | shared KMP call layer builds | recursive Compose tree and product-version integration |
-| UIKit | 11 nodes, stack constraints, events, values, NativeSurface | images, complex layout/reuse, device calibration |
-| SwiftUI | recursive tree, inputs, switch, events, accessibility, appear | NativeSurface, images, complex lists |
-| ArkUI | compiled recursive native tree and event semantics | complex layout performance, NativeSurface, broad devices |
+| UIKit | 11 nodes, Wire v2 exact changed-ID commits, stable-ID reuse, compositional diffable `UICollectionView`, adaptive decode/backpressure, values and NativeSurface; 240-node Simulator patch commit p95 7 μs | physical-device Instruments/list SLOs, images and product layouts |
+| SwiftUI | `node.id + revision` Equatable subtree gates, Wire v2 stable-path ancestor merge, native lazy `List`, adaptive decode/backpressure, inputs, events and accessibility; 240-node Simulator patch merge p95 6 μs | NativeSurface, physical-device Instruments, images and product styling |
+| ArkUI | Wire v2 stable-ID/path-index exact updates, 32 KiB task-pool decode with latest-batch backpressure, `List + Repeat.virtualScroll(reusable: true)`, native tree and event semantics | large-list physical-device SLOs, NativeSurface and broad devices |
 | Kuikly | unbuilt port prototype | select only if a product adopts a pinned SDK |
 
 Machine-readable backend status lives in

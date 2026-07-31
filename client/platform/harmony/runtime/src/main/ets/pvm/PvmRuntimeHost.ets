@@ -1,4 +1,5 @@
 import pvm from 'libpvm_harmony.so'
+import { taskpool } from '@kit.ArkTS'
 
 export interface RuntimePolicy {
   applicationId: string
@@ -15,14 +16,28 @@ export interface RuntimePolicy {
 export interface UiNode {
   type: string
   id: number
+  revision: number
   props: Record<string, string>
   events: string[]
   children: UiNode[]
 }
 
 export interface UiBatch {
+  wireVersion?: number
   operation: string
-  root: UiNode
+  structureChanged?: boolean
+  changed?: number[]
+  root?: UiNode
+  rootId?: number
+  rootType?: string
+  rootRevision?: number
+  nodes?: UiNode[]
+  revisions?: UiRevision[]
+}
+
+export interface UiRevision {
+  id: number
+  revision: number
 }
 
 export interface UiRenderer {
@@ -30,6 +45,15 @@ export interface UiRenderer {
     root: UiNode,
     emit: (nodeId: number, event: string, value?: string) => void,
   ): void
+  replaceBatch?(
+    batch: UiBatch,
+    emit: (nodeId: number, event: string, value?: string) => void,
+  ): void
+}
+
+@Concurrent
+function decodeUiBatch(json: string): UiBatch {
+  return JSON.parse(json) as UiBatch
 }
 
 export interface SignatureVerifier {
@@ -48,11 +72,20 @@ interface NativeCallbacks {
   onVerifySignature(payload: ArrayBuffer, signature: ArrayBuffer, publicKeyPath: string): boolean
 }
 
+interface PendingUiBatch {
+  generation: number
+  json: string
+  emit: (nodeId: number, event: string, value?: string) => void
+}
+
 class NativeCallbackAdapter implements NativeCallbacks {
   private host?: PvmRuntimeHost
   private renderer: UiRenderer
   private capabilities: CapabilityRegistry
   private signatureVerifier: SignatureVerifier
+  private uiGeneration: number = 0
+  private pendingUiBatch?: PendingUiBatch
+  private uiWorkerRunning: boolean = false
 
   constructor(
     renderer: UiRenderer,
@@ -70,12 +103,66 @@ class NativeCallbackAdapter implements NativeCallbacks {
 
   onUi(json: string): void {
     const host = this.requireHost()
-    const batch = JSON.parse(json) as UiBatch
-    if (batch.operation !== 'replace') throw new Error('Unsupported UI batch')
-    this.renderer.replaceTree(
-      batch.root,
-      (node, event, value) => host.dispatch(node, event, value),
-    )
+    this.uiGeneration += 1
+    const emit = (node: number, event: string, value?: string): void => {
+      host.dispatch(node, event, value)
+    }
+    if (
+      json.length <= NativeCallbackAdapter.BACKGROUND_DECODE_THRESHOLD &&
+      !this.uiWorkerRunning &&
+      this.pendingUiBatch === undefined
+    ) {
+      this.deliver(decodeUiBatch(json), emit)
+      return
+    }
+    this.pendingUiBatch = {
+      generation: this.uiGeneration,
+      json: json,
+      emit: emit,
+    }
+    if (this.uiWorkerRunning) return
+    this.uiWorkerRunning = true
+    this.drainUiBatches()
+  }
+
+  cancelUi(): void {
+    this.uiGeneration += 1
+    this.pendingUiBatch = undefined
+  }
+
+  private deliver(
+    batch: UiBatch,
+    emit: (nodeId: number, event: string, value?: string) => void,
+  ): void {
+    if (batch.operation !== 'replace' && batch.operation !== 'patch') {
+      throw new Error('Unsupported UI batch')
+    }
+    if (this.renderer.replaceBatch !== undefined) {
+      this.renderer.replaceBatch(batch, emit)
+    } else {
+      if (batch.root === undefined) {
+        throw new Error('UI wire v2 requires a patch-aware renderer')
+      }
+      this.renderer.replaceTree(batch.root, emit)
+    }
+  }
+
+  private async drainUiBatches(): Promise<void> {
+    while (this.pendingUiBatch !== undefined) {
+      const pending = this.pendingUiBatch
+      this.pendingUiBatch = undefined
+      try {
+        const batch =
+          await taskpool.execute<[string], UiBatch>(decodeUiBatch, pending.json)
+        if (pending.generation === this.uiGeneration) {
+          this.deliver(batch, pending.emit)
+        }
+      } catch (error) {
+        this.cancelUi()
+        this.requireHost().recordUiFailure(error as object)
+      }
+    }
+    this.uiWorkerRunning = false
   }
 
   onSyncEffect(capability: string, operation: string, argumentsJson: string): string {
@@ -103,6 +190,8 @@ class NativeCallbackAdapter implements NativeCallbacks {
     if (this.host === undefined) throw new Error('PVM Runtime host is not ready')
     return this.host
   }
+
+  private static readonly BACKGROUND_DECODE_THRESHOLD: number = 32 * 1024
 }
 
 export type CapabilityArgument = string | number | boolean
@@ -179,6 +268,7 @@ export class PvmRuntimeHost {
   private taskGeneration: number = 0
   private capabilities: CapabilityRegistry
   private asyncFailure: string = ''
+  private callbacks: NativeCallbackAdapter
 
   constructor(
     modulePath: string,
@@ -193,6 +283,7 @@ export class PvmRuntimeHost {
   ) {
     this.capabilities = capabilities
     const callbacks = new NativeCallbackAdapter(renderer, capabilities, signatureVerifier)
+    this.callbacks = callbacks
     this.handle = pvm.create(
       modulePath,
       publicKeyPath,
@@ -293,6 +384,7 @@ export class PvmRuntimeHost {
     if (this.closed) return
     this.closed = true
     this.taskGeneration += 1
+    this.callbacks.cancelUi()
     pvm.cancel(this.handle)
     pvm.destroy(this.handle)
   }
@@ -309,5 +401,9 @@ export class PvmRuntimeHost {
     this.asyncFailure = `${error}`
     this.taskGeneration += 1
     pvm.cancel(this.handle)
+  }
+
+  recordUiFailure(error: object): void {
+    this.recordAsyncFailure(error)
   }
 }

@@ -4,12 +4,19 @@ import { hilog } from '@kit.PerformanceAnalysisKit'
 const DOMAIN = 0x5056
 const TAG = 'PVMRuntimeTree'
 
+class PvmTreeRenderState {
+  root: PvmRenderedNode
+
+  constructor(root: PvmRenderedNode) {
+    this.root = root
+  }
+}
+
 @Component
 export struct PvmRuntimeTree {
   session: PvmRuntimeSession | undefined = undefined
-  @State private root: PvmRenderedNode | null = null
+  @State private renderState: PvmTreeRenderState | null = null
   @State private errorMessage: string = ''
-  @State private revision: number = 0
   @State private inputVersions: Map<number, number> = new Map()
   private focusedInputId: number = 0
 
@@ -19,10 +26,9 @@ export struct PvmRuntimeTree {
         throw new Error('PVM Runtime session is required')
       }
       this.session.start(
-        (root) => {
-          this.refreshInputVersions(root)
-          this.revision += 1
-          this.root = root
+        (root, changed, structureChanged) => {
+          this.refreshInputVersions(root, changed, structureChanged)
+          this.renderState = new PvmTreeRenderState(root)
         },
         this.getUIContext(),
       )
@@ -40,30 +46,27 @@ export struct PvmRuntimeTree {
   }
 
   build() {
-    Scroll() {
-      Column({ space: 14 }) {
-        if (this.errorMessage.length > 0) {
-          Text('PVM Runtime failed')
-            .fontSize(22)
-            .fontWeight(FontWeight.Bold)
-            .fontColor('#B42318')
-          Text(this.errorMessage)
-            .fontSize(15)
-            .fontColor('#B42318')
-        } else if (this.root !== null) {
-          this.renderNode(this.root)
-        } else {
-          LoadingProgress()
-            .width(40)
-            .height(40)
-        }
+    Column({ space: 14 }) {
+      if (this.errorMessage.length > 0) {
+        Text('PVM Runtime failed')
+          .fontSize(22)
+          .fontWeight(FontWeight.Bold)
+          .fontColor('#B42318')
+        Text(this.errorMessage)
+          .fontSize(15)
+          .fontColor('#B42318')
+      } else if (this.renderState !== null) {
+        this.renderNode(this.renderState.root, true)
+      } else {
+        LoadingProgress()
+          .width(40)
+          .height(40)
       }
-      .width('100%')
-      .alignItems(HorizontalAlign.Start)
-      .padding({ left: 20, right: 20, top: 20, bottom: 20 })
     }
     .width('100%')
     .height('100%')
+    .alignItems(HorizontalAlign.Start)
+    .padding({ left: 20, right: 20, top: 20, bottom: 20 })
     .backgroundColor('#FFFFFF')
   }
 
@@ -72,14 +75,14 @@ export struct PvmRuntimeTree {
     ForEach(
       node.children,
       (child: PvmRenderedNode) => {
-        this.renderNode(child)
+        this.renderNode(child, false)
       },
       (child: PvmRenderedNode) => this.nodeKey(child),
     )
   }
 
   @Builder
-  private renderNode(node: PvmRenderedNode) {
+  private renderNode(node: PvmRenderedNode, fillViewport: boolean) {
     if (node.model.type === 'Text') {
       Text(node.model.props['text'] ?? '')
         .id(`pvm-node-${node.model.id}`)
@@ -139,6 +142,7 @@ export struct PvmRuntimeTree {
       }
       .id(`pvm-node-${node.model.id}`)
       .width('100%')
+      .height(fillViewport ? '100%' : 'auto')
       .alignItems(VerticalAlign.Center)
       .accessibilityText(node.model.props['accessibilityLabel'] ?? '')
       .onClick(() => this.emit(node, 'tap'))
@@ -149,6 +153,7 @@ export struct PvmRuntimeTree {
       }
       .id(`pvm-node-${node.model.id}`)
       .width('100%')
+      .height(fillViewport ? '100%' : 'auto')
       .alignItems(HorizontalAlign.Start)
       .accessibilityText(node.model.props['accessibilityLabel'] ?? '')
       .onClick(() => this.emit(node, 'tap'))
@@ -159,6 +164,7 @@ export struct PvmRuntimeTree {
       }
       .id(`pvm-node-${node.model.id}`)
       .width('100%')
+      .height(fillViewport ? '100%' : 'auto')
       .accessibilityText(node.model.props['accessibilityLabel'] ?? '')
       .onClick(() => this.emit(node, 'tap'))
       .onAppear(() => this.emit(node, 'appear'))
@@ -171,22 +177,24 @@ export struct PvmRuntimeTree {
       }
       .id(`pvm-node-${node.model.id}`)
       .width('100%')
+      .height(fillViewport ? '100%' : 'auto')
       .accessibilityText(node.model.props['accessibilityLabel'] ?? '')
       .onAppear(() => this.emit(node, 'appear'))
     } else if (node.model.type === 'List') {
       List({ space: 12 }) {
-        ForEach(
-          node.children,
-          (child: PvmRenderedNode) => {
+        Repeat<PvmRenderedNode>(node.children)
+          .each((item: RepeatItem<PvmRenderedNode>) => {
             ListItem() {
-              this.renderNode(child)
+              this.renderNode(item.item, false)
             }
-          },
-          (child: PvmRenderedNode) => this.nodeKey(child),
-        )
+          })
+          .key((child: PvmRenderedNode) => this.nodeKey(child))
+          .virtualScroll({ totalCount: node.children.length, reusable: true })
       }
       .id(`pvm-node-${node.model.id}`)
       .width('100%')
+      .height(fillViewport ? '100%' : 'auto')
+      .layoutWeight(1)
       .accessibilityText(node.model.props['accessibilityLabel'] ?? '')
       .onAppear(() => this.emit(node, 'appear'))
     } else if (node.model.type === 'Switch') {
@@ -255,29 +263,38 @@ export struct PvmRuntimeTree {
     if (node.model.type === 'Input') {
       return `input:${node.model.id}:${this.inputVersions.get(node.model.id) ?? 0}`
     }
-    if (node.containsInput) {
-      return `input-tree:${node.model.type}:${node.model.id}`
-    }
-    // ponytail: a VM replace batch is authoritative; rebuild its non-input
-    // subtree in O(n). Move to observed-node diffing only when profiling needs it.
-    return `${this.revision}:${node.model.id}`
+    return `${node.model.type}:${node.model.id}:${node.revision}`
   }
 
-  private refreshInputVersions(root: PvmRenderedNode): void {
+  private refreshInputVersions(
+    root: PvmRenderedNode,
+    changed: PvmRenderedNode[],
+    structureChanged: boolean,
+  ): void {
     const versions = new Map(this.inputVersions)
     let focusedInputVisible = false
-    const visit = (node: PvmRenderedNode): void => {
+    let versionsChanged = false
+    const visit = (node: PvmRenderedNode, includeChildren: boolean): void => {
       if (node.model.type === 'Input' && node.model.id === this.focusedInputId) {
         focusedInputVisible = true
       }
-      if (node.model.type === 'Input' && node.model.id !== this.focusedInputId) {
-        versions.set(node.model.id, (versions.get(node.model.id) ?? 0) + 1)
+      if (
+        node.model.type === 'Input' &&
+        node.model.id !== this.focusedInputId &&
+        versions.get(node.model.id) !== node.revision
+      ) {
+        versions.set(node.model.id, node.revision)
+        versionsChanged = true
       }
-      node.children.forEach(visit)
+      if (includeChildren) node.children.forEach((child) => visit(child, true))
     }
-    visit(root)
-    if (!focusedInputVisible) this.focusedInputId = 0
-    this.inputVersions = versions
+    if (structureChanged) {
+      visit(root, true)
+      if (!focusedInputVisible) this.focusedInputId = 0
+    } else {
+      changed.forEach((node) => visit(node, node.model.type === 'List'))
+    }
+    if (versionsChanged) this.inputVersions = versions
   }
 
   private bumpInputVersion(nodeId: number): void {

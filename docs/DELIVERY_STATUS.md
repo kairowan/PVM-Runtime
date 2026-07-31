@@ -17,7 +17,7 @@ An engineering baseline is not a store, security, or production certification.
 |---|---|
 | Runtime / bytecode | Runtime 5; default PVBC v5; reads v1–v5 |
 | Module / manifest signature | Ed25519; PVMP v1; signed manifest envelope v1 |
-| Mobile C ABI | v3 with application/channel/platform/profile/release-floor binding |
+| Mobile C ABI | v4 binding with UI Wire v2 patches; v1–v3 complete-tree compatibility |
 | Platforms | Android, iOS, HarmonyOS, desktop reference host |
 | Delivery profiles | Four; 3 platforms × 4 profiles = 12 embedding inputs |
 | Android | Debug APK/AAB, R8 smoke APK, release AAR, local Maven |
@@ -37,7 +37,7 @@ An engineering baseline is not a store, security, or production certification.
 | Area | Implemented | Automated evidence | External gap |
 |---|---|---|---|
 | DSL/compiler | State, pages, handlers, effects, event values, profile/IDL/budget checks | `make test verify-contracts` | IDE and production-scale languages |
-| Module security | Deterministic PVBC, Ed25519, C ABI v3 bindings, rollback, verifier | `make test fuzz-check sanitizer-check` | sustained fuzzing and independent audit |
+| Module security | Deterministic PVBC, Ed25519, C ABI v4 bindings, rollback, verifier | `make test fuzz-check sanitizer-check` | sustained fuzzing and independent audit |
 | State evolution | v4 stable IDs, rename/add migration, type-conflict rejection | migration end-to-end tests | product migration tooling |
 | Delivery service | Addressing, policy, signed manifest, ETag, rollout, audit, TLS, health | HTTP/tamper/rollout/LKG tests | production CDN, identity, DB, HA |
 | Android | Library/demo, JNI/View, Module Store, AAR/Maven, APK/AAB/R8 | `platform-check`, `android-demo-check`, HONOR smoke | Compose, broad lab, capabilities, store signing |
@@ -69,7 +69,7 @@ production signature or complete OEM/API/lifecycle matrix.
 | Evidence | Result |
 |---|---|
 | Swift Package | iOS 15 targets for core, bridge, and Swift runtime |
-| Host | `@MainActor PVMHost` with C ABI v3 bindings |
+| Host | `@MainActor PVMHost` with C ABI v4 / UI Wire v2 |
 | XCFramework | complete precompiled Swift/Objective-C++/C++ Runtime; device arm64 and simulator arm64/x86_64 |
 | Consumer | stable Swift interfaces, Swift 6 complete strict concurrency, and a real binary link probe |
 | Artifact scan | headers, private-key suffixes, module suffixes, local paths |

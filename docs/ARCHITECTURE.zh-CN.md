@@ -57,8 +57,9 @@ application、channel、platform、profile 和 release 同时存在于 Manifest 
 | Capability Host | 对版本、权限、线程、参数和用户授权再次检查后调用原生 SDK |
 
 Android、iOS、HarmonyOS 共用同一 Runtime 和 C ABI，不复制解释器。新移动端 Host
-使用 C ABI v3：创建时强制 application/channel/platform/profile 与 release floor，
-Module Store 再要求 VM 返回的 release 等于签名 Manifest release。
+使用 C ABI v4：创建时强制 application/channel/platform/profile 与 release floor，
+并选择 UI Wire v2。C ABI v3 继续用于完整树兼容和只验证不渲染的预加载。Module
+Store 再要求 VM 返回的 release 等于签名 Manifest release。
 
 ## 从 DSL 到 UI 的数据流
 
@@ -226,9 +227,20 @@ generated/                 生成的 Kotlin/Swift/ArkTS/C++ 接口
 
 Profile 只改变模块来源与打包约束。Android `Offline Sealed` 可嵌入 APK 或 AAB；前者适合直接安装、测试与部分企业分发，后者适合 Google Play。详细发布行为见[发布与运维](OPERATIONS.zh-CN.md)。
 
-## 有意保留的边界
+## 渲染性能边界
 
-当前实现使用完整小模块和整树批量替换。只有真实页面规模和帧预算证明它成为瓶颈后，才应增加 Incremental Diff；不先引入未经需要证明的复杂协议。
+VM 对变化后的页面仍生成中立 Snapshot，为每个节点分配精确 revision，并抑制完全
+相同的重复输出。C ABI JSON 批次携带 `changed` 节点清单和
+`structureChanged` 标记；Android View 与 UIKit 在结构稳定时直接按 ID 提交变更。
+SwiftUI 只处理 changed 状态，ArkUI 使用初次结构提交建立的 ID 路径索引原位更新。
+Android、iOS 与 HarmonyOS 默认 Host 对大批次在后台解析并只提交最新结果，三端
+`List` 使用各自的惰性或虚拟列表路径。详细接入约束和真机门禁见
+[渲染性能与大页面接入](PERFORMANCE.zh-CN.md)。
+
+C ABI v4 移动端 Host 选择 UI Wire v2：结构变化携带完整 Root；结构稳定时只携带
+Root identity/revision、变化节点子树和祖先 revision。Android View、UIKit 与 ArkUI
+直接提交这些模型，SwiftUI 只复制变化节点的稳定祖先路径。旧 C ABI v1–v3 Host
+继续使用完整树 Wire v1。
 
 仍需在具体产品环境完成：
 

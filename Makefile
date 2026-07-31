@@ -4,13 +4,14 @@ PYTHONPATH_VALUE := $(CURDIR)/server/src
 ANDROID_SDK_PATH ?= $(firstword $(wildcard $(ANDROID_SDK_ROOT) $(ANDROID_HOME) $(HOME)/Library/Android/sdk $(HOME)/Desktop/android/sdk))
 HARMONY_DEVICE_TARGET ?=
 HARMONY_SIGNED_HAP ?=
+PVM_ANDROID_GRADLE_HOME ?= $(CURDIR)/build/android-gradle-home
 PVM_KMP_GRADLE_HOME ?= $(CURDIR)/build/gradle-kmp-home
 FUZZ_CXX := $(firstword $(wildcard /opt/homebrew/opt/llvm/bin/clang++ /usr/local/opt/llvm/bin/clang++))
 ifeq ($(FUZZ_CXX),)
 FUZZ_CXX := clang++
 endif
 
-.PHONY: android-demo-apk android-demo-check android-packages android-production-packages bootstrap build compatibility delivery-matrix docs-check fuzz-check generate-host-idl harmony-demo-run harmony-demo-screenshot harmony-device-run harmony-device-screenshot harmony-packages harmony-production-check harmony-sdk-check host-manifest ios-demo-app ios-demo-check ios-demo-run ios-demo-screenshot ios-device-archive ios-packages ios-sdk-check kmp-check kmp-packages migration-check migration-studio migration-studio-check migration-studio-package migration-studio-run publish release-check sanitizer-check sdk-release-assets serve demo platform-check test verify-contracts
+.PHONY: android-demo-apk android-demo-check android-packages android-production-packages android-render-benchmark bootstrap build compatibility delivery-matrix docs-check fuzz-check generate-host-idl harmony-demo-run harmony-demo-screenshot harmony-device-run harmony-device-screenshot harmony-packages harmony-production-check harmony-render-benchmark harmony-sdk-check host-manifest ios-demo-app ios-demo-check ios-demo-run ios-demo-screenshot ios-device-archive ios-packages ios-render-benchmark ios-sdk-check kmp-check kmp-packages migration-check migration-studio migration-studio-check migration-studio-package migration-studio-run publish release-check sanitizer-check sdk-release-assets serve demo platform-check test verify-contracts
 
 bootstrap:
 	PYTHONPATH="$(PYTHONPATH_VALUE)" $(PYTHON) -m pvm_server.keys --directory server/var/keys
@@ -21,7 +22,8 @@ build:
 
 android-packages:
 	@test -n "$(ANDROID_SDK_PATH)" || (echo "Android SDK not found; set ANDROID_SDK_PATH" && exit 1)
-	ANDROID_HOME="$(ANDROID_SDK_PATH)" client/platform/android/gradlew \
+	ANDROID_HOME="$(ANDROID_SDK_PATH)" GRADLE_USER_HOME="$(PVM_ANDROID_GRADLE_HOME)" \
+		client/platform/android/gradlew \
 		-p client/platform/android --no-daemon \
 		:runtime:lintDebug :demo:lintDebug \
 		:runtime:publishReleasePublicationToBundleRepository \
@@ -47,9 +49,19 @@ android-demo-apk: android-packages
 android-demo-check: build android-packages
 	ANDROID_HOME="$(ANDROID_SDK_PATH)" $(PYTHON) scripts/check_android_artifacts.py
 
+android-render-benchmark:
+	@test -n "$(ANDROID_SDK_PATH)" || (echo "Android SDK not found; set ANDROID_SDK_PATH" && exit 1)
+	ANDROID_HOME="$(ANDROID_SDK_PATH)" GRADLE_USER_HOME="$(PVM_ANDROID_GRADLE_HOME)" \
+		client/platform/android/gradlew \
+		-p client/platform/android --no-daemon \
+		:runtime:connectedDebugAndroidTest \
+		-Pandroid.testInstrumentationRunnerArguments.class=com.protectedvm.host.AndroidViewRendererPerformanceTest
+	@echo "Report: client/platform/android/runtime/build/outputs/androidTest-results/connected/debug"
+
 android-production-packages:
 	@test -n "$(ANDROID_SDK_PATH)" || (echo "Android SDK not found; set ANDROID_SDK_PATH" && exit 1)
-	ANDROID_HOME="$(ANDROID_SDK_PATH)" client/platform/android/gradlew \
+	ANDROID_HOME="$(ANDROID_SDK_PATH)" GRADLE_USER_HOME="$(PVM_ANDROID_GRADLE_HOME)" \
+		client/platform/android/gradlew \
 		-p client/platform/android --no-daemon \
 		:demo:verifyProductionSigning :demo:assembleRelease :demo:bundleRelease
 	mkdir -p dist/android
@@ -85,14 +97,20 @@ ios-demo-screenshot: ios-demo-check
 	$(PYTHON) scripts/run_ios_demo.py \
 		--reset --seed-screenshot --screenshot docs/assets/ios-demo.png
 
+ios-render-benchmark:
+	$(PYTHON) scripts/run_ios_render_benchmark.py
+
 ios-device-archive:
 	$(PYTHON) scripts/build_ios_device_archive.py
 
 harmony-packages: delivery-matrix
 	$(PYTHON) scripts/build_harmony_artifacts.py
 
-harmony-sdk-check: build harmony-packages
+harmony-sdk-check: build harmony-packages harmony-render-benchmark
 	$(PYTHON) scripts/check_harmony_artifacts.py
+
+harmony-render-benchmark:
+	$(PYTHON) scripts/check_harmony_renderer.py
 
 harmony-demo-run: harmony-sdk-check
 	$(PYTHON) scripts/run_harmony_demo.py

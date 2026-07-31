@@ -222,11 +222,11 @@ Java_com_protectedvm_host_PvmRuntimeHost_nativeCreate(JNIEnv* env, jobject host,
   const auto channel = to_utf8(env, expected_channel);
   const auto profile = to_utf8(env, expected_profile);
   char error[512]{};
-  const pvm_host_callbacks_v2 callbacks{
+  const pvm_host_callbacks_v3 callbacks{
       bridge.get(), ui_callback, effect_callback, async_effect_callback,
-      signature_verify_callback};
+      signature_verify_callback, PVM_UI_WIRE_V2};
   bridge->runtime =
-      pvm_runtime_create_v3(
+      pvm_runtime_create_v4(
           module.c_str(), key.c_str(), app.c_str(), channel.c_str(), "android",
           profile.c_str(), static_cast<std::uint64_t>(minimum_release), callbacks, error,
           sizeof(error));

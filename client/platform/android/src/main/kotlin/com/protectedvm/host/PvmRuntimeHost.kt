@@ -3,6 +3,7 @@ package com.protectedvm.host
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import java.util.concurrent.Executors
 
 class PvmRuntimeHost(
     modulePath: String,
@@ -16,6 +17,14 @@ class PvmRuntimeHost(
     private val errors: (Throwable) -> Unit = { Log.e("ProtectedVM", "Runtime host error", it) },
 ) : UiEventSink, AutoCloseable {
     private val main = Handler(Looper.getMainLooper())
+    private val uiDecode =
+        Executors.newSingleThreadExecutor { task ->
+            Thread(task, "pvm-ui-decode").apply { isDaemon = true }
+        }
+    private val uiLock = Any()
+    private var pendingUiBatch: PendingUiBatch? = null
+    private var uiWorkerRunning = false
+    private var uiGeneration = 0L
     private var taskGeneration = 0L
     private var handle: Long =
         nativeCreate(
@@ -88,6 +97,11 @@ class PvmRuntimeHost(
         checkMainThread()
         if (handle != 0L) {
             taskGeneration += 1
+            synchronized(uiLock) {
+                uiGeneration += 1
+                pendingUiBatch = null
+            }
+            uiDecode.shutdownNow()
             nativeCancelTasks(handle)
             nativeDestroy(handle)
             handle = 0
@@ -97,7 +111,50 @@ class PvmRuntimeHost(
     @Suppress("unused")
     private fun onNativeUiBatch(json: String) {
         checkMainThread()
-        renderer.replaceTree(UiNode.parseBatch(json), this)
+        val decodeInBackground =
+            synchronized(uiLock) {
+                uiGeneration += 1
+                val generation = uiGeneration
+                if (
+                    json.length <= BACKGROUND_DECODE_THRESHOLD &&
+                    !uiWorkerRunning &&
+                    pendingUiBatch == null
+                ) {
+                    false
+                } else {
+                    pendingUiBatch = PendingUiBatch(generation, json)
+                    if (!uiWorkerRunning) {
+                        uiWorkerRunning = true
+                        uiDecode.execute(::drainUiBatches)
+                    }
+                    true
+                }
+            }
+        if (!decodeInBackground) renderer.replaceBatch(UiNode.parseBatch(json), this)
+    }
+
+    private fun drainUiBatches() {
+        while (true) {
+            val batch =
+                synchronized(uiLock) {
+                    pendingUiBatch.also {
+                        pendingUiBatch = null
+                        if (it == null) uiWorkerRunning = false
+                    }
+                } ?: return
+            val parsed = runCatching { UiNode.parseBatch(batch.json) }
+            main.post {
+                val isCurrent =
+                    synchronized(uiLock) {
+                        handle != 0L && batch.generation == uiGeneration
+                    }
+                if (isCurrent) {
+                    parsed
+                        .onSuccess { renderer.replaceBatch(it, this) }
+                        .onFailure(errors)
+                }
+            }
+        }
     }
 
     @Suppress("unused")
@@ -159,8 +216,15 @@ class PvmRuntimeHost(
     private external fun nativeDestroy(handle: Long)
 
     companion object {
+        private const val BACKGROUND_DECODE_THRESHOLD = 32 * 1024
+
         init {
             System.loadLibrary("pvm_android")
         }
     }
+
+    private data class PendingUiBatch(
+        val generation: Long,
+        val json: String,
+    )
 }

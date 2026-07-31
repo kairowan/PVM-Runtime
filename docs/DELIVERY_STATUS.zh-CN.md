@@ -20,7 +20,7 @@
 | 历史读取 | PVBC v1–v5 |
 | 模块签名 | Ed25519 / PVMP v1 |
 | Manifest | Ed25519 签名信封 v1 |
-| 新移动端 C ABI | v3：application/channel/platform/profile/release floor 强绑定 |
+| 新移动端 C ABI | v4 强绑定 + UI Wire v2 补丁；v1–v3 完整树兼容 |
 | 平台 | Android、iOS、HarmonyOS；desktop 参考 Host |
 | Delivery Profile | 4 |
 | 自动交付矩阵 | 3 平台 × 4 Profile = 12 套宿主嵌入输入 |
@@ -45,7 +45,7 @@
 | 领域 | 仓库已实现 | 自动化证据 | 外部缺口 |
 |---|---|---|---|
 | DSL/编译器 | 状态、页面、处理器、Effect、输入事件值、Profile/IDL/预算检查 | `make test verify-contracts` | 完整语言愿景、IDE、真实业务规模 |
-| 模块安全 | 确定性 PVBC、Ed25519、C ABI v3 五项绑定、防回滚、验证器 | `make test fuzz-check sanitizer-check` | 长时 fuzz、独立安全审计 |
+| 模块安全 | 确定性 PVBC、Ed25519、C ABI v4 五项绑定、防回滚、验证器 | `make test fuzz-check sanitizer-check` | 长时 fuzz、独立安全审计 |
 | 状态演进 | v4 稳定 ID、改名/新增迁移、类型冲突拒绝 | 状态迁移端到端测试 | 大版本业务迁移工具链 |
 | 发布服务 | 内容寻址、访问策略、签名 Manifest、ETag、灰度、审计、TLS、健康检查、请求 ID、容器 | HTTP/篡改/灰度/LKG/服务边界测试 | 生产 CDN、数据库、身份系统与多副本 HA |
 | Android | Gradle Library/Demo、Kotlin/JNI/View、严格绑定的 Module Store、双 ABI `.so`、AAR/Maven、Debug APK/AAB、R8 smoke | `make platform-check android-demo-check`；HONOR API 35 人工真机验收 | Compose/CMP、更多设备/性能、业务 Capability、正式签名与商店 |
@@ -80,7 +80,7 @@ Debug APK/AAB 与 R8 smoke APK 都是开发/测试构建；其中 APK 使用测�
 | 证据 | 结果 | 说明 |
 |---|---|---|
 | Swift Package | 根目录 `Package.swift` | iOS 15；C++ Core、Objective-C++ Bridge、Swift Runtime 三层 target |
-| 统一 Host | `@MainActor PVMHost` | C ABI v3 绑定、Renderer/Capability、状态与关闭入口 |
+| 统一 Host | `@MainActor PVMHost` | C ABI v4 / UI Wire v2、Renderer/Capability、状态与关闭入口 |
 | Privacy Manifest | `PrivacyInfo.xcprivacy` | Swift Runtime target 资源基线；目标 App 仍需按实际数据用途合并审核声明 |
 | XCFramework | `dist/ios/PVMRuntime.xcframework` | `make ios-sdk-check` 可重复生成，不等同 IPA |
 | slice | arm64 iPhoneOS；arm64/x86_64 Simulator | iOS 15 完整预编译 Swift/Objective-C++/C++ Runtime |
@@ -218,7 +218,7 @@ macOS 26 的 Apple ASan runtime 当前会在 dyld 初始化阶段自旋，因此
 
 ## 当前状态与剩余三个核心阶段
 
-共享边界加固已经完成：C ABI v3、Runtime 生命周期状态机、三端 LKG state 强绑定与
+共享边界加固已经完成：C ABI v4 / UI Wire v2、Runtime 生命周期状态机、三端 LKG state 强绑定与
 严格历史校验、cancel/close 后迟到回调丢弃，以及 `appear` absent→present 语义均已
 落地。iOS SDK 基线也已完成：Swift Package、`PVMHost`、Privacy Manifest、完整
 Runtime 完整二进制 XCFramework 和 `make ios-sdk-check` 已提供；Xcode Demo 与 Simulator

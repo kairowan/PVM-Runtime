@@ -126,7 +126,9 @@ public final class PVMHost {
             profile: profile,
             minimumRelease: minimumRelease,
             capabilities: capabilities,
-            render: renderer.replace,
+            render: { batchJSON, events in
+                renderer.enqueue(batchJSON: batchJSON, events: events, errors: errors)
+            },
             errors: errors
         )
     }
@@ -150,7 +152,9 @@ public final class PVMHost {
             profile: profile,
             minimumRelease: minimumRelease,
             capabilities: capabilities,
-            render: tree.replace,
+            render: { batchJSON, events in
+                tree.enqueue(batchJSON: batchJSON, events: events, errors: errors)
+            },
             errors: errors
         )
     }

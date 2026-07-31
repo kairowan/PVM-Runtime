@@ -41,6 +41,21 @@ typedef struct pvm_host_callbacks_v2 {
   pvm_signature_verify_callback on_verify_signature;
 } pvm_host_callbacks_v2;
 
+enum {
+  PVM_UI_WIRE_V1 = 1,
+  PVM_UI_WIRE_V2 = 2,
+};
+
+typedef struct pvm_host_callbacks_v3 {
+  void* context;
+  pvm_ui_batch_callback on_ui_batch;
+  pvm_effect_callback on_effect;
+  pvm_async_effect_callback on_async_effect;
+  pvm_signature_verify_callback on_verify_signature;
+  // V1 always sends a complete root. V2 sends patches for stable structures.
+  uint32_t ui_wire_version;
+} pvm_host_callbacks_v3;
+
 PVM_EXPORT pvm_runtime* pvm_runtime_create(
     const char* module_path, const char* public_key_path, const char* expected_application_id,
     uint64_t minimum_release, pvm_host_callbacks callbacks, char* error, size_t error_capacity);
@@ -53,6 +68,12 @@ PVM_EXPORT pvm_runtime* pvm_runtime_create_v3(
     const char* module_path, const char* public_key_path, const char* expected_application_id,
     const char* expected_channel, const char* expected_platform, const char* expected_profile,
     uint64_t minimum_release, pvm_host_callbacks_v2 callbacks, char* error,
+    size_t error_capacity);
+// V4 keeps the v3 package bindings and lets the host opt in to a versioned UI wire.
+PVM_EXPORT pvm_runtime* pvm_runtime_create_v4(
+    const char* module_path, const char* public_key_path, const char* expected_application_id,
+    const char* expected_channel, const char* expected_platform, const char* expected_profile,
+    uint64_t minimum_release, pvm_host_callbacks_v3 callbacks, char* error,
     size_t error_capacity);
 PVM_EXPORT int pvm_runtime_start(pvm_runtime* runtime, char* error, size_t error_capacity);
 PVM_EXPORT int pvm_runtime_dispatch(pvm_runtime* runtime, uint32_t node_id, uint8_t event_type,

@@ -46,6 +46,7 @@ def check_android():
         **os.environ,
         "ANDROID_HOME": str(sdk),
         "ANDROID_SDK_ROOT": str(sdk),
+        "GRADLE_USER_HOME": str(BUILD / "android-gradle-home"),
     }
     run(
         [
@@ -140,7 +141,13 @@ def check_harmony_bridge():
 
     sdk_candidates = [
         os.environ.get("DEVECO_SDK_HOME"),
+        (
+            str(Path(os.environ["DEVECO_STUDIO_HOME"]) / "Contents/sdk")
+            if os.environ.get("DEVECO_STUDIO_HOME")
+            else None
+        ),
         "/Applications/DevEco-Studio.app/Contents/sdk",
+        "/Volumes/DevEco-Studio/DevEco-Studio.app/Contents/sdk",
     ]
     deveco_sdk = next(
         (
@@ -191,8 +198,131 @@ def check_harmony_bridge():
     )
 
 
+def check_virtual_list_backends():
+    sources = {
+        "Android": (
+            ROOT
+            / "client/platform/android/src/main/kotlin/com/protectedvm/host/AndroidViewRenderer.kt"
+        ).read_text(encoding="utf-8"),
+        "UIKit": (
+            ROOT / "client/platform/ios/swift/PVMUIKitRenderer.swift"
+        ).read_text(encoding="utf-8"),
+        "SwiftUI": (
+            ROOT / "client/platform/ios/swift/PVMSwiftUIRenderer.swift"
+        ).read_text(encoding="utf-8"),
+        "ArkUI": (
+            ROOT
+            / "client/platform/harmony/runtime/src/main/ets/pvm/PvmRuntimeTree.ets"
+        ).read_text(encoding="utf-8"),
+    }
+    required = {
+        "Android": ("RecyclerView", "ListAdapter", "DiffUtil"),
+        "UIKit": (
+            "UICollectionView",
+            "UICollectionViewDiffableDataSource",
+            "UICollectionViewCompositionalLayout",
+        ),
+        "SwiftUI": ("List(value.children",),
+        "ArkUI": ("Repeat<PvmRenderedNode>", ".virtualScroll(", "reusable: true"),
+    }
+    forbidden = {
+        "Android": ("android.widget.ListView", "BaseAdapter"),
+        "UIKit": ("UITableView",),
+    }
+    for platform, markers in required.items():
+        missing = [marker for marker in markers if marker not in sources[platform]]
+        if missing:
+            raise RuntimeError(
+                f"{platform} virtual-list backend is missing: {', '.join(missing)}"
+            )
+    for platform, markers in forbidden.items():
+        stale = [marker for marker in markers if marker in sources[platform]]
+        if stale:
+            raise RuntimeError(
+                f"{platform} still uses legacy list APIs: {', '.join(stale)}"
+            )
+    print("Virtual lists: PASS (RecyclerView / UICollectionView / List / Repeat)")
+
+
+def check_incremental_backends():
+    sources = {
+        "Android": (
+            ROOT
+            / "client/platform/android/src/main/kotlin/com/protectedvm/host/AndroidViewRenderer.kt"
+        ).read_text(encoding="utf-8"),
+        "UIKit": (
+            ROOT / "client/platform/ios/swift/PVMUIKitRenderer.swift"
+        ).read_text(encoding="utf-8"),
+        "SwiftUI": (
+            ROOT / "client/platform/ios/swift/PVMSwiftUIRenderer.swift"
+        ).read_text(encoding="utf-8"),
+        "ArkUI": (
+            ROOT
+            / "client/platform/harmony/runtime/src/main/ets/pvm/ArkUiRenderer.ets"
+        ).read_text(encoding="utf-8"),
+    }
+    required = {
+        "Android": ("batch.changedNodes.forEach", "applyChangedNode("),
+        "UIKit": ("for id in batch.changed", "applyChangedNode("),
+        "SwiftUI": ("for id in batch.changed", "PVMRevisionGate"),
+        "ArkUI": ("pathsByNodeId", "factory.touch", "factory.update", "replaceBatch("),
+    }
+    for platform, markers in required.items():
+        missing = [marker for marker in markers if marker not in sources[platform]]
+        if missing:
+            raise RuntimeError(
+                f"{platform} incremental backend is missing: {', '.join(missing)}"
+            )
+    print("Incremental renderers: PASS (Android View / UIKit / SwiftUI / ArkUI)")
+
+
+def check_patch_wire():
+    sources = {
+        "C ABI": (ROOT / "client/src/c_api.cpp").read_text(encoding="utf-8"),
+        "Android model": (
+            ROOT
+            / "client/platform/android/src/main/kotlin/com/protectedvm/host/UiModel.kt"
+        ).read_text(encoding="utf-8"),
+        "Android bridge": (
+            ROOT / "client/platform/android/src/main/cpp/pvm_jni.cpp"
+        ).read_text(encoding="utf-8"),
+        "iOS model": (
+            ROOT / "client/platform/ios/swift/PVMModels.swift"
+        ).read_text(encoding="utf-8"),
+        "iOS bridge": (
+            ROOT / "client/platform/ios/PVMRuntimeBridge.mm"
+        ).read_text(encoding="utf-8"),
+        "Harmony model": (
+            ROOT
+            / "client/platform/harmony/runtime/src/main/ets/pvm/PvmRuntimeHost.ets"
+        ).read_text(encoding="utf-8"),
+        "Harmony bridge": (
+            ROOT / "client/platform/harmony/runtime/src/main/cpp/pvm_napi.cpp"
+        ).read_text(encoding="utf-8"),
+    }
+    required = {
+        "C ABI": (r'\"operation\":\"patch\"', r'\"nodes\":[', r'\"revisions\":['),
+        "Android model": ('operation == "patch"', "val root: UiNode?"),
+        "Android bridge": ("pvm_runtime_create_v4(", "PVM_UI_WIRE_V2"),
+        "iOS model": ('operation == "patch"', "public let root: PVMUINode?"),
+        "iOS bridge": ("pvm_runtime_create_v4(", "PVM_UI_WIRE_V2"),
+        "Harmony model": ("root?: UiNode", "nodes?: UiNode[]"),
+        "Harmony bridge": ("pvm_runtime_create_v4(", "PVM_UI_WIRE_V2"),
+    }
+    for component, markers in required.items():
+        missing = [marker for marker in markers if marker not in sources[component]]
+        if missing:
+            raise RuntimeError(
+                f"{component} UI Wire v2 support is missing: {', '.join(missing)}"
+            )
+    print("UI Wire v2: PASS (C ABI v4 + Android/iOS/Harmony patch hosts)")
+
+
 def main():
     BUILD.mkdir(parents=True, exist_ok=True)
+    check_virtual_list_backends()
+    check_incremental_backends()
+    check_patch_wire()
     check_android()
     check_ios()
     check_harmony_bridge()

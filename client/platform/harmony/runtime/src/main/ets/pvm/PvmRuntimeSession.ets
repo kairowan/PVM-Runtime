@@ -7,7 +7,11 @@ import { HarmonyEd25519Verifier } from './HarmonyCrypto'
 import { CapabilityRegistry, PvmRuntimeHost, UiNode } from './PvmRuntimeHost'
 
 type Emit = (nodeId: number, event: string, value?: string) => void
-type Replace = (root: PvmRenderedNode) => void
+type Replace = (
+  root: PvmRenderedNode,
+  changed: PvmRenderedNode[],
+  structureChanged: boolean,
+) => void
 
 export interface PvmRuntimeSessionConfig {
   context: common.Context
@@ -25,7 +29,7 @@ export class PvmRenderedNode {
   model: UiNode
   children: PvmRenderedNode[]
   emit: Emit
-  containsInput: boolean
+  revision: number
 
   constructor(
     model: UiNode,
@@ -35,16 +39,29 @@ export class PvmRenderedNode {
     this.model = model
     this.children = children
     this.emit = emit
-    this.containsInput =
-      model.type === 'Input' || children.some((child) => child.containsInput)
+    this.revision = model.revision
   }
 
   update(model: UiNode, children: PvmRenderedNode[], emit: Emit): void {
     this.model = model
     this.children = children
     this.emit = emit
-    this.containsInput =
-      model.type === 'Input' || children.some((child) => child.containsInput)
+    this.revision = model.revision
+  }
+
+  updateLocal(model: UiNode, emit: Emit): void {
+    this.model = model
+    this.emit = emit
+    this.revision = model.revision
+  }
+
+  touch(model: UiNode): void {
+    this.model = model
+    this.revision = model.revision
+  }
+
+  touchRevision(revision: number): void {
+    this.revision = revision
   }
 }
 
@@ -57,15 +74,49 @@ class CallbackViewHost implements ArkUiViewHost {
     this.factory = factory
   }
 
-  replace(root: object): void {
+  replace(root: object, changed: object[], structureChanged: boolean): void {
     const rendered = root as PvmRenderedNode
-    this.factory.retainNodes(rendered)
-    this.replaceCallback(rendered)
+    if (structureChanged) this.factory.retainNodes(rendered)
+    this.replaceCallback(
+      rendered,
+      changed.map((node) => node as PvmRenderedNode),
+      structureChanged,
+    )
   }
 }
 
 class HarmonyNodeFactory implements ArkUiNodeFactory {
   private readonly nodes: Map<number, PvmRenderedNode> = new Map()
+
+  reuse(node: UiNode): object | undefined {
+    const existing = this.nodes.get(node.id)
+    if (
+      existing !== undefined &&
+      existing.model.type === node.type &&
+      existing.revision === node.revision
+    ) {
+      return existing
+    }
+    return undefined
+  }
+
+  touch(node: UiNode): void {
+    const existing = this.nodes.get(node.id)
+    if (existing !== undefined && existing.model.type === node.type) {
+      existing.touch(node)
+    }
+  }
+
+  touchRevision(nodeId: number, revision: number): void {
+    this.nodes.get(nodeId)?.touchRevision(revision)
+  }
+
+  update(node: UiNode, emit: Emit): object | undefined {
+    const existing = this.nodes.get(node.id)
+    if (existing === undefined || existing.model.type !== node.type) return undefined
+    existing.updateLocal(node, emit)
+    return existing
+  }
 
   create(node: UiNode, children: object[], emit: Emit): object {
     const renderedChildren = children.map((child) => child as PvmRenderedNode)

@@ -63,6 +63,10 @@ struct EventBinding {
 struct UiNodeSnapshot {
   NodeType type;
   std::uint32_t id;
+  std::uint64_t revision;
+  bool changed;
+  bool local_changed;
+  bool structure_changed;
   std::vector<Property> properties;
   std::vector<EventBinding> events;
   std::vector<UiNodeSnapshot> children;

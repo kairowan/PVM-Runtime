@@ -79,6 +79,10 @@ Publishing the GitHub Release triggers `Publish Android SDK`, which publishes
 `Attach Production Android Assets` workflow only appends explicitly signed
 APK/AAB files to that existing release.
 
+All repository Android targets and the platform host gate set
+`GRADLE_USER_HOME` to `build/android-gradle-home`. They do not clean or write
+another desktop project's shared Gradle cache.
+
 Android production artifacts require target-app signing secrets:
 
 ```bash

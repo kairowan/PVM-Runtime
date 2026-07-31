@@ -8,6 +8,10 @@ public final class PVMSwiftUITree: ObservableObject {
     public var emit: (UInt32, String, String?) -> Void = { _, _, _ in }
     private var visibleNodeIDs: Set<UInt32> = []
     private var appearedNodeIDs: Set<UInt32> = []
+    private var pendingBatch: PendingBatch?
+    private var decodeTask: Task<Void, Never>?
+    private var requestGeneration: UInt64 = 0
+    private var pathsByID: [UInt32: [Int]] = [:]
 
     public init() {}
 
@@ -15,14 +19,116 @@ public final class PVMSwiftUITree: ObservableObject {
         batchJSON: String,
         events: @escaping (UInt32, String, String?) -> Void
     ) throws {
-        let batch = try JSONDecoder().decode(PVMUIBatch.self, from: Data(batchJSON.utf8))
-        guard batch.operation == "replace" else { throw PVMHostError("Unsupported UI batch") }
+        requestGeneration += 1
+        pendingBatch = nil
+        try apply(PVMUIBatchDecoder.decode(batchJSON), events: events)
+    }
+
+    public func enqueue(
+        batchJSON: String,
+        events: @escaping (UInt32, String, String?) -> Void,
+        errors: @escaping @MainActor (Error) -> Void
+    ) {
+        requestGeneration += 1
+        let generation = requestGeneration
+        if batchJSON.utf8.count <= Self.backgroundDecodeThreshold,
+           decodeTask == nil,
+           pendingBatch == nil {
+            do {
+                try apply(PVMUIBatchDecoder.decode(batchJSON), events: events)
+            } catch {
+                errors(error)
+            }
+            return
+        }
+        pendingBatch = PendingBatch(
+            generation: generation,
+            json: batchJSON,
+            events: events,
+            errors: errors
+        )
+        guard decodeTask == nil else { return }
+        decodeTask = Task { [weak self] in
+            await self?.drainBatches()
+        }
+    }
+
+    private func drainBatches() async {
+        while let pending = pendingBatch {
+            pendingBatch = nil
+            let json = pending.json
+            let decoded =
+                await Task.detached(priority: .userInitiated) {
+                    try PVMUIBatchDecoder.decode(json)
+                }.result
+            guard !Task.isCancelled, pending.generation == requestGeneration else { continue }
+            switch decoded {
+            case .success(let batch):
+                do {
+                    try apply(batch, events: pending.events)
+                } catch {
+                    pending.errors(error)
+                }
+            case .failure(let error):
+                pending.errors(error)
+            }
+        }
+        decodeTask = nil
+    }
+
+    func apply(
+        _ batch: PVMUIBatch,
+        events: @escaping (UInt32, String, String?) -> Void
+    ) throws {
+        guard batch.operation == "replace" || batch.operation == "patch" else {
+            throw PVMHostError("Unsupported UI batch")
+        }
         self.emit = events
-        let nextVisible = collectIDs(batch.root)
+        if let previous = root,
+           !batch.structureChanged,
+           previous.id == batch.rootID,
+           previous.type == batch.rootType {
+            if previous.revision == batch.rootRevision { return }
+            guard !batch.changed.isEmpty else {
+                throw PVMHostError("Incremental SwiftUI batch has no changed nodes")
+            }
+            for id in batch.changed {
+                guard let node = batch.nodesByID[id] else {
+                    throw PVMHostError("Changed UI node \(id) is missing")
+                }
+                collectValues(node)
+            }
+            if let completeRoot = batch.root {
+                root = completeRoot
+                return
+            }
+            var next = previous
+            for id in batch.changed {
+                guard let replacement = batch.nodesByID[id], let path = pathsByID[id] else {
+                    throw PVMHostError("Changed UI node \(id) has no stable path")
+                }
+                next = try replacing(
+                    next,
+                    at: path[...],
+                    with: replacement,
+                    revisions: batch.revisions
+                )
+            }
+            if next.revision != batch.rootRevision {
+                next = copy(next, revision: batch.rootRevision, children: next.children)
+            }
+            root = next
+            return
+        }
+        guard let nextRoot = batch.root else {
+            throw PVMHostError("A structural PVM update requires a complete root")
+        }
+        let nextVisible = collectIDs(nextRoot)
         appearedNodeIDs.formIntersection(nextVisible)
         visibleNodeIDs = nextVisible
-        collectValues(batch.root)
-        root = batch.root
+        collectValues(nextRoot)
+        pathsByID = indexPaths(nextRoot)
+        root = nextRoot
     }
 
     public func appear(_ nodeID: UInt32) {
@@ -73,6 +179,66 @@ public final class PVMSwiftUITree: ObservableObject {
         visit(root)
         return result
     }
+
+    private func indexPaths(_ root: PVMUINode) -> [UInt32: [Int]] {
+        var result: [UInt32: [Int]] = [:]
+        func visit(_ node: PVMUINode, path: [Int]) {
+            result[node.id] = path
+            for (index, child) in node.children.enumerated() {
+                visit(child, path: path + [index])
+            }
+        }
+        visit(root, path: [])
+        return result
+    }
+
+    private func replacing(
+        _ node: PVMUINode,
+        at path: ArraySlice<Int>,
+        with replacement: PVMUINode,
+        revisions: [UInt32: UInt64]
+    ) throws -> PVMUINode {
+        guard let index = path.first else { return replacement }
+        guard node.children.indices.contains(index) else {
+            throw PVMHostError("Incremental SwiftUI path is no longer valid")
+        }
+        var children = node.children
+        children[index] = try replacing(
+            children[index],
+            at: path.dropFirst(),
+            with: replacement,
+            revisions: revisions
+        )
+        return copy(
+            node,
+            revision: revisions[node.id] ?? node.revision,
+            children: children
+        )
+    }
+
+    private func copy(
+        _ node: PVMUINode,
+        revision: UInt64,
+        children: [PVMUINode]
+    ) -> PVMUINode {
+        PVMUINode(
+            type: node.type,
+            id: node.id,
+            revision: revision,
+            props: node.props,
+            events: node.events,
+            children: children
+        )
+    }
+
+    private struct PendingBatch {
+        let generation: UInt64
+        let json: String
+        let events: (UInt32, String, String?) -> Void
+        let errors: @MainActor (Error) -> Void
+    }
+
+    private static let backgroundDecodeThreshold = 32 * 1024
 }
 
 public struct PVMSwiftUIRenderer: View {
@@ -94,8 +260,13 @@ public struct PVMSwiftUIRenderer: View {
         // ponytail: the DSL tree is dynamic; type erasure prevents recursive generic
         // expansion during Swift compilation. Replace only after renderer profiling.
         AnyView(
-            renderedNode(value)
-                .modifier(PVMNodeBehavior(node: value, emit: tree.emit, appear: tree.appear))
+            PVMRevisionGate(nodeID: value.id, revision: value.revision) {
+                renderedNode(value)
+                    .modifier(
+                        PVMNodeBehavior(node: value, emit: tree.emit, appear: tree.appear)
+                    )
+            }
+            .equatable()
         )
     }
 
@@ -107,8 +278,15 @@ public struct PVMSwiftUIRenderer: View {
             return AnyView(Image(value.props["source"] ?? ""))
         case "Row":
             return AnyView(HStack { children(value) })
-        case "Column", "List":
+        case "Column":
             return AnyView(VStack { children(value) })
+        case "List":
+            return AnyView(
+                List(value.children, id: \.id) { child in
+                    node(child)
+                }
+                .listStyle(.plain)
+            )
         case "Stack":
             return AnyView(ZStack { children(value) })
         case "Scroll":
@@ -136,6 +314,20 @@ public struct PVMSwiftUIRenderer: View {
 
     private func children(_ value: PVMUINode) -> AnyView {
         AnyView(ForEach(value.children, id: \.id) { child in node(child) })
+    }
+}
+
+private struct PVMRevisionGate<Content: View>: View, Equatable {
+    let nodeID: UInt32
+    let revision: UInt64
+    let content: () -> Content
+
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.nodeID == rhs.nodeID && lhs.revision == rhs.revision
+    }
+
+    var body: some View {
+        content()
     }
 }
 

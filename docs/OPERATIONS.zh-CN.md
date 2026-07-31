@@ -104,6 +104,9 @@ make android-demo-check
 工程中使用正式 application ID、release variant、keystore 或 Play App Signing
 生成生产 APK/AAB。
 
+仓库内所有 Android 目标和平台 Host 门禁都把 `GRADLE_USER_HOME` 固定为
+`build/android-gradle-home`，不会清理或写入其他桌面项目共享的 Gradle 缓存。
+
 仓库提供显式生产签名任务；四项输入缺一即失败，不会回退到 Debug keystore：
 
 ```bash

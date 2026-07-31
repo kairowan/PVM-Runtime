@@ -259,6 +259,35 @@ class CounterState {
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertIn("C ABI smoke: PASS", completed.stdout)
 
+    def test_large_tree_suppresses_unchanged_render_batches(self):
+        source = json.loads(self.source.read_text(encoding="utf-8"))
+        source["module"]["budget"]["max_ui_nodes"] = 1000
+        source["pages"]["main"]["children"][0:0] = [
+            {
+                "type": "text",
+                "id": f"large_static_{index}",
+                "props": {"text": f"Static row {index}"},
+            }
+            for index in range(900)
+        ]
+        source_path = self.directory / "large-tree.pvm.json"
+        source_path.write_text(json.dumps(source), encoding="utf-8")
+        module = self.directory / "large-tree.pvm"
+        compile_file(source_path, self.private_key, module)
+        completed = subprocess.run(
+            [
+                str(self.c_api_smoke),
+                str(module),
+                str(self.public_key),
+                "com.example.protected",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn("C ABI smoke: PASS", completed.stdout)
+
     def test_tamper_binding_and_rollback_are_rejected(self):
         tampered = self.directory / "tampered.pvm"
         body = bytearray(self.module.read_bytes())

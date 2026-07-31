@@ -99,8 +99,9 @@ Qt、工具缓存、构建目录、应用包和迁移结果都留在当前仓库
 ### Runtime 与宿主
 
 - C++17 加载器、字节码验证器、解释器、栈类型检查、控制流检查和指令 watchdog。
-- C ABI v3 在创建时强制 application/channel/platform/profile/release floor 绑定，以及
-  Android JNI、iOS Objective-C++、HarmonyOS Node-API 桥。
+- C ABI v4 在创建时强制 application/channel/platform/profile/release floor 绑定，
+  选择 UI Wire v2 补丁传输，并通过 Android JNI、iOS Objective-C++、HarmonyOS
+  Node-API 桥接；C ABI v1–v3 保留完整树兼容。
 - Runtime 按“创建 → 可选恢复 → 单次启动 → 分发/完成 → 取消 → 销毁”的状态机执行；
   start 前拒绝事件和异步完成，start 后拒绝状态恢复和重复启动。
 - 中立 UI Tree、事件回传、Native Surface、同步和异步 Capability。
@@ -206,7 +207,7 @@ CryptoKit、Objective-C++ Bridge 与 C++17 VM 的
 `dist/ios/PVMRuntime.xcframework`，并验证：
 
 - arm64 iPhoneOS 与 arm64/x86_64 Simulator slice、iOS 15 deployment target。
-- 稳定 Swift Interface、C ABI v3、Swift 6 严格并发和完整 Runtime 符号。
+- 稳定 Swift Interface、C ABI v4 / UI Wire v2、Swift 6 严格并发和完整 Runtime 符号。
 - 一个实际链接二进制 XCFramework 的 Swift consumer，以及产物不存在私钥或本机绝对路径泄漏。
 
 Swift 层提供 `@MainActor PVMHost`、UIKit/SwiftUI Renderer、Module Store、Capability

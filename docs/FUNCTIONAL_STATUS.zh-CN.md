@@ -16,9 +16,10 @@ Sealed 模块交互、状态恢复和截图；这仍不是商业发布签名或�
 |---|---|---|
 | DSL 静态类型、控制流与预算检查 | 已实现 | `make test` |
 | PVBC v1–v5 读取、签名、绑定、防回滚 | 已实现 | `make test compatibility` |
-| C ABI v3 application/channel/platform/profile/release floor 绑定 | 已实现 | C ABI smoke、三端 Host 构建 |
+| C ABI v4 五项绑定与 UI Wire v2 补丁 | 已实现 | v1/v3 兼容、v4 补丁 C ABI smoke 与三端 Host 构建 |
 | Runtime 创建/恢复/单次启动/分发/取消生命周期 | 已实现 | C ABI 生命周期负向测试 |
 | 同步/异步 Effect 与取消 | 已实现 | C ABI smoke、任务预算测试 |
+| 节点 revision、精确 changed 清单与结构回退 | 已实现 | C ABI smoke、Android 真机、iOS Simulator 与 Harmony Host 差量/性能门禁 |
 | v4 稳定状态 ID 与增量迁移 | 已实现 | 状态改名/新增/冲突测试 |
 | v5 Input/Switch 事件值进入 VM 状态 | 已实现 | `event.value` C ABI 回归测试 |
 | 签名 Manifest、下载、Hash、预加载、原子 LKG | 已实现 | HTTP/LKG 测试与三端 Module Store |
@@ -54,11 +55,11 @@ Sealed 模块交互、状态恢复和截图；这仍不是商业发布签名或�
 
 | 后端 | 当前可用范围 | 仍需处理 |
 |---|---|---|
-| Android View | 11 类节点、属性、四类事件、输入值、NativeSurface 工厂和 appear absent→present；HONOR API 35 已验收交互/状态恢复 | 图片加载策略、更多 API/厂商设备、样式与性能 |
+| Android View | 11 类节点、精确 `changed` 按 ID 提交、稳定 ID 控件复用、`RecyclerView + ListAdapter/DiffUtil`、大批次后台解析/最新批次背压、输入值、NativeSurface 和 appear；HONOR API 35 上 1000 行只挂载可见项，240 节点单叶子更新 p95 为 172–187 μs、比配对全量重绑低约 35%–39% | Release Macrobenchmark/滚动帧与内存 SLO、图片策略、更多 API/厂商设备与产品样式 |
 | Android Compose/CMP | KMP 公共调用层已进入独立 Gradle 构建；递归 Compose Tree 仍是 Port | 锁定目标 Compose 版本、连接平台 Host 并做 UI/真机测试 |
-| UIKit | 11 类节点、Stack 约束、属性、四类事件、输入值、NativeSurface 工厂和 appear absent→present；Simulator Counter 已验收 | 图片加载、复杂布局/复用与真机校准 |
-| SwiftUI | 递归树、输入绑定、Switch、四类事件、enabled/无障碍和 appear absent→present | NativeSurface 仍是占位；图片与复杂列表策略 |
-| ArkUI | DevEco API 24 编译的递归原生树、事件值和 appear absent→present 语义；Pura 70 已完成 Counter 交互、状态恢复与截图 | 复杂布局性能、NativeSurface 业务工厂与更多真机校准 |
+| UIKit | 11 类节点、Wire v2 精确 `changed` 按 ID 提交、稳定 ID 控件复用、`UICollectionView` Compositional List 与 Diffable Data Source、大批次后台解析/背压、输入值、NativeSurface 和 appear；240 节点 Simulator 补丁提交 p95 7 μs | iOS 真机大列表/Instruments SLO、图片与产品复杂布局 |
+| SwiftUI | `node.id + revision` Equatable 子树门、Wire v2 稳定路径祖先合并、原生惰性 `List`、大批次后台解析/背压、输入绑定、Switch、事件和无障碍；240 节点 Simulator 补丁合并 p95 6 μs | NativeSurface 仍是占位；真机 Instruments、图片与产品样式 |
+| ArkUI | DevEco API 24 原生树、Wire v2 稳定 ID/路径索引精确更新、32 KiB `taskpool` 解析与最新批次背压、`List + Repeat.virtualScroll(reusable: true)`、事件值和 appear；Pura 70 已完成 Counter 交互、状态恢复与截图 | 大列表真机性能 SLO、NativeSurface 业务工厂与更多设备 |
 | Kuikly | 未进入构建、未锁定 SDK 版本的 Port 原型 | 仅在产品需要时选定版本并实现/编译/真机验证 |
 
 `spec/renderer_conformance.json` 中的 `compiled`、`sdk-required` 和
@@ -90,7 +91,7 @@ Native Component `camera.preview`、`host.screen`、`map.view` 和 `player.view`
 
 以下两项基线已经完成，不再列入“剩余阶段”：
 
-- **共享边界**：C ABI v3 强绑定、Runtime 生命周期状态机、三端严格 LKG state、
+- **共享边界**：C ABI v4 强绑定与 Wire v2、Runtime 生命周期状态机、三端严格 LKG state、
   cancel/close 迟到回调丢弃、Renderer `appear` absent→present 与负向回归已落地。
 - **iOS SDK 基线**：Swift Package、`@MainActor PVMHost`、Privacy Manifest、完整 C++17
   Runtime 完整二进制 XCFramework、Xcode Demo、`make ios-sdk-check` 和 `make ios-demo-check`

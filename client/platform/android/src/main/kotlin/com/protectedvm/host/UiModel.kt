@@ -47,15 +47,64 @@ data class UiNode(
     val props: Map<String, String>,
     val events: Set<String>,
     val children: List<UiNode>,
+    val revision: Long = 1,
 ) {
     companion object {
-        fun parseBatch(json: String): UiNode {
+        fun parseBatch(json: String): UiBatch {
             val batch = JSONObject(json)
-            require(batch.getString("operation") == "replace") { "Unsupported UI batch" }
-            return parse(batch.getJSONObject("root"))
+            val operation = batch.getString("operation")
+            require(operation == "replace" || operation == "patch") { "Unsupported UI batch" }
+            val wireVersion = batch.optInt("wireVersion", 1)
+            require(operation != "patch" || wireVersion == 2) { "Patch requires UI wire v2" }
+            val structureChanged = batch.optBoolean("structureChanged", true)
+            require(operation != "patch" || !structureChanged) {
+                "Structural UI changes require a complete root"
+            }
+            val root =
+                batch.optJSONObject("root")?.let {
+                    parse(it, HashMap())
+                }
+            require(operation != "replace" || root != null) { "Replacement root is missing" }
+            val changedIds = batch.optJSONArray("changed")?.longs().orEmpty()
+            require(changedIds.distinct().size == changedIds.size) {
+                "Duplicate changed UI node id"
+            }
+            val changedById =
+                if (operation == "replace") {
+                    root!!.flatten().associateBy(UiNode::id)
+                } else {
+                    val changedNodes =
+                        batch.getJSONArray("nodes")
+                        .objects()
+                        .map { parse(it, HashMap()) }
+                    require(changedNodes.map(UiNode::id).distinct().size == changedNodes.size) {
+                        "Duplicate changed UI node payload"
+                    }
+                    changedNodes.associateBy(UiNode::id)
+                }
+            val revisions =
+                buildMap {
+                    batch.optJSONArray("revisions")?.objects().orEmpty().forEach { item ->
+                        val id = item.getLong("id")
+                        require(put(id, item.getLong("revision")) == null) {
+                            "Duplicate UI revision id $id"
+                        }
+                    }
+                }
+            return UiBatch(
+                root = root,
+                structureChanged = structureChanged,
+                changedNodes = changedIds.map { id ->
+                    requireNotNull(changedById[id]) { "Changed UI node $id is missing" }
+                },
+                rootId = root?.id ?: batch.getLong("rootId"),
+                rootType = root?.type ?: batch.getString("rootType"),
+                rootRevision = root?.revision ?: batch.getLong("rootRevision"),
+                revisions = revisions,
+            )
         }
 
-        private fun parse(source: JSONObject): UiNode {
+        private fun parse(source: JSONObject, nodesById: MutableMap<Long, UiNode>): UiNode {
             val propsObject = source.getJSONObject("props")
             val props = buildMap {
                 val keys = propsObject.keys()
@@ -64,16 +113,42 @@ data class UiNode(
                     put(key, propsObject.getString(key))
                 }
             }
-            return UiNode(
+            val node =
+                UiNode(
                 type = source.getString("type"),
                 id = source.getLong("id"),
+                revision = source.getLong("revision"),
                 props = props,
                 events = source.getJSONArray("events").strings(),
-                children = source.getJSONArray("children").objects().map(::parse),
+                children =
+                    source
+                        .getJSONArray("children")
+                        .objects()
+                        .map { child -> parse(child, nodesById) },
             )
+            require(nodesById.put(node.id, node) == null) {
+                "Duplicate UI node id ${node.id}"
+            }
+            return node
         }
+
+        private fun UiNode.flatten(): Sequence<UiNode> =
+            sequence {
+                yield(this@flatten)
+                children.forEach { yieldAll(it.flatten()) }
+            }
     }
 }
+
+data class UiBatch(
+    val root: UiNode?,
+    val structureChanged: Boolean,
+    val changedNodes: List<UiNode>,
+    val rootId: Long = requireNotNull(root).id,
+    val rootType: String = requireNotNull(root).type,
+    val rootRevision: Long = requireNotNull(root).revision,
+    val revisions: Map<Long, Long> = emptyMap(),
+)
 
 private fun JSONArray.strings(): Set<String> =
     buildSet {
@@ -83,4 +158,9 @@ private fun JSONArray.strings(): Set<String> =
 private fun JSONArray.objects(): List<JSONObject> =
     buildList {
         for (index in 0 until length()) add(getJSONObject(index))
+    }
+
+private fun JSONArray.longs(): List<Long> =
+    buildList {
+        for (index in 0 until length()) add(getLong(index))
     }

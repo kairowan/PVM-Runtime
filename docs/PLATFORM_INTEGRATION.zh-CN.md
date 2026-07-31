@@ -27,7 +27,7 @@ sequenceDiagram
     Store->>VM: preload module + release floor
     VM-->>Store: verified release/metadata
     Store-->>App: immutable local module path
-    App->>VM: create_v3(application/channel/platform/profile/floor)
+    App->>VM: create_v4(application/channel/platform/profile/floor, Wire v2)
     VM-->>App: Runtime policy metadata
     App->>Registry: apply capability versions
     App->>VM: restore state
@@ -249,7 +249,7 @@ AAR 已携带 JNI/R8 consumer rules。目标 App 仍需根据实际 Capability �
 - `PVMPlatformCrypto.swift`：CryptoKit Ed25519。
 - `PVMUIKitRenderer.swift` 与 `PVMSwiftUIRenderer.swift`。
 - `PVMCapabilityRegistry.swift` 与基础 Capability。
-- `PVMHost.swift`：`@MainActor` 统一 Host、C ABI v3 绑定、事件与生命周期入口。
+- `PVMHost.swift`：`@MainActor` 统一 Host、C ABI v4 / UI Wire v2、事件与生命周期入口。
 - [`Package.swift`](../Package.swift)：iOS 15 的 C++ Core、Objective-C++ Bridge 和 Swift
   Runtime 源码包。
 - `PrivacyInfo.xcprivacy`：随 Swift Package Runtime target 打包的隐私清单基线。
@@ -498,10 +498,11 @@ Adapter。
 
 ## C ABI 生命周期
 
-新移动端集成使用 v3 创建接口；回调结构仍名为 `pvm_host_callbacks_v2`：
+新移动端渲染集成使用 v4 创建接口和 `pvm_host_callbacks_v3`：
 
-1. 安装 `pvm_host_callbacks_v2`，包括签名验证回调。
-2. 调用 `pvm_runtime_create_v3`，传入预期 application/channel/platform/profile 和
+1. 安装 `pvm_host_callbacks_v3`，包括签名验证回调，并把 `ui_wire_version` 设为
+   `PVM_UI_WIRE_V2`。
+2. 调用 `pvm_runtime_create_v4`，传入预期 application/channel/platform/profile 和
    `minimum_release`，完成模块签名、绑定、防回滚和字节码验证。
 3. 读取 Runtime metadata，并让 Capability Registry 检查最低版本。
 4. 可选调用 `pvm_runtime_restore_state`。
@@ -517,12 +518,50 @@ Runtime 只能 start 一次；dispatch/complete 在 start 前失败，restore �
 cancel 会删除所有 continuation，之后直接调用 C ABI 完成同一 task 会返回
 “missing or cancelled”；平台 Host 还会在边界丢弃 cancel/close 后的迟到回调。
 
-旧的 `pvm_runtime_create` 和 `pvm_runtime_create_v2` 只为 ABI 兼容保留，未接收完整
-channel/platform/profile 预期值，不应用于新的移动端接入。
+Wire v2 的首次提交和结构变化携带完整 Root；稳定结构只携带 Root 元数据、变化节点
+子树与祖先 revision。旧的 `pvm_runtime_create`、`pvm_runtime_create_v2` 和
+`pvm_runtime_create_v3` 始终接收完整树 Wire v1；其中 v1/v2 未接收完整
+channel/platform/profile 预期值，不应用于新的移动端渲染接入。v3 可继续用于只验证
+不渲染的预加载。
 
 `pvm_runtime_dispatch_value` 的值在调用期间被复制，并受模块
 `max_state_bytes` 预算限制。DSL 处理器用 PVBC v5 `event.value` 读取它；对没有值的
 事件执行该指令会明确失败。
+
+### UI Wire v2
+
+首次提交或结构变化使用 `operation: "replace"` 并携带完整 `root`。结构稳定时使用
+`operation: "patch"`：
+
+```json
+{
+  "wireVersion": 2,
+  "operation": "patch",
+  "structureChanged": false,
+  "rootId": 1,
+  "rootType": "Column",
+  "rootRevision": 42,
+  "changed": [7],
+  "nodes": [
+    {
+      "type": "Text",
+      "id": 7,
+      "revision": 42,
+      "props": { "text": "已更新" },
+      "events": [],
+      "children": []
+    }
+  ],
+  "revisions": [
+    { "id": 1, "revision": 42 },
+    { "id": 7, "revision": 42 }
+  ]
+}
+```
+
+`changed` 的顺序与 `nodes` 顶层对象一致；变化的 `List` 携带其当前 Item 子树。
+`revisions` 只更新祖先渲染门禁，不重复发送未变化属性。Host 拒绝缺失或重复 ID；
+Root identity、类型或结构变化时必须回退到完整 Root。
 
 ## UI Renderer 合同
 

@@ -14,6 +14,7 @@ struct HostState {
   int effects{0};
   int async_effects{0};
   bool async_failed{false};
+  bool invalid_ui{false};
   bool defer_async{false};
   std::string last_ui;
   std::vector<std::uint64_t> pending_tasks;
@@ -27,11 +28,32 @@ std::uint32_t node_id(const std::string& source_id) {
   return result;
 }
 
+std::uint64_t node_revision(const std::string& batch, std::uint32_t id) {
+  const auto marker = "\"id\":" + std::to_string(id) + ",\"revision\":";
+  const auto start = batch.find(marker);
+  if (start == std::string::npos) return 0;
+  const auto value = start + marker.size();
+  const auto end = batch.find_first_not_of("0123456789", value);
+  return std::stoull(batch.substr(value, end - value));
+}
+
+bool changed_node(const std::string& batch, std::uint32_t id) {
+  const auto start = batch.find("\"changed\":[");
+  if (start == std::string::npos) return false;
+  const auto end = batch.find(']', start);
+  if (end == std::string::npos) return false;
+  const auto values = ',' + batch.substr(start + std::strlen("\"changed\":["),
+                                         end - start - std::strlen("\"changed\":[")) +
+                      ',';
+  return values.find(',' + std::to_string(id) + ',') != std::string::npos;
+}
+
 void on_ui(void* context, const char* json, std::size_t size) {
   auto& state = *static_cast<HostState*>(context);
   const std::string batch(json, size);
-  if (batch.find("\"operation\":\"replace\"") == std::string::npos) {
-    std::cerr << "invalid UI batch\n";
+  if (batch.find("\"operation\":\"replace\"") == std::string::npos &&
+      batch.find("\"operation\":\"patch\"") == std::string::npos) {
+    state.invalid_ui = true;
     return;
   }
   state.last_ui = batch;
@@ -111,18 +133,50 @@ int main(int argc, char** argv) {
       !pvm_runtime_restore_state(runtime, initial.data(), initial.size(), error, sizeof(error)) ||
       !pvm_runtime_start(runtime, error, sizeof(error)) ||
       pvm_runtime_start(runtime, error, sizeof(error)) ||
-      std::string(error).find("already started") == std::string::npos ||
-      !pvm_runtime_dispatch(runtime, node_id("counter_increment"), 1, error, sizeof(error)) ||
-      !pvm_runtime_dispatch(runtime, node_id("counter_notify"), 1, error, sizeof(error))) {
+      std::string(error).find("already started") == std::string::npos) {
     std::cerr << error << '\n';
     pvm_runtime_destroy(runtime);
     return 1;
   }
   state.runtime = runtime;
+  const auto initial_title_revision =
+      node_revision(state.last_ui, node_id("counter_title"));
+  const auto initial_button_revision =
+      node_revision(state.last_ui, node_id("counter_notify"));
+  if (state.last_ui.find("\"structureChanged\":true") == std::string::npos) {
+    std::cerr << "initial UI structure marker assertion failed\n";
+    pvm_runtime_destroy(runtime);
+    return 1;
+  }
+  if (!pvm_runtime_dispatch(runtime, node_id("counter_increment"), 1, error, sizeof(error)) ||
+      node_revision(state.last_ui, node_id("counter_title")) <= initial_title_revision ||
+      node_revision(state.last_ui, node_id("counter_notify")) != initial_button_revision ||
+      state.last_ui.find("\"structureChanged\":false") == std::string::npos ||
+      !changed_node(state.last_ui, node_id("counter_title")) ||
+      changed_node(state.last_ui, node_id("counter_notify")) ||
+      !pvm_runtime_dispatch(runtime, node_id("counter_notify"), 1, error, sizeof(error))) {
+    std::cerr << (error[0] == '\0' ? "UI revision assertion failed" : error) << '\n';
+    pvm_runtime_destroy(runtime);
+    return 1;
+  }
   if (!pvm_runtime_dispatch_value(runtime, node_id("counter_name"), 2, "Ada", error,
                                   sizeof(error)) ||
       state.last_ui.find("\"value\":\"Ada\"") == std::string::npos) {
     std::cerr << (error[0] == '\0' ? "UI event value assertion failed" : error) << '\n';
+    pvm_runtime_destroy(runtime);
+    return 1;
+  }
+  const auto batches_after_name_change = state.ui_batches;
+  for (int index = 0; index < 64; ++index) {
+    if (!pvm_runtime_dispatch_value(runtime, node_id("counter_name"), 2, "Ada", error,
+                                    sizeof(error))) {
+      std::cerr << error << '\n';
+      pvm_runtime_destroy(runtime);
+      return 1;
+    }
+  }
+  if (state.ui_batches != batches_after_name_change) {
+    std::cerr << "unchanged UI was emitted again\n";
     pvm_runtime_destroy(runtime);
     return 1;
   }
@@ -178,12 +232,62 @@ int main(int argc, char** argv) {
       pvm_runtime_restore_state(runtime, snapshot.data(), snapshot.size(), error, sizeof(error)) ||
       std::string(error).find("before runtime start") == std::string::npos ||
       pvm_runtime_release(runtime) != 5 || state.ui_batches != 4 || state.effects != 1 ||
-      state.async_effects != 1 || state.async_failed) {
+      state.async_effects != 1 || state.async_failed || state.invalid_ui ||
+      state.last_ui.find("\"wireVersion\"") != std::string::npos ||
+      state.last_ui.find("\"root\":") == std::string::npos) {
     std::cerr << (error[0] == '\0' ? "C ABI assertion failed" : error) << '\n';
     pvm_runtime_destroy(runtime);
     return 1;
   }
   pvm_runtime_destroy(runtime);
+
+  HostState patch_state;
+  pvm_host_callbacks_v3 patch_callbacks{
+      &patch_state,
+      on_ui,
+      on_effect,
+      on_async_effect,
+      nullptr,
+      PVM_UI_WIRE_V2,
+  };
+  pvm_runtime* invalid_wire =
+      pvm_runtime_create_v4(argv[1], argv[2], argv[3], "enterprise", "desktop",
+                            "online_provisioned", 0,
+                            pvm_host_callbacks_v3{&patch_state, on_ui, on_effect,
+                                                  on_async_effect, nullptr, 99},
+                            error, sizeof(error));
+  if (invalid_wire != nullptr ||
+      std::string(error).find("unsupported UI wire version") == std::string::npos) {
+    std::cerr << "C ABI wire version assertion failed\n";
+    pvm_runtime_destroy(invalid_wire);
+    return 1;
+  }
+  pvm_runtime* patch_runtime =
+      pvm_runtime_create_v4(argv[1], argv[2], argv[3], "enterprise", "desktop",
+                            "online_provisioned", 0, patch_callbacks, error, sizeof(error));
+  if (patch_runtime == nullptr || !pvm_runtime_start(patch_runtime, error, sizeof(error)) ||
+      patch_state.last_ui.find("\"wireVersion\":2") == std::string::npos ||
+      patch_state.last_ui.find("\"operation\":\"replace\"") == std::string::npos ||
+      patch_state.last_ui.find("\"root\":") == std::string::npos) {
+    std::cerr << (error[0] == '\0' ? "C ABI v4 initial batch assertion failed" : error) << '\n';
+    pvm_runtime_destroy(patch_runtime);
+    return 1;
+  }
+  const auto full_batch_size = patch_state.last_ui.size();
+  if (!pvm_runtime_dispatch(patch_runtime, node_id("counter_increment"), 1, error,
+                            sizeof(error)) ||
+      patch_state.last_ui.find("\"operation\":\"patch\"") == std::string::npos ||
+      patch_state.last_ui.find("\"root\":") != std::string::npos ||
+      patch_state.last_ui.find("\"rootId\":") == std::string::npos ||
+      patch_state.last_ui.find("\"nodes\":[") == std::string::npos ||
+      patch_state.last_ui.find("\"revisions\":[") == std::string::npos ||
+      !changed_node(patch_state.last_ui, node_id("counter_title")) ||
+      patch_state.last_ui.size() >= full_batch_size || patch_state.invalid_ui) {
+    std::cerr << (error[0] == '\0' ? "C ABI v4 patch assertion failed" : error) << '\n';
+    pvm_runtime_destroy(patch_runtime);
+    return 1;
+  }
+  pvm_runtime_destroy(patch_runtime);
   std::cout << "C ABI smoke: PASS\n";
   return 0;
 }

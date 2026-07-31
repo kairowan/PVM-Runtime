@@ -114,7 +114,7 @@ max(已安装 LKG release, 安装包 minimumRelease)
 
 - 包头、长度、格式和 Runtime 最低版本。
 - application、channel、platform、profile 与单调 release 绑定；新移动端 Host 使用
-  C ABI v3 传入四项预期值和 release floor，Store 再核对 VM release 与 Manifest。
+  C ABI v4 传入四项预期值和 release floor，Store 再核对 VM release 与 Manifest。
 - 表大小、索引、唯一性、状态类型和持久化 ID。
 - 跳转目标、分支栈形状、指令操作数和 Capability 声明。
 - UI 深度、节点唯一性、任务数、状态大小、栈和每事件指令预算。
