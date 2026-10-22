@@ -53,7 +53,7 @@ kotlin {
 
 dependencies {
     implementation("androidx.recyclerview:recyclerview:1.4.0")
-    implementation("com.google.crypto.tink:tink-android:1.23.0")
+    implementation("com.google.crypto.tink:tink-android:1.24.0")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.test:runner:1.7.0")
 }
